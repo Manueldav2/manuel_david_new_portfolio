@@ -74,8 +74,8 @@ export default function ColdEmailSaaSPage() {
               A platform that automates cold email campaigns by combining OpenAI-generated copy with BillionMail's SMTP/domain management system for seamless outreach.
             </p>
             <div className="flex justify-center gap-4 mt-8">
-              <Badge className="px-4 py-2 text-sm bg-green-100 text-green-800 border-green-200">
-                Live SaaS
+              <Badge className="px-4 py-2 text-sm bg-orange-100 text-orange-800 border-orange-200">
+                In Development
               </Badge>
               <Badge className="px-4 py-2 text-sm bg-purple-100 text-purple-800 border-purple-200">
                 AI-Powered Automation

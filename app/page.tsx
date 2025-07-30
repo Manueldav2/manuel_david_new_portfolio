@@ -606,7 +606,7 @@ export default function ResumePage() {
                 backgroundClip: "text",
               }}
             >
-              Manuel David
+              Resume
             </div>
             <div className="hidden md:flex gap-2">
               {[
@@ -614,7 +614,8 @@ export default function ResumePage() {
                 { name: "Experience", href: "/experience" },
                 { name: "Projects", href: "/projects" },
                 { name: "Education", href: "/education" },
-                { name: "Skills", href: "/skills" }
+                { name: "Skills", href: "/skills" },
+                { name: "AI Chat", href: "/chat" }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -637,6 +638,14 @@ export default function ResumePage() {
                   borderColor: "#b08968",
                   color: "#b08968",
                   transform: "translate3d(0, 0, 0)",
+                }}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/manuel-resume.pdf';
+                  link.download = 'Manuel_David_Resume.pdf';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
                 }}
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -858,7 +867,14 @@ export default function ResumePage() {
                     icon: Download,
                     text: "Download Resume",
                     style: { backgroundColor: "white", color: "#7f5539" },
-                    action: () => {},
+                    action: () => {
+                      const link = document.createElement('a');
+                      link.href = '/manuel-resume.pdf';
+                      link.download = 'Manuel_David_Resume.pdf';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    },
                   },
                   {
                     icon: Mail,
@@ -870,7 +886,7 @@ export default function ResumePage() {
                     icon: ExternalLink,
                     text: "View Portfolio",
                     style: { borderColor: "white", color: "white", backgroundColor: "transparent" },
-                    action: () => window.open("https://nouvo.dev", "_blank"),
+                    action: () => window.location.href = "/projects",
                   },
                 ].map((btn, index) => (
                   <Button

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Briefcase, CheckCircle, ArrowLeft, Calendar, MapPin, Building, Brain, Rocket, Monitor, Users, Target, TrendingUp } from "lucide-react"
+import { Briefcase, CheckCircle, ArrowLeft, Calendar, MapPin, Building, Brain, Rocket, Monitor, Users, Target, TrendingUp, Code } from "lucide-react"
 import Link from "next/link"
 
 export default function ExperiencePage() {
@@ -48,7 +48,8 @@ export default function ExperiencePage() {
                 { name: "Experience", href: "/experience", active: true },
                 { name: "Projects", href: "/projects", active: false },
                 { name: "Education", href: "/education", active: false },
-                { name: "Skills", href: "/skills", active: false }
+                { name: "Skills", href: "/skills", active: false },
+                { name: "AI Chat", href: "/chat", active: false }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -131,7 +132,7 @@ export default function ExperiencePage() {
                     "Founded a boutique agency building AI-integrated websites for creators, professionals, and local businesses",
                     "Built Resume AI, Cold Email SaaS, and a smart chatbot assistant to automate lead gen and onboarding",
                     "Delivered 12+ branded business websites with interactive design, intelligent search, and automation",
-                    "Managed client relationships and project delivery with 100% client satisfaction rate"
+                    "Managed client relationships and project delivery with 93% client satisfaction rate"
                   ],
                   gradient: "rgba(230, 204, 178, 0.2)",
                   borderColor: "#b08968",
@@ -199,6 +200,60 @@ export default function ExperiencePage() {
                         </li>
                       ))}
                     </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Clubs & Organizations */}
+        <section className="py-16 bg-white">
+          <div className="max-w-6xl mx-auto px-6">
+            <h3 className="text-3xl font-bold mb-12 text-center" style={{ color: "#7f5539" }}>
+              Clubs & Organizations
+            </h3>
+            <div className="grid md:grid-cols-2 gap-8">
+              {[
+                {
+                  name: "Software Developers Association",
+                  organization: "Arizona State University",
+                  period: "2024 - Present",
+                  role: "Active Member",
+                  description: "Participating in coding workshops, hackathons, and collaborative software development projects",
+                  icon: Code
+                },
+                {
+                  name: "AI in Business Club",
+                  organization: "Arizona State University", 
+                  period: "2024 - Present",
+                  role: "Active Member",
+                  description: "Exploring AI applications in business contexts and learning about enterprise AI solutions",
+                  icon: Brain
+                }
+              ].map((club, index) => (
+                <Card key={index} className="shadow-lg border-0 hover:shadow-xl transition-all duration-300"
+                  style={{
+                    background: `linear-gradient(135deg, rgba(237, 224, 212, 0.1), rgba(230, 204, 178, 0.05))`,
+                  }}>
+                  <CardHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <club.icon className="w-6 h-6" style={{ color: "#7f5539" }} />
+                      <CardTitle className="text-xl">{club.name}</CardTitle>
+                    </div>
+                    <CardDescription className="text-lg text-gray-600">{club.organization}</CardDescription>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>{club.period}</span>
+                      </div>
+                      <Badge variant="outline" style={{ borderColor: "#b08968", color: "#7f5539" }}>
+                        {club.role}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-700">{club.description}</p>
                   </CardContent>
                 </Card>
               ))}

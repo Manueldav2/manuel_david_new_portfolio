@@ -49,7 +49,8 @@ export default function ProjectsPage() {
                 { name: "Experience", href: "/experience", active: false },
                 { name: "Projects", href: "/projects", active: true },
                 { name: "Education", href: "/education", active: false },
-                { name: "Skills", href: "/skills", active: false }
+                { name: "Skills", href: "/skills", active: false },
+                { name: "AI Chat", href: "/chat", active: false }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -110,12 +111,23 @@ export default function ProjectsPage() {
               {[
                 {
                   icon: Brain,
+                  title: "Resume ATS Optimizer",
+                  slug: "resume-ats-optimizer",
+                  description: "AI-powered web app that analyzes and optimizes resumes for applicant tracking systems through four interactive steps with detailed feedback and scoring.",
+                  tech: ["React", "TypeScript", "Tailwind CSS", "OpenAI", "AI Analysis"],
+                  gradient: "from-blue-50 to-indigo-50",
+                  color: "#3b82f6",
+                  status: "In Development",
+                  github: "#"
+                },
+                {
+                  icon: Brain,
                   title: "Resume Site AI",
                   slug: "resume-site-ai",
                   description: "Smart Q&A agent for resume-based portfolio sites with intelligent content matching and personalized responses.",
                   tech: ["OpenAI API", "React", "Python", "NLP"],
-                  gradient: "from-stone-50 to-amber-50",
-                  color: "#7f5539",
+                  gradient: "from-emerald-50 to-teal-50",
+                  color: "#10b981",
                   status: "Live",
                   github: "#"
                 },
@@ -125,9 +137,31 @@ export default function ProjectsPage() {
                   slug: "cold-email-saas", 
                   description: "Outreach automation tool integrating OpenAI and BillionMail backend for lead generation and sales optimization.",
                   tech: ["OpenAI", "BillionMail", "Node.js", "Automation"],
-                  gradient: "from-amber-50 to-stone-50",
-                  color: "#9c6644",
-                  status: "Live",
+                  gradient: "from-purple-50 to-violet-50",
+                  color: "#8b5cf6",
+                  status: "In Development",
+                  github: "#"
+                },
+                {
+                  icon: Smartphone,
+                  title: "Social Media Auto Content",
+                  slug: "social-media-auto-content",
+                  description: "Automatically generate and post short-form content to social media based on business images and descriptions using AI-powered content generation.",
+                  tech: ["N8N", "AI Content Generation", "Social Media APIs", "Cloudflare R2"],
+                  gradient: "from-pink-50 to-rose-50",
+                  color: "#ec4899",
+                  status: "In Development",
+                  github: "#"
+                },
+                {
+                  icon: Mail,
+                  title: "Smart Email Assistant",
+                  slug: "smart-email-assistant",
+                  description: "Automatically read, respond to, and send emails, and add events to calendar based on email content—perfect for client communication and appointment setting.",
+                  tech: ["N8N", "Gmail API", "Calendar API", "AI Processing"],
+                  gradient: "from-cyan-50 to-sky-50",
+                  color: "#06b6d4",
+                  status: "In Development",
                   github: "#"
                 },
                 {
@@ -136,8 +170,8 @@ export default function ProjectsPage() {
                   slug: "therapist-ai",
                   description: "Voice-interactive mental health assistant using advanced AI and speech synthesis for therapeutic conversations.",
                   tech: ["Python", "Eleven Labs", "OpenAI", "Voice AI"],
-                  gradient: "from-stone-100 to-amber-50",
-                  color: "#b08968",
+                  gradient: "from-orange-50 to-amber-50",
+                  color: "#f59e0b",
                   status: "Prototype",
                   github: "#"
                 },
@@ -147,8 +181,8 @@ export default function ProjectsPage() {
                   slug: "nouvo-platform",
                   description: "AI agency platform with chatbot assistant and automated client onboarding workflows for digital services.",
                   tech: ["React", "AI APIs", "Automation", "SaaS"],
-                  gradient: "from-amber-50 to-stone-100",
-                  color: "#ddb892",
+                  gradient: "from-red-50 to-pink-50",
+                  color: "#ef4444",
                   status: "Live",
                   github: "#"
                 },
@@ -158,8 +192,8 @@ export default function ProjectsPage() {
                   slug: "popup-drink-website",
                   description: "AI-powered drink recommendation tool and brand site with intelligent product matching and user engagement.",
                   tech: ["AI Recommendations", "React", "Firebase", "E-commerce"],
-                  gradient: "from-stone-50 to-stone-100",
-                  color: "#e6ccb2",
+                  gradient: "from-lime-50 to-green-50",
+                  color: "#22c55e",
                   status: "Live",
                   github: "#"
                 },
@@ -169,8 +203,8 @@ export default function ProjectsPage() {
                   slug: "business-websites",
                   description: "Delivered portfolio and e-commerce sites for fashion, tech, and service brands with modern design and functionality.",
                   tech: ["React", "Webflow", "Custom Code", "UI/UX"],
-                  gradient: "from-amber-100 to-stone-50",
-                  color: "#7f5539",
+                  gradient: "from-slate-50 to-gray-50",
+                  color: "#64748b",
                   status: "Live",
                   github: "#"
                 },
@@ -239,8 +273,8 @@ export default function ProjectsPage() {
             <div className="grid md:grid-cols-4 gap-8">
               {[
                 { number: "12+", label: "Websites Delivered", icon: Globe },
-                { number: "5", label: "AI Projects", icon: Brain },
-                { number: "100%", label: "Client Satisfaction", icon: Award },
+                { number: "10+", label: "AI Projects", icon: Brain },
+                { number: "93%", label: "Client Satisfaction", icon: Award },
                 { number: "2+", label: "Years Experience", icon: TrendingUp }
               ].map((stat, index) => (
                 <div key={index} className="text-center">

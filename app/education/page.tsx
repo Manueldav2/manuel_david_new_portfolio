@@ -48,7 +48,8 @@ export default function EducationPage() {
                 { name: "Experience", href: "/experience", active: false },
                 { name: "Projects", href: "/projects", active: false },
                 { name: "Education", href: "/education", active: true },
-                { name: "Skills", href: "/skills", active: false }
+                { name: "Skills", href: "/skills", active: false },
+                { name: "AI Chat", href: "/chat", active: false }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -120,8 +121,8 @@ export default function EducationPage() {
                   ],
                   gradient: "#7f5539",
                   icon: GraduationCap,
-                  gpa: "3.8",
-                  credits: "45/120"
+                  gpa: "",
+                  credits: "35/120"
                 },
                 {
                   school: "Bentonville High School",
@@ -131,12 +132,12 @@ export default function EducationPage() {
                   activities: [
                     "Technology & Computer Science Focus",
                     "Advanced Placement Computer Science",
-                    "Robotics Club Member",
-                    "Academic Excellence Award"
+                    "Seal of Biliteracy",
+                    "Completer Pathway"
                   ],
                   gradient: "#9c6644",
                   icon: BookOpen,
-                  gpa: "3.9",
+                  gpa: "",
                   credits: "Graduated"
                 },
               ].map((edu, index) => (
@@ -168,11 +169,7 @@ export default function EducationPage() {
                   <CardContent className="p-8">
                     <div className="space-y-6">
                       {/* Academic Stats */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="text-center p-4 bg-white/50 rounded-lg">
-                          <div className="text-2xl font-bold" style={{ color: edu.gradient }}>{edu.gpa}</div>
-                          <div className="text-sm text-gray-600">GPA</div>
-                        </div>
+                      <div className="grid grid-cols-1 gap-4">
                         <div className="text-center p-4 bg-white/50 rounded-lg">
                           <div className="text-2xl font-bold" style={{ color: edu.gradient }}>{edu.credits}</div>
                           <div className="text-sm text-gray-600">Credits</div>
@@ -218,8 +215,7 @@ export default function EducationPage() {
                 </h4>
                 <div className="space-y-3">
                   {[
-                    "OpenAI API Development",
-                    "React.js Advanced Concepts",
+                    "Code pathway in JavaScript HTML certification",
                     "Python Programming",
                     "Web Development Fundamentals"
                   ].map((cert, index) => (
@@ -239,8 +235,8 @@ export default function EducationPage() {
                   {[
                     "Advanced AI/ML Algorithms",
                     "Cloud Architecture (AWS/Azure)",
-                    "DevOps & CI/CD Practices",
-                    "Data Science & Analytics"
+                    "Webflow",
+                    "Perplexity API"
                   ].map((skill, index) => (
                     <div key={index} className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#b08968" }}></div>

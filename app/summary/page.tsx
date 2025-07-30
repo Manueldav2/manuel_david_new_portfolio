@@ -49,7 +49,8 @@ export default function SummaryPage() {
                 { name: "Experience", href: "/experience", active: false },
                 { name: "Projects", href: "/projects", active: false },
                 { name: "Education", href: "/education", active: false },
-                { name: "Skills", href: "/skills", active: false }
+                { name: "Skills", href: "/skills", active: false },
+                { name: "AI Chat", href: "/chat", active: false }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -150,7 +151,7 @@ export default function SummaryPage() {
                     Specialized in React, Python, and AI APIs including OpenAI and Eleven Labs to automate workflows, power intelligent chatbots, and scale SaaS platforms. Demonstrated expertise in delivering clean, maintainable code and innovative client-facing solutions that drive user engagement and business growth.
                   </p>
                   <p className="text-lg text-gray-600 leading-relaxed">
-                    Seeking senior software engineering roles that leverage AI and full-stack development expertise to drive organizational transformation and technological innovation.
+                    Seeking software developer internships that leverage AI and full-stack development expertise to drive organizational transformation and technological innovation.
                   </p>
                 </div>
 
@@ -159,7 +160,7 @@ export default function SummaryPage() {
                   {[
                     { value: "2", label: "Years Experience", icon: Award, color: "#7f5539" },
                     { value: "12", label: "Websites Delivered", icon: Target, color: "#9c6644" },
-                    { value: "5", label: "AI Projects", icon: TrendingUp, color: "#b08968" },
+                    { value: "10", label: "AI Projects", icon: TrendingUp, color: "#b08968" },
                     { value: "1", label: "Company Founded", icon: User, color: "#ddb892" },
                   ].map((metric, index) => (
                     <div
@@ -179,7 +180,7 @@ export default function SummaryPage() {
                           WebkitTextFillColor: "transparent",
                           backgroundClip: "text",
                         }}>
-                        {metric.value}{metric.label.includes("Years") || metric.label.includes("Projects") ? "+" : ""}
+                        {metric.value}{metric.label.includes("Years") || metric.label.includes("Projects") || metric.label.includes("Websites") ? "+" : ""}
                       </div>
                       <div className="text-sm text-gray-600 font-medium">{metric.label}</div>
                     </div>
@@ -234,7 +235,15 @@ export default function SummaryPage() {
                 <Mail className="w-5 h-5 mr-2" />
                 Schedule Interview
               </Button>
-              <Button variant="outline" size="lg" className="border-amber-200 hover:bg-amber-50">
+              <Button variant="outline" size="lg" className="border-amber-200 hover:bg-amber-50"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/manuel-resume.pdf';
+                  link.download = 'Manuel_David_Resume.pdf';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}>
                 <Download className="w-5 h-5 mr-2" />
                 Download Resume
               </Button>

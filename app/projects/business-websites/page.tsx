@@ -104,7 +104,7 @@ export default function BusinessWebsitesPage() {
                         <div className="text-sm text-gray-600">Websites Delivered</div>
                       </div>
                       <div className="bg-indigo-50 p-4 rounded-lg text-center">
-                        <div className="text-2xl font-bold text-indigo-600">100%</div>
+                        <div className="text-2xl font-bold text-indigo-600">93%</div>
                         <div className="text-sm text-gray-600">Client Satisfaction</div>
                       </div>
                       <div className="bg-blue-50 p-4 rounded-lg text-center">

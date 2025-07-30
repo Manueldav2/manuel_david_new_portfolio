@@ -48,7 +48,8 @@ export default function SkillsPage() {
                 { name: "Experience", href: "/experience", active: false },
                 { name: "Projects", href: "/projects", active: false },
                 { name: "Education", href: "/education", active: false },
-                { name: "Skills", href: "/skills", active: true }
+                { name: "Skills", href: "/skills", active: true },
+                { name: "AI Chat", href: "/chat", active: false }
               ].map((item) => (
                 <Link key={item.name} href={item.href}>
                   <Button
@@ -113,9 +114,9 @@ export default function SkillsPage() {
                   skills: [
                     { name: "Python", level: "Expert", color: "#7f5539" },
                     { name: "JavaScript", level: "Expert", color: "#9c6644" },
-                    { name: "Java", level: "Advanced", color: "#b08968" },
-                    { name: "HTML5/CSS3", level: "Expert", color: "#ddb892" },
-                    { name: "SQL", level: "Advanced", color: "#e6ccb2" }
+                    { name: "HTML", level: "Expert", color: "#b08968" },
+                    { name: "SQL", level: "Expert", color: "#ddb892" },
+                    { name: "Java", level: "Intermediate", color: "#e6ccb2" }
                   ],
                   color: "#7f5539",
                   description: "Core programming languages for web and software development"
@@ -136,11 +137,12 @@ export default function SkillsPage() {
                   icon: Brain,
                   title: "AI/ML Tools",
                   skills: [
-                    { name: "OpenAI API", level: "Expert", color: "#7f5539" },
-                    { name: "ChatGPT API", level: "Expert", color: "#9c6644" },
-                    { name: "Claude", level: "Advanced", color: "#b08968" },
-                    { name: "Eleven Labs", level: "Advanced", color: "#ddb892" },
-                    { name: "N8N", level: "Advanced", color: "#e6ccb2" }
+                    { name: "Eleven Labs", level: "Expert", color: "#7f5539" },
+                    { name: "N8N", level: "Expert", color: "#9c6644" },
+                    { name: "Gemini", level: "Advanced", color: "#b08968" },
+                    { name: "Copilot", level: "Advanced", color: "#ddb892" },
+                    { name: "Perplexity", level: "Intermediate", color: "#e6ccb2" },
+                    { name: "Perplexity API", level: "Intermediate", color: "#f5f5f5" }
                   ],
                   color: "#b08968",
                   description: "AI integration and automation tools"
@@ -150,10 +152,10 @@ export default function SkillsPage() {
                   title: "Cloud & Platforms",
                   skills: [
                     { name: "Firebase", level: "Expert", color: "#7f5539" },
-                    { name: "Docker", level: "Advanced", color: "#9c6644" },
+                    { name: "Heroku", level: "Expert", color: "#9c6644" },
                     { name: "Git/GitHub", level: "Expert", color: "#b08968" },
-                    { name: "Heroku", level: "Advanced", color: "#ddb892" },
-                    { name: "Webflow", level: "Advanced", color: "#e6ccb2" }
+                    { name: "Docker", level: "Intermediate", color: "#ddb892" },
+                    { name: "Webflow", level: "Intermediate", color: "#e6ccb2" }
                   ],
                   color: "#ddb892",
                   description: "Cloud infrastructure and deployment platforms"
@@ -162,11 +164,10 @@ export default function SkillsPage() {
                   icon: Zap,
                   title: "Automation & Tools",
                   skills: [
-                    { name: "Reactbits", level: "Expert", color: "#7f5539" },
-                    { name: "Linear", level: "Advanced", color: "#9c6644" },
-                    { name: "Calendly", level: "Advanced", color: "#b08968" },
-                    { name: "Claude API", level: "Expert", color: "#ddb892" },
-                    { name: "Cursor", level: "Advanced", color: "#e6ccb2" }
+                    { name: "Cursor", level: "Expert", color: "#7f5539" },
+                    { name: "Reactbits", level: "Expert", color: "#9c6644" },
+                    { name: "Linear", level: "Advanced", color: "#b08968" },
+                    { name: "Calendly", level: "Advanced", color: "#ddb892" }
                   ],
                   color: "#e6ccb2",
                   description: "Productivity and development tools"
@@ -282,8 +283,8 @@ export default function SkillsPage() {
                   {[
                     "Advanced AI/ML Algorithms",
                     "Cloud Architecture (AWS/Azure)",
-                    "DevOps & CI/CD Practices",
-                    "Data Science & Analytics"
+                    "Webflow",
+                    "Perplexity API"
                   ].map((skill, index) => (
                     <div key={index} className="flex items-center gap-3 p-3 bg-white/80 rounded-lg">
                       <div className="w-2 h-2 rounded-full bg-amber-500"></div>

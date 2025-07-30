@@ -165,7 +165,7 @@ export default function ResumeSiteAIPage() {
             </h2>
             <div className="flex flex-wrap justify-center gap-4">
               {[
-                "React", "OpenAI API", "Python", "Natural Language Processing (NLP)", "Firebase"
+                "React", "OpenAI API", "Python", "Natural Language Processing (NLP)", "Firebase", "Heroku", "GitHub"
               ].map((tech, index) => (
                 <Badge
                   key={index}
@@ -186,13 +186,13 @@ export default function ResumeSiteAIPage() {
             </h2>
             <div className="max-w-4xl mx-auto">
               <p className="text-lg text-gray-700 leading-relaxed mb-8">
-                Structured resume content into a semantic schema. Built React frontend and Python backend using Firebase Functions. Integrated OpenAI for contextual Q&A.
+                Structured resume content into a semantic schema. Built React frontend and Python backend, setting up a flask app using Heroku for deployment. Integrated OpenAI for contextual Q&A.
               </p>
               <div className="space-y-6">
                 {[
                   "Designed semantic schema for resume content structure",
-                  "Built React frontend with modern UI components",
-                  "Developed Python backend using Firebase Functions",
+                  "Built React frontend with modern UI components", 
+                  "Python backend, setting up a flask app using Heroku for deployment",
                   "Integrated OpenAI API for contextual Q&A capabilities",
                   "Implemented content parsing and semantic matching",
                   "Optimized for mobile responsiveness and performance"
