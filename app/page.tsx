@@ -52,16 +52,17 @@ export default function ResumePage() {
 
   // Loading animation effect
   useEffect(() => {
-    const loadingTimer = setTimeout(() => {
-      setIsLoading(false)
-    }, 3000) // 3 second loading animation
-
-    return () => clearTimeout(loadingTimer)
+    if (typeof window !== 'undefined') {
+      const loadingTimer = setTimeout(() => {
+        setIsLoading(false)
+      }, 1000) // Reduced to 1 second for better UX
+      return () => clearTimeout(loadingTimer)
+    }
   }, [])
 
   // Pre-initialize all animation states to prevent stuttering
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || typeof window === 'undefined') return
 
     const preInitializeStates = () => {
       // Pre-set hero elements to prevent layout shift

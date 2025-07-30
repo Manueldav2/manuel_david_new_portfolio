@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Globe, Bot, Users, Workflow, Calendar, MessageSquare, Database, TrendingUp, Lightbulb, Settings, DollarSign, BarChart } from "lucide-react"
+import { ArrowLeft, Globe, Bot, Users, Workflow, Calendar, MessageSquare, Database, TrendingUp, Lightbulb, Settings, DollarSign, BarChart, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 export default function NouvoPlatformPage() {
@@ -80,6 +80,14 @@ export default function NouvoPlatformPage() {
               <Badge className="px-4 py-2 text-sm bg-blue-100 text-blue-800 border-blue-200">
                 AI Agency SaaS
               </Badge>
+            </div>
+            <div className="flex justify-center mt-6">
+              <a href="https://nouvo.dev/" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="text-white px-8 py-3" style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)" }}>
+                  <ExternalLink className="w-5 h-5 mr-2" />
+                  Visit Live Site
+                </Button>
+              </a>
             </div>
           </div>
         </section>

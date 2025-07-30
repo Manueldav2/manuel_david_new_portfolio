@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Rocket, Brain, Mail, Smartphone, Globe, FlaskConical, Code, ArrowLeft, ExternalLink, Github, Info, Target, TrendingUp, Award, Users } from "lucide-react"
+import { Rocket, Brain, Mail, Smartphone, Globe, FlaskConical, Code, ArrowLeft, ExternalLink, Github, Info, Target, TrendingUp, Award, Users, Lock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -13,8 +13,10 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000)
-    return () => clearTimeout(timer)
+    if (typeof window !== 'undefined') {
+      const timer = setTimeout(() => setIsLoading(false), 1000)
+      return () => clearTimeout(timer)
+    }
   }, [])
 
   if (isLoading) {
@@ -118,7 +120,7 @@ export default function ProjectsPage() {
                   gradient: "from-blue-50 to-indigo-50",
                   color: "#3b82f6",
                   status: "In Development",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/ats-resume-optimizer.git"
                 },
                 {
                   icon: Brain,
@@ -129,7 +131,8 @@ export default function ProjectsPage() {
                   gradient: "from-emerald-50 to-teal-50",
                   color: "#10b981",
                   status: "Live",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/manuel_david_new_portfolio.git",
+                  githubBackend: "https://github.com/Manueldav2/manueldavid-resweb-ai.git"
                 },
                 {
                   icon: Mail,
@@ -140,7 +143,7 @@ export default function ProjectsPage() {
                   gradient: "from-purple-50 to-violet-50",
                   color: "#8b5cf6",
                   status: "In Development",
-                  github: "#"
+                  github: "privileged"
                 },
                 {
                   icon: Smartphone,
@@ -151,7 +154,7 @@ export default function ProjectsPage() {
                   gradient: "from-pink-50 to-rose-50",
                   color: "#ec4899",
                   status: "In Development",
-                  github: "#"
+                  github: "privileged"
                 },
                 {
                   icon: Mail,
@@ -162,7 +165,7 @@ export default function ProjectsPage() {
                   gradient: "from-cyan-50 to-sky-50",
                   color: "#06b6d4",
                   status: "In Development",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/my_ai_backend.git"
                 },
                 {
                   icon: Smartphone,
@@ -173,7 +176,7 @@ export default function ProjectsPage() {
                   gradient: "from-orange-50 to-amber-50",
                   color: "#f59e0b",
                   status: "Prototype",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/thera_ai.git"
                 },
                 {
                   icon: Globe,
@@ -184,7 +187,9 @@ export default function ProjectsPage() {
                   gradient: "from-red-50 to-pink-50",
                   color: "#ef4444",
                   status: "Live",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/nouvo.dev.git",
+                  githubBackend: "https://github.com/Manueldav2/nouvo.dev_backend.git",
+                  externalUrl: "https://nouvo.dev/"
                 },
                 {
                   icon: FlaskConical,
@@ -195,7 +200,7 @@ export default function ProjectsPage() {
                   gradient: "from-lime-50 to-green-50",
                   color: "#22c55e",
                   status: "Live",
-                  github: "#"
+                  github: "privileged"
                 },
                 {
                   icon: Code,
@@ -206,7 +211,8 @@ export default function ProjectsPage() {
                   gradient: "from-slate-50 to-gray-50",
                   color: "#64748b",
                   status: "Live",
-                  github: "#"
+                  github: "https://github.com/Manueldav2/blast-beyond.git",
+                  externalUrl: "https://blastnbeyond.com/"
                 },
               ].map((project, index) => (
                 <Card
@@ -252,10 +258,34 @@ export default function ProjectsPage() {
                           About
                         </Button>
                       </Link>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Github className="w-4 h-4 mr-2" />
-                        Code
-                      </Button>
+                      {project.github === "privileged" ? (
+                        <Button variant="outline" size="sm" className="flex-1" disabled>
+                          <Lock className="w-4 h-4 mr-2" />
+                          Privileged Code
+                        </Button>
+                      ) : project.githubBackend ? (
+                        <div className="flex-1 flex gap-2">
+                          <a href={project.github} target="_blank" rel="noopener noreferrer" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Github className="w-4 h-4 mr-2" />
+                              Frontend
+                            </Button>
+                          </a>
+                          <a href={project.githubBackend} target="_blank" rel="noopener noreferrer" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Github className="w-4 h-4 mr-2" />
+                              Backend
+                            </Button>
+                          </a>
+                        </div>
+                      ) : (
+                        <a href={project.github} target="_blank" rel="noopener noreferrer" className="flex-1">
+                          <Button variant="outline" size="sm" className="w-full">
+                            <Github className="w-4 h-4 mr-2" />
+                            Code
+                          </Button>
+                        </a>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

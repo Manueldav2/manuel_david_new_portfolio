@@ -12,8 +12,10 @@ export default function ResumeATSOptimizerPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800)
-    return () => clearTimeout(timer)
+    if (typeof window !== 'undefined') {
+      const timer = setTimeout(() => setIsLoading(false), 1000)
+      return () => clearTimeout(timer)
+    }
   }, [])
 
   if (isLoading) {

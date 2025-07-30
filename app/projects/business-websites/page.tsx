@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Globe, Palette, Users, ShoppingCart, Zap, Database, TrendingUp, Lightbulb, Settings, FileText, BarChart, Wrench } from "lucide-react"
+import { ArrowLeft, Globe, Palette, Users, ShoppingCart, Zap, Database, TrendingUp, Lightbulb, Settings, FileText, BarChart, Wrench, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 export default function BusinessWebsitesPage() {
@@ -80,6 +80,14 @@ export default function BusinessWebsitesPage() {
               <Badge className="px-4 py-2 text-sm bg-blue-100 text-blue-800 border-blue-200">
                 Client Websites
               </Badge>
+            </div>
+            <div className="flex justify-center mt-6">
+              <a href="https://blastnbeyond.com/" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className="text-white px-8 py-3" style={{ background: "linear-gradient(135deg, #64748b, #475569)" }}>
+                  <ExternalLink className="w-5 h-5 mr-2" />
+                  Visit Live Site
+                </Button>
+              </a>
             </div>
           </div>
         </section>
