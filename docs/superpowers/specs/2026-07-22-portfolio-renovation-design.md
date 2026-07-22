@@ -74,6 +74,12 @@ Replace the outdated portfolio with a modern, Configure-focused site that presen
 - Backend: single serverless function calling Claude (Haiku 4.5 for cost) with a system prompt containing the identity block, work entries, and project roster (generated from the same content file). No RAG, no DB.
 - Old Flask backend fully retired.
 
+## Footer & socials (site-wide)
+
+- Socials live in the footer only (no dedicated page): X (`@manny2techy`, https://x.com/manny2techy), LinkedIn, GitHub, email, calendar link.
+- Real brand logos (official X / LinkedIn / GitHub marks as SVGs, self-hosted in `public/brand/`), not generic icon-font approximations.
+- Footer signature: Gravity-style giant ghosted wordmark — "MANUEL DAVID" (or "MANUEL") at `clamp(86px, 18vw, 300px)`, dark metallic vertical gradient via `background-clip: text`, fading out at the bottom with a `mask-image` linear gradient (recipe provided by user from trygravity.ai footer, adapted to our palette/fonts).
+
 ## Design language
 
 - **Aesthetic:** F1-75 cinematic boldness × Apple Liquid Glass. Dark-first with theme toggle. One hot accent (F1-red family or electric alternative — finalized in ui-ux-pro-max pass). Giant ghosted numerals/type as depth layers; glass surfaces (refraction, specular edge highlight, subtle chromatic aberration) for cards, nav, chat panel, filter pills.
