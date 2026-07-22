@@ -1,4 +1,6 @@
-export type Status = "current" | "earning" | "shipped" | "open-source" | "exploration" | "archived" | "prior";
+export type WorkStatus = "current" | "earning" | "prior";
+export type ProjectStatus = "current" | "shipped" | "open-source" | "exploration" | "archived";
+export type Status = WorkStatus | ProjectStatus;
 
 export const profile = {
   name: "Manuel David",
@@ -29,11 +31,11 @@ export const profile = {
 };
 
 export type WorkEntry = {
-  company: string; role: string; status: Status; dates: string;
+  company: string; role: string; status: WorkStatus; dates: string;
   blurb: string; url?: string;
 };
 
-export const work: WorkEntry[] = [
+export const work: readonly WorkEntry[] = [
   {
     company: "Configure", role: "Founding Engineer", status: "current",
     dates: "2026 — now",
@@ -54,11 +56,11 @@ export const work: WorkEntry[] = [
 ];
 
 export type Project = {
-  slug: string; name: string; status: Status; year: string;
+  slug: string; name: string; status: ProjectStatus; year: string;
   blurb: string; url?: string; github?: string; favicon?: string;
 };
 
-export const projects: Project[] = [
+export const projects: readonly Project[] = [
   { slug: "idex", name: "IDEX", status: "current", year: "2026",
     blurb: "The IDE that watches the wait. A free, open-source cockpit for coding agents with a contextual scroll feed.",
     url: "https://idex.dev", github: "https://github.com/Manueldav2/idex" },

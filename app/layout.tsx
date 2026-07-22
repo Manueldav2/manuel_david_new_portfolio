@@ -65,7 +65,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+        <ThemeProvider attribute="class" forcedTheme="dark" enableSystem={false} disableTransitionOnChange>
           {children}
           <Chatbot />
         </ThemeProvider>
