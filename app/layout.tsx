@@ -2,21 +2,23 @@ import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { Chatbot } from "@/components/ui/chatbot"
+import { ThemeProvider } from "@/components/theme-provider"
+import { display, body, mono } from "@/lib/fonts"
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter"
 })
 
-const jetbrainsMono = JetBrains_Mono({ 
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains-mono"
 })
 
 export const metadata: Metadata = {
-  title: "Manuel David Portfolio",
+  title: "Manuel David — Founding Engineer at Configure",
   description:
-    "Professional portfolio website for Manuel David - Full-Stack Developer, AI Engineer, and Technology Innovator",
+    "Building context infrastructure for AI agents. Founder of Paradigm. Based in San Francisco.",
   generator: 'Manuel David Portfolio',
   icons: {
     icon: [
@@ -57,10 +59,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
-        {children}
-        <Chatbot />
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+          {children}
+          <Chatbot />
+        </ThemeProvider>
       </body>
     </html>
   )
