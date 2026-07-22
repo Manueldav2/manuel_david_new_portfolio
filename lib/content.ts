@@ -1,0 +1,95 @@
+export type Status = "current" | "earning" | "shipped" | "open-source" | "exploration" | "archived" | "prior";
+
+export const profile = {
+  name: "Manuel David",
+  role: "Founding Engineer",
+  company: "Configure",
+  companyUrl: "https://configure.dev",
+  location: "San Francisco, CA",
+  email: "manuel@configure.dev",
+  calendar: "https://calendar.app.google/JKgCXGsa3r6Ar7uU6",
+  github: "https://github.com/Manueldav2",
+  linkedin: "https://www.linkedin.com/in/manuel-david-3b6245328/",
+  x: "https://x.com/manny2techy",
+  xHandle: "@manny2techy",
+  headline: "Building context infrastructure for AI agents.",
+  bio: [
+    "I build agent infrastructure at Configure — the user-owned system of record that lets AI agents recognize you and share context across platforms. Think Plaid, but for personal context.",
+    "Before that I founded Paradigm, an AI cold-outreach platform, and ran it to the point where it paid for itself without me. I became a Configure customer through Paradigm, saw where agents were heading, and joined as founding engineer.",
+  ],
+  stats: [
+    { label: "Projects shipped", value: 15 },
+    { label: "Years building", value: 4 },
+  ],
+  skills: [
+    "TypeScript", "Python", "Next.js", "React", "Node.js",
+    "AI agents", "MCP", "Claude API", "Gemini API", "GSAP",
+    "Firebase / GCP", "Supabase", "Stripe", "Three.js",
+  ],
+};
+
+export type WorkEntry = {
+  company: string; role: string; status: Status; dates: string;
+  blurb: string; url?: string;
+};
+
+export const work: WorkEntry[] = [
+  {
+    company: "Configure", role: "Founding Engineer", status: "current",
+    dates: "2026 — now",
+    blurb: "Context infrastructure for AI agents — one profile that travels with you across every agent you use. I was a customer first. Then I joined to build it.",
+    url: "https://configure.dev",
+  },
+  {
+    company: "Paradigm", role: "Founder & CEO", status: "earning",
+    dates: "2025 — now",
+    blurb: "AI cold outreach, end to end: finds prospects, researches them, writes the emails, handles replies, books the meetings. Built it to self-sufficiency — it earns while I work on Configure.",
+    url: "https://paradigmoutreach.com",
+  },
+  {
+    company: "Freelance", role: "Web Engineer", status: "prior",
+    dates: "2024 — 2025",
+    blurb: "Client sites and tools: portfolios for dancers and athletes, a detailing company's storefront, resume platforms. Where I learned to ship fast and alone.",
+  },
+];
+
+export type Project = {
+  slug: string; name: string; status: Status; year: string;
+  blurb: string; url?: string; github?: string; favicon?: string;
+};
+
+export const projects: Project[] = [
+  { slug: "idex", name: "IDEX", status: "current", year: "2026",
+    blurb: "The IDE that watches the wait. A free, open-source cockpit for coding agents with a contextual scroll feed.",
+    url: "https://idex.dev", github: "https://github.com/Manueldav2/idex" },
+  { slug: "ultron", name: "Ultron", status: "current", year: "2026",
+    blurb: "Hosted MCP server with 26 tools, bridged live into DevCore OS. My agents' home base.",
+    url: "https://ultron-omega.vercel.app" },
+  { slug: "launch-control", name: "Launch Control", status: "shipped", year: "2026",
+    blurb: "One idea in, a week of on-brand launch content out — planned, made, self-graded, and shipped by a swarm of Claude agents. Built for Claude Build Day.",
+    github: "https://github.com/Manueldav2/launch-control" },
+  { slug: "gideon", name: "Gideon", status: "shipped", year: "2026",
+    blurb: "AI study platform (a.k.a. VisboardAI / ThoughtPlot): talk to it, and it maps what you're learning visually.",
+    github: "https://github.com/Manueldav2/VisboardAI" },
+  { slug: "claude-classroom", name: "Claude Classroom", status: "open-source", year: "2026",
+    blurb: "Makes many Claude Code sessions work as one team — shared board, file claims, negotiation, live dashboard.",
+    github: "https://github.com/Manueldav2/claude-classroom" },
+  { slug: "claude-skills-sync", name: "claude-skills-sync", status: "shipped", year: "2026",
+    blurb: "npx claude-skills-sync — sync your Claude skills across machines with one token.",
+    url: "https://www.npmjs.com/package/claude-skills-sync" },
+  { slug: "tripfund", name: "TripFund", status: "shipped", year: "2026",
+    blurb: "Trip savings tracker with live flight search, an AI assistant, and Stripe group contributions.",
+    url: "https://tripfund-mocha.vercel.app", github: "https://github.com/Manueldav2/destino" },
+  { slug: "satisfying-video-generator", name: "Satisfying Video Generator", status: "shipped", year: "2026",
+    blurb: "Gemini + Veo 3.1 pipeline that generates satisfying TikToks and posts them itself.",
+    url: "https://satisfying-video-gen.web.app", github: "https://github.com/Manueldav2/satisfying-video-generator" },
+  { slug: "sovereign", name: "SOVEREIGN", status: "exploration", year: "2026",
+    blurb: "Browser 3D RTS in Three.js — command armies, or possess a single unit and fight first-person.",
+    github: "https://github.com/Manueldav2/sovereign" },
+  { slug: "zantana", name: "Zantana", status: "exploration", year: "2026",
+    blurb: "Quiplash-style party game in a single HTML file. No backend, no build, just open it and play.",
+    github: "https://github.com/Manueldav2/zantana" },
+  { slug: "revive-rides", name: "Revive Rides", status: "shipped", year: "2026",
+    blurb: "Client work: a mobile detailing company's site, built and shipped on Firebase.",
+    url: "https://revive-rides.web.app" },
+];
