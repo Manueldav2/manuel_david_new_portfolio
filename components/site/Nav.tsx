@@ -8,6 +8,7 @@ import { Flip } from "gsap/Flip"
 import { useGSAP } from "@gsap/react"
 import { Menu, X } from "lucide-react"
 import { Glass } from "@/components/glass/Glass"
+import { useChat } from "@/components/chat/ChatProvider"
 import { cn } from "@/lib/utils"
 
 gsap.registerPlugin(useGSAP, Flip)
@@ -15,7 +16,6 @@ gsap.registerPlugin(useGSAP, Flip)
 const LINKS = [
   { href: "/work", label: "work" },
   { href: "/projects", label: "projects" },
-  { href: "/chat", label: "chat" },
 ] as const
 
 function isActive(pathname: string, href: string) {
@@ -24,6 +24,7 @@ function isActive(pathname: string, href: string) {
 
 export function Nav() {
   const pathname = usePathname()
+  const { openChat } = useChat()
   const navRef = useRef<HTMLElement | null>(null)
   const indicatorRef = useRef<HTMLSpanElement | null>(null)
   const toggleRef = useRef<HTMLButtonElement | null>(null)
@@ -135,6 +136,14 @@ export function Nav() {
               </Link>
             )
           })}
+          {/* Chat opens the side-drawer instead of routing. */}
+          <button
+            type="button"
+            onClick={openChat}
+            className="relative px-3 py-2 font-mono text-sm lowercase text-muted-foreground transition-colors hover:text-foreground"
+          >
+            chat
+          </button>
           {/* Shared sliding accent underline (moved between links via Flip) */}
           <span
             ref={indicatorRef}
@@ -187,6 +196,16 @@ export function Nav() {
                 </Link>
               )
             })}
+            <button
+              type="button"
+              onClick={() => {
+                closeMenu()
+                openChat()
+              }}
+              className="rounded-xl px-4 py-3 text-left font-mono text-base lowercase text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+            >
+              chat
+            </button>
           </Glass>
         </div>
       )}

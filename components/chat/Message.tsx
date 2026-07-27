@@ -1,0 +1,128 @@
+"use client"
+
+import { memo, type ReactNode } from "react"
+import ReactMarkdown, { type Components } from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { Chart, parseChartSpec } from "@/components/chat/Chart"
+
+export type ChatMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
+
+/**
+ * Extracts the raw text of a markdown code node's single text child.
+ * react-markdown passes fenced-block content as the code element's children.
+ */
+function codeText(children: ReactNode): string {
+  if (typeof children === "string") return children
+  if (Array.isArray(children)) return children.map(codeText).join("")
+  return ""
+}
+
+/**
+ * Markdown renderers styled for the espresso palette. Headings in cream, code
+ * in mono on a subtle glass background, links in tan, tidy lists. A ```chart
+ * fenced block is intercepted and rendered as a real <Chart> instead of code.
+ * react-markdown is XSS-safe by default (no raw HTML passthrough).
+ */
+const components: Components = {
+  h1: ({ children }) => (
+    <h1 className="mb-2 mt-3 font-display text-lg uppercase tracking-tight text-foreground">{children}</h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="mb-1.5 mt-3 font-mono text-[13px] font-semibold uppercase tracking-[0.1em] text-foreground">{children}</h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="mb-1 mt-2.5 font-mono text-xs font-semibold uppercase tracking-[0.1em] text-foreground/90">{children}</h3>
+  ),
+  p: ({ children }) => <p className="mb-2.5 leading-relaxed text-foreground/85 last:mb-0">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+  em: ({ children }) => <em className="italic text-foreground/90">{children}</em>,
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary underline decoration-primary/40 decoration-1 underline-offset-2 transition-colors hover:decoration-primary"
+    >
+      {children}
+    </a>
+  ),
+  ul: ({ children }) => <ul className="mb-2.5 ml-1 space-y-1 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2.5 ml-4 list-decimal space-y-1 last:mb-0 marker:text-muted-foreground">{children}</ol>,
+  li: ({ children }) => (
+    <li className="relative pl-4 leading-relaxed text-foreground/85 marker:text-muted-foreground before:absolute before:left-0 before:top-[0.62em] before:h-1 before:w-1 before:rounded-full before:bg-primary/70 [ol_&]:pl-1 [ol_&]:before:hidden">
+      {children}
+    </li>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-2.5 border-l-2 border-primary/40 pl-3 text-foreground/70">{children}</blockquote>
+  ),
+  hr: () => <hr className="my-3 border-border/60" />,
+  code: ({ className, children, ...props }) => {
+    const lang = /language-(\w+)/.exec(className ?? "")?.[1]
+
+    // ```chart fenced block → real chart
+    if (lang === "chart") {
+      const spec = parseChartSpec(codeText(children))
+      if (spec) return <Chart spec={spec} />
+    }
+
+    // Fenced code block (has a language) → pre-styled block
+    if (lang) {
+      return (
+        <code className="font-mono text-[12.5px] text-foreground/90" {...props}>
+          {children}
+        </code>
+      )
+    }
+
+    // Inline code
+    return (
+      <code
+        className="rounded-[4px] border border-border/60 bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[0.85em] text-primary"
+        {...props}
+      >
+        {children}
+      </code>
+    )
+  },
+  pre: ({ children }) => (
+    <pre className="my-2.5 overflow-x-auto rounded-lg border border-border/60 bg-foreground/[0.05] p-3 leading-relaxed">
+      {children}
+    </pre>
+  ),
+  table: ({ children }) => (
+    <div className="my-2.5 overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border-b border-border px-2 py-1.5 text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{children}</th>
+  ),
+  td: ({ children }) => <td className="border-b border-border/40 px-2 py-1.5 text-foreground/85">{children}</td>,
+}
+
+function MessageImpl({ message }: { message: ChatMessage }) {
+  if (message.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md border border-primary/25 bg-primary/[0.14] px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground">
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-[92%] text-[14px]">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {message.content}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+export const Message = memo(MessageImpl)
