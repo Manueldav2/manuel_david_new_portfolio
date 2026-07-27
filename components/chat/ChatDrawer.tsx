@@ -25,38 +25,27 @@ let idCounter = 0
 const nextId = () => `m-${Date.now()}-${idCounter++}`
 
 /**
- * Reads the Anthropic SDK's toReadableStream() output on the client. Each line
- * is a JSON event; we pull text out of content_block_delta events and hand each
- * delta to onDelta so the UI can append it live.
+ * Reads the route's plain text/plain stream on the client. Each chunk is a raw
+ * text delta the model emitted; we decode UTF-8 and hand each one to onDelta so
+ * the UI can append it live.
  */
-async function readAnthropicStream(
+async function readTextStream(
   res: Response,
   onDelta: (text: string) => void
 ): Promise<void> {
   const reader = res.body?.getReader()
   if (!reader) return
   const decoder = new TextDecoder()
-  let buffer = ""
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split("\n")
-    buffer = lines.pop() ?? ""
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      try {
-        const evt = JSON.parse(trimmed)
-        if (evt?.type === "content_block_delta" && evt?.delta?.type === "text_delta") {
-          onDelta(evt.delta.text as string)
-        }
-      } catch {
-        // Partial/non-JSON line — ignore; the next chunk completes it.
-      }
-    }
+    const text = decoder.decode(value, { stream: true })
+    if (text) onDelta(text)
   }
+  // Flush any remaining bytes from the decoder.
+  const tail = decoder.decode()
+  if (tail) onDelta(tail)
 }
 
 /**
@@ -211,7 +200,7 @@ export function ChatDrawer() {
           return
         }
 
-        await readAnthropicStream(res, (delta) => setAssistant((prev) => prev + delta))
+        await readTextStream(res, (delta) => setAssistant((prev) => prev + delta))
 
         setAssistant((prev) =>
           prev.trim().length > 0 ? prev : "Sorry, I didn't catch that. Try asking again."

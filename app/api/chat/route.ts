@@ -1,26 +1,22 @@
-import Anthropic from "@anthropic-ai/sdk"
+import { GoogleGenAI } from "@google/genai"
 import { buildSystemPrompt } from "@/lib/chat-system-prompt"
 
-// The installed @anthropic-ai/sdk pulls Node built-ins (node:fs / node:path for
-// credential-file resolution) that the edge runtime can't bundle, so we run on
-// the Node runtime. Streaming still works, and the Firebase frameworks backend
-// (Cloud Functions) is Node anyway. Keep dynamic so it never gets prerendered.
+// Run on the Node runtime (the Firebase frameworks backend is Cloud Functions,
+// which is Node anyway). Keep dynamic so it never gets prerendered.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-// Built once at module load so the (large, stable) prompt is a byte-identical
-// prefix on every request — this is what makes the ephemeral cache_control
-// below actually hit and gives near-instant repeat starts.
+// Built once at module load so the (large, stable) prompt is byte-identical on
+// every request.
 const SYSTEM = buildSystemPrompt()
 
-const MODEL = "claude-haiku-4-5-20251001" // fast; low time-to-first-token
+const MODEL = "gemini-2.5-flash" // fast; free-tier friendly
 
-// Per-IP token bucket. This is a public, unauthenticated endpoint proxying a
-// paid API, so we cap request volume per IP. In-memory (per warm Cloud Function
-// instance) — not perfect across cold starts, but it stops the trivial
-// single-source flood, which is the realistic threat for a personal site. The
-// real backstop is a spend cap on the Anthropic key.
+// Per-IP token bucket. This is a public, unauthenticated endpoint proxying an
+// external API, so we cap request volume per IP. In-memory (per warm Cloud
+// Function instance) — not perfect across cold starts, but it stops the trivial
+// single-source flood, which is the realistic threat for a personal site.
 const BUCKET = new Map<string, { tokens: number; ts: number }>()
 const RL_LIMIT = 20 // requests
 const RL_WINDOW_MS = 60_000 // per minute per IP
@@ -48,11 +44,12 @@ interface InMessage {
 }
 
 /**
- * Streaming chat endpoint. Validates and clamps input, then streams Anthropic
- * events straight back to the browser via the SDK's toReadableStream(). If no
- * ANTHROPIC_API_KEY is configured (e.g. before deploy), it returns a friendly
- * JSON error the UI can render as a "warming up" state — it never throws, so
- * the build and the route stay healthy with or without a key.
+ * Streaming chat endpoint. Validates and clamps input, then streams Gemini
+ * output straight back to the browser as a plain text/plain body — each chunk
+ * is a raw text delta the client appends live. If no GEMINI_API_KEY is
+ * configured (e.g. before deploy), it returns a friendly JSON error the UI can
+ * render as a "warming up" state — it never throws, so the build and the route
+ * stay healthy with or without a key.
  */
 export async function POST(req: Request): Promise<Response> {
   const ip =
@@ -94,7 +91,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Bad request." }, { status: 400 })
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return Response.json(
       {
         error:
@@ -106,28 +103,44 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
-    const stream = client.messages.stream({
+    // Map validated turns to Gemini contents: assistant -> "model", user -> "user".
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }))
+
+    const result = await ai.models.generateContentStream({
       model: MODEL,
-      max_tokens: 800,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM,
-          // Prompt caching: the stable system prefix is cached, so repeat
-          // requests skip re-processing it and start faster / cheaper.
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages,
+      contents,
+      config: {
+        systemInstruction: SYSTEM,
+        maxOutputTokens: 800,
+      },
     })
 
-    return new Response(stream.toReadableStream(), {
+    // Re-emit the Gemini stream as a plain UTF-8 text stream of raw deltas.
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of result) {
+            const text = chunk.text
+            if (text) controller.enqueue(encoder.encode(text))
+          }
+        } catch (err) {
+          console.error("chat stream error:", err)
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
       headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
+        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
       },
     })
   } catch (err) {
