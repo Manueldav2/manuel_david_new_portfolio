@@ -9,42 +9,43 @@ import { ChatShell } from "@/components/chat/ChatShell"
 import { ChatDrawer } from "@/components/chat/ChatDrawer"
 import { display, body, mono, future } from "@/lib/fonts"
 
+const SITE_URL = "https://manueldavid.dev"
+const SITE_DESCRIPTION =
+  "Building context infrastructure for AI agents. Founding Engineer at Configure and founder of Paradigm, based in San Francisco."
+
 export const metadata: Metadata = {
-  title: "Manuel David, Founding Engineer at Configure",
-  description:
-    "Building context infrastructure for AI agents. Founder of Paradigm. Based in San Francisco.",
-  generator: 'Manuel David Portfolio',
+  metadataBase: new URL(SITE_URL),
+  title: "Manuel David — Founding Engineer at Configure",
+  description: SITE_DESCRIPTION,
+  generator: "Manuel David Portfolio",
   icons: {
     icon: [
       {
-        url: 'https://i.imgur.com/EGSz1Un.jpg',
-        sizes: 'any',
-      }
+        url: "https://i.imgur.com/EGSz1Un.jpg",
+        sizes: "any",
+      },
     ],
     apple: [
       {
-        url: 'https://i.imgur.com/EGSz1Un.jpg',
-        sizes: '180x180',
-        type: 'image/jpeg',
-      }
-    ]
+        url: "https://i.imgur.com/EGSz1Un.jpg",
+        sizes: "180x180",
+        type: "image/jpeg",
+      },
+    ],
   },
   openGraph: {
-    title: 'Manuel David Portfolio',
-    description: 'Full-Stack Developer, AI Engineer, and Technology Innovator',
-    images: [{
-      url: 'https://i.imgur.com/EGSz1Un.jpg',
-      width: 1200,
-      height: 630,
-      alt: 'Manuel David'
-    }]
+    title: "Manuel David — Founding Engineer at Configure",
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: "Manuel David",
+    type: "website",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Manuel David Portfolio',
-    description: 'Full-Stack Developer, AI Engineer, and Technology Innovator',
-    images: ['https://i.imgur.com/EGSz1Un.jpg'],
-  }
+    card: "summary_large_image",
+    title: "Manuel David — Founding Engineer at Configure",
+    description: SITE_DESCRIPTION,
+    creator: "@manny2techy",
+  },
 }
 
 export default function RootLayout({
