@@ -53,16 +53,32 @@ export function Hero() {
           const meta = gsap.utils.toArray<HTMLElement>("[data-hero-meta]")
           const ghost = rootRef.current?.querySelector<HTMLElement>("[data-hero-ghost]")
           const figure = rootRef.current?.querySelector<HTMLElement>("[data-hero-figure]")
+          const figureMobile = rootRef.current?.querySelector<HTMLElement>("[data-hero-figure-mobile]")
+          const logo = rootRef.current?.querySelector<HTMLElement>("[data-hero-logo]")
           const floaters = gsap.utils.toArray<HTMLElement>("[data-hero-parallax]")
 
           // ----- Reduced motion: land everything, no animation -----
           if (!animate) {
             gsap.set([...nameLines, ...meta], { opacity: 1, y: 0, rotate: 0 })
             if (figure) gsap.set(figure, { opacity: 1, y: 0 })
+            if (figureMobile) gsap.set(figureMobile, { opacity: 1 })
+            if (logo) gsap.set(logo, { opacity: 1, scale: 1, rotate: 0 })
             return
           }
 
-          // ----- Figure reveal: fade + subtle rise, ahead of the name -----
+          // ----- Configure logo: subtle pop-in after the metadata settles -----
+          if (logo) {
+            gsap.from(logo, {
+              opacity: 0,
+              scale: 0.4,
+              rotate: -12,
+              duration: 0.7,
+              delay: 0.9,
+              ease: "back.out(2)",
+            })
+          }
+
+          // ----- Desktop figure reveal: fade + subtle rise, ahead of the name -----
           if (figure) {
             gsap.from(figure, {
               opacity: 0,
@@ -70,6 +86,15 @@ export function Hero() {
               scale: 1.04,
               duration: 1.4,
               ease: "power3.out",
+            })
+          }
+
+          // ----- Mobile figure: simple fade-in (no parallax/scale) -----
+          if (figureMobile) {
+            gsap.from(figureMobile, {
+              opacity: 0,
+              duration: 1.2,
+              ease: "power2.out",
             })
           }
 
@@ -168,7 +193,7 @@ export function Hero() {
   return (
     <section
       ref={rootRef}
-      className="relative isolate mx-auto flex min-h-[90vh] w-full max-w-[1600px] items-center overflow-hidden px-5 pb-0 sm:px-8 lg:px-14"
+      className="relative isolate mx-auto flex min-h-[82vh] w-full max-w-[1600px] items-center overflow-hidden px-5 pb-0 sm:px-8 lg:px-14"
     >
       {/* Warm amber bloom, anchored bottom-left behind the name. */}
       <div
@@ -201,6 +226,32 @@ export function Hero() {
         MD
       </span>
 
+      {/* MOBILE FIGURE — full-bleed portrait behind the name on small screens.
+          A top-anchored cover image with an espresso gradient scrim so the
+          cream type stays legible over the lower third. Desktop hides this and
+          uses the art-directed right-bleed figure below. */}
+      <div
+        data-hero-figure-mobile
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-[5] h-[62vh] w-full sm:hidden"
+      >
+        <Image
+          src="/images/manuel-hero.jpg"
+          alt="Manuel David"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-top"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent 30%, hsl(20 24% 8%) 92%)",
+          }}
+        />
+      </div>
+
       {/* FIGURE — the portrait, dominant on the right, bleeding off the bottom.
           Sits behind the name so the type overlaps the lower body, F1-style.
           The grade + feather + grain live on .hero-portrait; the CSS mask on
@@ -231,16 +282,24 @@ export function Hero() {
             className="mb-5 flex flex-col gap-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground sm:text-xs"
           >
             <span className="text-foreground/90">{profile.location}</span>
-            <span>
+            <span className="inline-flex items-center">
               Founding Engineer{" "}
-              <span className="text-muted-foreground/50">at</span>{" "}
+              <span className="mx-[0.35em] text-muted-foreground/50">at</span>
               <a
                 href={profile.companyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="pointer-events-auto text-primary transition-opacity hover:opacity-70"
+                className="pointer-events-auto inline-flex items-center gap-[0.4em] text-primary transition-opacity hover:opacity-70"
               >
                 Configure
+                <Image
+                  data-hero-logo
+                  src="/brand/configure.svg"
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="h-[1em] w-[1em] rounded-[0.22em]"
+                />
               </a>
             </span>
           </div>
@@ -269,30 +328,40 @@ export function Hero() {
             {profile.headline}
           </p>
 
-          {/* CTAs */}
+          {/* CTAs — both liquid glass. Hierarchy is by tint, not by dropping
+              glass: the primary carries a tan wash + border; the secondary is
+              plainer glass. */}
           <div data-hero-meta className="mt-9 flex flex-wrap items-center gap-3">
+            {/* Primary — tan-washed glass pill. */}
             <Glass
               as={Link}
               href="/projects"
               interactive
-              className="group inline-flex items-center gap-2 rounded-full px-6 py-3 font-mono text-sm lowercase text-foreground transition-colors hover:bg-foreground/[0.06]"
+              distort
+              className="group inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/[0.12] px-6 py-3 font-mono text-sm lowercase text-foreground transition-colors duration-300 hover:bg-primary/[0.2]"
             >
               see the work
               <ArrowUpRight
                 size={16}
-                className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                className="text-primary transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
               />
             </Glass>
-            <Link
-              href="/chat"
-              className="group inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/[0.1] px-6 py-3 font-mono text-sm lowercase text-primary transition-colors hover:bg-primary/[0.18]"
+            {/* Secondary — plainer glass. Opens the chat side-drawer (wired in
+                the chat task via the "open-chat" event). */}
+            <Glass
+              as="button"
+              type="button"
+              interactive
+              distort
+              onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+              className="group inline-flex items-center gap-2 rounded-full px-6 py-3 font-mono text-sm lowercase text-muted-foreground transition-colors duration-300 hover:text-foreground"
             >
               ask my ai
               <ArrowUpRight
                 size={16}
-                className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                className="text-primary transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
               />
-            </Link>
+            </Glass>
           </div>
 
           {/* Stat strip — season-points readout, sitting under the CTAs on the

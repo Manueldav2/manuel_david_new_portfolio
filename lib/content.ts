@@ -16,9 +16,10 @@ export const profile = {
   xHandle: "@manny2techy",
   headline: "Building context infrastructure for AI agents.",
   bio: [
-    "I build agent infrastructure at Configure. It's a user-owned system of record that lets AI agents recognize you and carry your context across platforms. Think Plaid, but for personal context.",
-    "Before that I founded Paradigm, an AI cold-outreach platform, and ran it until it paid for itself without me. I became a Configure customer through Paradigm, saw where agents were heading, and joined to build it.",
+    "I build agent infrastructure at Configure, the user-owned system of record that lets AI agents recognize you and carry your context everywhere you go. Think Plaid, but for personal context. Yeah, I know. Cool, right?",
+    "Before that I founded Paradigm, an AI cold-outreach platform, and ran it until it paid for itself without me. I became a Configure customer through it, watched where agents were headed, and decided I'd be the one building the rails they run on.",
   ],
+  bioClosing: "I build like it's already a few years from now.",
   stats: [
     { label: "Projects shipped", value: 15 },
     { label: "Years building", value: 4 },

@@ -62,7 +62,7 @@ export function Footer() {
 
       {/* Fine print above the signature */}
       <div className="mx-auto max-w-5xl px-6">
-        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground/60">
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           {profile.location.split(",")[0]} · © {YEAR}
         </p>
       </div>

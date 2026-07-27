@@ -143,10 +143,17 @@ export function EntryTiles() {
       ref={rootRef}
       className="mx-auto mt-28 w-full max-w-6xl px-5 sm:mt-40 sm:px-8"
     >
-      <div className="mb-10 flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-        <span className="text-primary">04</span>
-        <span className="h-px w-10 bg-border" />
-        <span>Enter</span>
+      <div className="relative mb-10 select-none">
+        <span
+          aria-hidden
+          className="block font-display leading-none text-foreground/[0.06]"
+          style={{ fontSize: "clamp(80px, 10vw, 160px)" }}
+        >
+          02
+        </span>
+        <span className="absolute bottom-1 left-1 font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
+          Enter
+        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -178,7 +185,7 @@ export function EntryTiles() {
               <p className="mt-4 max-w-[26ch] font-body text-sm leading-relaxed text-muted-foreground">
                 {tile.desc}
               </p>
-              <span className="mt-5 inline-block font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">
+              <span className="mt-5 inline-block font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                 {tile.meta}
               </span>
             </div>

@@ -4,7 +4,7 @@ import { Chatbot } from "@/components/ui/chatbot"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Nav } from "@/components/site/Nav"
 import { Footer } from "@/components/site/Footer"
-import { display, body, mono } from "@/lib/fonts"
+import { display, body, mono, future } from "@/lib/fonts"
 
 export const metadata: Metadata = {
   title: "Manuel David, Founding Engineer at Configure",
@@ -52,7 +52,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      className={`${display.variable} ${body.variable} ${mono.variable} ${future.variable}`}
       suppressHydrationWarning
     >
       <body className="antialiased">
