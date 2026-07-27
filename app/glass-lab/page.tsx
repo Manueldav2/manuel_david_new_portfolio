@@ -31,9 +31,10 @@ export default function GlassLab() {
           <Glass as="nav" distort className="flex items-center justify-between rounded-full px-6 py-3">
             <span className="font-display uppercase">MD</span>
             <div className="flex gap-2">
-              <Glass as="span" className="rounded-full px-4 py-1 text-sm">Work</Glass>
+              {/* Polymorphic typing exercised: element-specific props must type-check */}
+              <Glass as="a" href="#top" className="rounded-full px-4 py-1 text-sm">Work</Glass>
               <Glass as="span" className="rounded-full px-4 py-1 text-sm">Projects</Glass>
-              <Glass as="span" interactive className="cursor-pointer rounded-full px-4 py-1 text-sm">Contact</Glass>
+              <Glass as="button" type="button" interactive className="cursor-pointer rounded-full px-4 py-1 text-sm">Contact</Glass>
             </div>
           </Glass>
         </div>

@@ -225,8 +225,10 @@
 
   /* Liquid refraction backdrop (the single extra layer, behind content).
      filter: url() distorts only this layer's backdrop-filtered output —
-     children/text render above, untouched. Non-Chromium engines ignore the
-     SVG filter gracefully and keep the frosted blur. */
+     children/text render above, untouched. Chromium-only: WebKit/Firefox
+     drop the backdrop blur when filter: url() is present, so Glass.tsx only
+     mounts this layer (and removes root frost) after detecting Chromium;
+     other engines keep .glass-frost on the root. */
   .glass-refraction {
     position: absolute;
     inset: 0;
@@ -249,7 +251,7 @@
     pointer-events: none;
     opacity: var(--spot-opacity, 0);
     background: radial-gradient(
-      180px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+      var(--spot-size, 180px) circle at var(--spot-x, 50%) var(--spot-y, 50%),
       rgba(255, 255, 255, 0.16),
       rgba(255, 255, 255, 0.05) 45%,
       transparent 70%
