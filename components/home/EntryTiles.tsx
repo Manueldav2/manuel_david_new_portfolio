@@ -24,7 +24,7 @@ const TILES: Tile[] = [
     index: "01",
     title: "Work",
     href: "/work",
-    desc: "Where I spend my days — Configure, Paradigm, and the freelance years that taught me to ship alone.",
+    desc: "Where I spend my days: Configure, Paradigm, and the freelance years that taught me to ship alone.",
     meta: `${work.length} roles`,
   },
   {
@@ -38,7 +38,7 @@ const TILES: Tile[] = [
     index: "03",
     title: "Chat",
     href: "/chat",
-    desc: "Ask an AI that knows my work anything — it answers from what I have actually done.",
+    desc: "Ask an AI that knows my work anything. It answers from what I have actually done.",
     meta: "live",
   },
 ]
@@ -144,7 +144,7 @@ export function EntryTiles() {
       className="mx-auto mt-28 w-full max-w-6xl px-5 sm:mt-40 sm:px-8"
     >
       <div className="mb-10 flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-        <span className="text-[#ff2d2d]">04</span>
+        <span className="text-primary">04</span>
         <span className="h-px w-10 bg-border" />
         <span>Enter</span>
       </div>
@@ -165,7 +165,7 @@ export function EntryTiles() {
               </span>
               <span
                 data-tile-arrow
-                className="text-muted-foreground transition-colors group-hover:text-[#ff2d2d]"
+                className="text-muted-foreground transition-colors group-hover:text-primary"
               >
                 <ArrowUpRight size={22} strokeWidth={1.75} />
               </span>

@@ -76,7 +76,7 @@ export function BioSection() {
         data-bio-label
         className="mb-10 flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground"
       >
-        <span className="text-[#ff2d2d]">02</span>
+        <span className="text-primary">02</span>
         <span className="h-px w-10 bg-border" />
         <span>About</span>
       </div>

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { Inter, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { Chatbot } from "@/components/ui/chatbot"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -7,18 +6,8 @@ import { Nav } from "@/components/site/Nav"
 import { Footer } from "@/components/site/Footer"
 import { display, body, mono } from "@/lib/fonts"
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter"
-})
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono"
-})
-
 export const metadata: Metadata = {
-  title: "Manuel David — Founding Engineer at Configure",
+  title: "Manuel David, Founding Engineer at Configure",
   description:
     "Building context infrastructure for AI agents. Founder of Paradigm. Based in San Francisco.",
   generator: 'Manuel David Portfolio',
@@ -66,7 +55,7 @@ export default function RootLayout({
       className={`${display.variable} ${body.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+      <body className="antialiased">
         {/* Shared liquid-glass refraction filter — referenced by
             components/glass/Glass.tsx via filter: url(#glass-distortion). */}
         <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: "absolute" }}>

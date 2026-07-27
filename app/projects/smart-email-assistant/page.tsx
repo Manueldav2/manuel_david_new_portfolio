@@ -71,7 +71,7 @@ export default function SmartEmailAssistantPage() {
               </h1>
             </div>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              Automatically read, respond to, and send emails, and add events to a calendar based on email content or triggers—perfect for client communication, lead follow-up, and appointment setting.
+              Automatically read, respond to, and send emails, and add events to a calendar based on email content or triggers. Built for client communication, lead follow-up, and appointment setting.
             </p>
             <div className="flex justify-center gap-4 mt-8">
               <Badge className="px-4 py-2 text-sm bg-orange-100 text-orange-800 border-orange-200">

@@ -160,7 +160,7 @@ export default function ProjectsPage() {
                   icon: Mail,
                   title: "Smart Email Assistant",
                   slug: "smart-email-assistant",
-                  description: "Automatically read, respond to, and send emails, and add events to calendar based on email content—perfect for client communication and appointment setting.",
+                  description: "Automatically read, respond to, and send emails, and add events to calendar based on email content. Built for client communication and appointment setting.",
                   tech: ["N8N", "Gmail API", "Calendar API", "AI Processing"],
                   gradient: "from-cyan-50 to-sky-50",
                   color: "#06b6d4",

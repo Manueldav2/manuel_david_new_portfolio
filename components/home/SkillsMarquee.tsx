@@ -56,7 +56,7 @@ export function SkillsMarquee() {
     >
       <div className="mx-auto mb-8 max-w-5xl px-5 sm:px-8">
         <div className="flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-          <span className="text-[#ff2d2d]">03</span>
+          <span className="text-primary">03</span>
           <span className="h-px w-10 bg-border" />
           <span>Toolkit</span>
         </div>
@@ -81,7 +81,7 @@ export function SkillsMarquee() {
               key={`${skill}-${i}`}
               // The duplicate half is a visual seam only — hide from readers.
               aria-hidden={i >= profile.skills.length ? true : undefined}
-              className="shrink-0 whitespace-nowrap rounded-full border border-border bg-white/[0.03] px-5 py-2.5 font-mono text-sm text-muted-foreground backdrop-blur-sm transition-colors hover:border-[#ff2d2d]/40 hover:text-foreground"
+              className="shrink-0 whitespace-nowrap rounded-full border border-border bg-white/[0.03] px-5 py-2.5 font-mono text-sm text-muted-foreground backdrop-blur-sm transition-colors hover:border-primary/40 hover:text-foreground"
             >
               {skill}
             </span>

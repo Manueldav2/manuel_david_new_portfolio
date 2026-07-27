@@ -33,7 +33,7 @@ export function Footer() {
             href={profile.x}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`X — ${profile.xHandle}`}
+            aria-label={`X, ${profile.xHandle}`}
             className="flex items-center gap-2 transition-colors hover:text-foreground"
           >
             <BrandIcon name="x" size={16} />
@@ -71,11 +71,11 @@ export function Footer() {
           overflow-hidden footer container. */}
       <div
         aria-hidden="true"
-        className="-mb-[0.26em] select-none text-center font-display font-bold leading-none tracking-tight"
+        className="-mb-[0.26em] select-none text-center font-display leading-none tracking-[0.02em]"
         style={{
           fontSize: "clamp(86px, 18vw, 300px)",
           backgroundImage:
-            "linear-gradient(rgb(22,22,25) 0%, rgb(31,31,35) 42%, rgb(43,43,48) 74%, rgb(58,58,64) 100%)",
+            "linear-gradient(rgb(26,19,16) 0%, rgb(38,29,23) 42%, rgb(50,38,30) 74%, rgb(74,58,46) 100%)",
           backgroundClip: "text",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",

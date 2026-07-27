@@ -71,7 +71,7 @@ export default function PopupDrinkWebsitePage() {
               </h1>
             </div>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              An interactive beverage brand site that uses AI to recommend drinks based on user taste, vibe, or event — combining e-commerce with AI-powered engagement.
+              An interactive beverage brand site that uses AI to recommend drinks based on a person's taste, mood, or event. It pairs e-commerce with AI recommendations.
             </p>
             <div className="flex justify-center gap-4 mt-8">
               <Badge className="px-4 py-2 text-sm bg-green-100 text-green-800 border-green-200">

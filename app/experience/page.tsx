@@ -112,7 +112,7 @@ export default function ExperiencePage() {
                   title: "AI Engineer",
                   company: "Devvcore",
                   location: "Remote",
-                  period: "Feb 2025 – Present",
+                  period: "Feb 2025 to Present",
                   achievements: [
                     "Developed production-ready AI workflows with Python, OpenAI, and Claude to automate support, content generation, and task management",
                     "Delivered scalable internal tools, enhancing developer velocity and user engagement across web platforms",
@@ -127,7 +127,7 @@ export default function ExperiencePage() {
                   title: "Founder & Lead Developer",
                   company: "Nouvo.dev",
                   location: "Remote",
-                  period: "May 2024 – Present",
+                  period: "May 2024 to Present",
                   achievements: [
                     "Founded a boutique agency building AI-integrated websites for creators, professionals, and local businesses",
                     "Built Resume AI, Cold Email SaaS, and a smart chatbot assistant to automate lead gen and onboarding",
@@ -142,7 +142,7 @@ export default function ExperiencePage() {
                   title: "Technology Support & Social Media Lead",
                   company: "Chapel of Praise",
                   location: "Rogers, AR",
-                  period: "Aug 2022 – May 2024",
+                  period: "Aug 2022 to May 2024",
                   achievements: [
                     "Modernized livestream workflows and technical infrastructure to support hybrid services",
                     "Produced and managed creative content strategies, increasing engagement by 35%+ across platforms",

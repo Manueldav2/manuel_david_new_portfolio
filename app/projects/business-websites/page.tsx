@@ -71,7 +71,7 @@ export default function BusinessWebsitesPage() {
               </h1>
             </div>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              A growing collection of modern, mobile-first websites for brands in fashion, tech, and services — customized for performance, design, and interactivity.
+              A growing collection of modern, mobile-first websites for brands in fashion, tech, and services, each tuned for performance and interactivity.
             </p>
             <div className="flex justify-center gap-4 mt-8">
               <Badge className="px-4 py-2 text-sm bg-green-100 text-green-800 border-green-200">

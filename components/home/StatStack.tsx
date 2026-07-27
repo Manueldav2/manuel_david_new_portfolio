@@ -10,7 +10,7 @@ gsap.registerPlugin(useGSAP)
 /**
  * F1-style stacked stat readout. Each stat renders as a giant font-display
  * numeral (zero-padded to two digits, like season points) with a tiny mono
- * label underneath. The last stat is painted in the #ff2d2d accent — the
+ * label underneath. The last stat is painted in the tan primary accent, the
  * "most important number" the eye lands on.
  *
  * Numbers count up on mount via a proxy tween (snap:1). Under reduced motion
@@ -81,7 +81,7 @@ export function StatStack() {
   return (
     <div
       ref={rootRef}
-      className="flex flex-col gap-6 sm:gap-8"
+      className="flex flex-row items-end gap-8 sm:gap-12"
       aria-hidden="true"
     >
       {profile.stats.map((stat, i) => {
@@ -94,8 +94,8 @@ export function StatStack() {
               data-stat-pad={padSample}
               className={
                 "font-display leading-[0.82] tracking-tight tabular-nums " +
-                "text-[clamp(56px,7vw,110px)] " +
-                (isLast ? "text-[#ff2d2d]" : "text-foreground/85")
+                "text-[clamp(52px,6vw,92px)] " +
+                (isLast ? "text-primary" : "text-foreground/85")
               }
             >
               {padSample}
