@@ -9,14 +9,14 @@ import type { Status } from "@/lib/content"
  *
  * Work tones:
  *   current  — tan accent, the "live" role you are in now.
- *   earning  — warm emerald, a thing that still pays without daily work.
+ *   earning  — soft warm gold, a thing that still pays without daily work.
  *   prior / everything else — muted, past tense.
  *
  * Project tones (share the espresso palette so both surfaces feel like one
  * system; only `current` is intentionally reused across work + projects):
  *   shipped      — cream/neutral, done and out in the world.
  *   open-source  — tan, the same accent as `current` but without the pulse dot.
- *   exploration  — warm violet, a live experiment that is not shipped.
+ *   exploration  — warm muted clay, a live experiment that is not shipped.
  *   archived     — faded, past tense and shelved.
  *
  * Server-safe (no client hooks); label defaults to the status text.
@@ -25,12 +25,14 @@ import type { Status } from "@/lib/content"
 const TONES: Record<string, string> = {
   // work
   current: "border-primary/40 bg-primary/15 text-primary",
-  earning: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+  earning:
+    "border-[hsl(38_70%_62%)]/35 bg-[hsl(38_70%_62%)]/[0.12] text-[hsl(38_74%_70%)]",
   prior: "border-border bg-foreground/[0.03] text-muted-foreground",
   // projects
   shipped: "border-foreground/20 bg-foreground/[0.06] text-foreground/90",
   "open-source": "border-primary/35 bg-primary/10 text-primary",
-  exploration: "border-violet-300/25 bg-violet-300/[0.08] text-violet-200",
+  exploration:
+    "border-[hsl(18_45%_58%)]/30 bg-[hsl(18_45%_58%)]/[0.09] text-[hsl(20_50%_72%)]",
   archived: "border-border bg-foreground/[0.02] text-muted-foreground/70",
 }
 

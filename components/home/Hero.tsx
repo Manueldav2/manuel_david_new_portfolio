@@ -289,7 +289,7 @@ export function Hero() {
                 href={profile.companyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="pointer-events-auto inline-flex items-center gap-[0.4em] text-primary transition-opacity hover:opacity-70"
+                className="pointer-events-auto inline-flex items-center gap-[0.4em] text-primary underline decoration-primary/70 decoration-1 underline-offset-[3px] transition-colors hover:decoration-primary hover:text-primary/80"
               >
                 Configure
                 <Image
@@ -308,13 +308,13 @@ export function Hero() {
           <h1 className="relative -ml-[0.04em] select-none font-display uppercase leading-[0.92] tracking-[-0.01em] text-foreground [text-shadow:0_2px_30px_hsl(20_24%_8%/0.7)] sm:[text-shadow:none]">
             <span
               data-name-line
-              className="block text-[clamp(56px,13vw,228px)] opacity-0"
+              className="block whitespace-nowrap break-keep hyphens-none [word-break:keep-all] text-[clamp(56px,13vw,228px)] opacity-0"
             >
               Manuel
             </span>
             <span
               data-name-line
-              className="block text-[clamp(56px,13vw,228px)] opacity-0"
+              className="block whitespace-nowrap break-keep hyphens-none [word-break:keep-all] text-[clamp(56px,13vw,228px)] opacity-0"
             >
               David
             </span>

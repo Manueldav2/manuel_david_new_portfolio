@@ -4,7 +4,7 @@ import { WorkTree } from "@/components/work/WorkTree"
 export const metadata: Metadata = {
   title: "Work — Manuel David",
   description:
-    "The roles that filled the hours: Founding Engineer at Configure, founder of Paradigm, and the freelance years before.",
+    "The roles that filled the hours: Founding Engineer at Configure, founder of Paradigm, and founder of Nouvo.",
 }
 
 export default function WorkPage() {

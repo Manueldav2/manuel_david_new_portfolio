@@ -1,0 +1,14 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="idexBg" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#211712"/>
+      <stop offset="1" stop-color="#3a2a20"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="22" fill="url(#idexBg)"/>
+  <rect x="0.75" y="0.75" width="94.5" height="94.5" rx="21.25" stroke="#c79a6d" stroke-opacity="0.22" stroke-width="1.5"/>
+  <!-- terminal chevron -->
+  <path d="M30 36 L42 48 L30 60" stroke="#c79a6d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- caret cursor -->
+  <rect x="50" y="55" width="18" height="6" rx="3" fill="#f3ece2"/>
+</svg>

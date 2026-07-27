@@ -31,11 +31,9 @@ export function BioSection() {
           const { animate } = ctx.conditions as { animate: boolean }
           const paras = gsap.utils.toArray<HTMLElement>("[data-bio-para]")
           const label = rootRef.current?.querySelector<HTMLElement>("[data-bio-label]")
-          const closing = rootRef.current?.querySelector<HTMLElement>("[data-bio-closing]")
 
           if (!animate) {
             gsap.set(paras, { opacity: 1 })
-            if (closing) gsap.set(closing, { opacity: 1 })
             return
           }
 
@@ -61,20 +59,6 @@ export function BioSection() {
               scrollTrigger: { trigger: para, start: "top 82%" },
             })
           })
-
-          // Closing line — a firmer rise + slight blur clear, landing after the
-          // paragraphs it caps off.
-          if (closing) {
-            gsap.set(closing, { opacity: 1 })
-            gsap.from(closing, {
-              y: 26,
-              opacity: 0,
-              filter: "blur(6px)",
-              duration: 1,
-              ease: "power3.out",
-              scrollTrigger: { trigger: closing, start: "top 88%" },
-            })
-          }
         }
       )
 
@@ -102,24 +86,32 @@ export function BioSection() {
       </div>
 
       <div className="max-w-3xl space-y-8">
-        {profile.bio.map((paragraph, i) => (
-          <p
-            key={i}
-            data-bio-para
-            className="font-body text-2xl leading-[1.35] text-foreground/85 opacity-0 sm:text-[1.75rem] sm:leading-[1.4]"
-          >
-            {paragraph}
-          </p>
-        ))}
-      </div>
+        {profile.bio.map((paragraph, i) => {
+          // The last paragraph ends on a clause we render in italic. Split the
+          // string on that exact clause so the tail becomes an <em>, keeping
+          // everything inline for the SplitText line reveal.
+          const italicClause = profile.bioItalic
+          const isLast = i === profile.bio.length - 1
+          const idx = isLast ? paragraph.lastIndexOf(italicClause) : -1
 
-      {/* Closing line — futuristic accent font, its own beat. */}
-      <p
-        data-bio-closing
-        className="mt-12 font-future text-2xl font-medium uppercase tracking-[0.04em] text-primary opacity-0 sm:mt-14 sm:text-4xl"
-      >
-        {profile.bioClosing}
-      </p>
+          return (
+            <p
+              key={i}
+              data-bio-para
+              className="font-body text-2xl leading-[1.35] text-foreground/85 opacity-0 sm:text-[1.75rem] sm:leading-[1.4]"
+            >
+              {idx >= 0 ? (
+                <>
+                  {paragraph.slice(0, idx)}
+                  <em className="italic text-foreground/95">{italicClause}</em>
+                </>
+              ) : (
+                paragraph
+              )}
+            </p>
+          )
+        })}
+      </div>
     </section>
   )
 }

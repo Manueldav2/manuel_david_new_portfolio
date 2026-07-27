@@ -24,7 +24,7 @@ const TILES: Tile[] = [
     index: "01",
     title: "Work",
     href: "/work",
-    desc: "Where I spend my days: Configure, Paradigm, and the freelance years that taught me to ship alone.",
+    desc: "Where I spend my days: Configure, Paradigm, and Nouvo, the studio that still pays the bills on its own.",
     meta: `${work.length} roles`,
   },
   {
