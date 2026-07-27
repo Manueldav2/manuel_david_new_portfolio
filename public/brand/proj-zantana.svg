@@ -1,0 +1,15 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ztBg" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#211712"/>
+      <stop offset="1" stop-color="#3a2a20"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="22" fill="url(#ztBg)"/>
+  <rect x="0.75" y="0.75" width="94.5" height="94.5" rx="21.25" stroke="#c79a6d" stroke-opacity="0.22" stroke-width="1.5"/>
+  <!-- speech bubble party glyph -->
+  <path d="M30 30 H66 A6 6 0 0 1 72 36 V56 A6 6 0 0 1 66 62 H46 L34 72 V62 H30 A6 6 0 0 1 24 56 V36 A6 6 0 0 1 30 30 Z" fill="none" stroke="#c79a6d" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="40" cy="46" r="3.5" fill="#f3ece2"/>
+  <circle cx="52" cy="46" r="3.5" fill="#f3ece2"/>
+  <circle cx="62" cy="46" r="3.5" fill="#f3ece2"/>
+</svg>

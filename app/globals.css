@@ -9,6 +9,13 @@
 }
 
 @layer base {
+  /*
+   * NOTE: This :root (light) block is intentionally unused. The site is
+   * dark-only — layout.tsx sets next-themes forcedTheme="dark" with
+   * enableSystem=false, so the .dark block below always wins. These light
+   * oklch values are the shadcn stub, kept only as a reference. Do NOT flip
+   * forcedTheme without first porting the espresso palette up here.
+   */
   :root {
     --background: oklch(0.9885 0.0057 84.5659);
     --foreground: oklch(0.3660 0.0251 49.6085);
@@ -42,9 +49,8 @@
     --sidebar-accent-foreground: oklch(1.0000 0 0);
     --sidebar-border: oklch(0.8866 0.0404 89.6994);
     --sidebar-ring: oklch(0.5553 0.1455 48.9975);
-    --font-sans: var(--font-inter), system-ui, sans-serif;
+    --font-sans: var(--font-body), system-ui, sans-serif;
     --font-serif: Georgia, serif;
-    --font-mono: var(--font-jetbrains-mono), 'Courier New', monospace;
     --radius: 0.3rem;
     --shadow-2xs: 0px 2px 3px 0px hsl(28 18% 25% / 0.09);
     --shadow-xs: 0px 2px 3px 0px hsl(28 18% 25% / 0.09);
@@ -56,44 +62,50 @@
     --shadow-2xl: 0px 2px 3px 0px hsl(28 18% 25% / 0.45);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
+    --glass-blur: 18px;
+    --glass-edge: rgba(243, 236, 226, 0.12);
   }
 
   .dark {
-    --background: oklch(0.2161 0.0061 56.0434);
-    --foreground: oklch(0.9699 0.0013 106.4238);
-    --card: oklch(0.2685 0.0063 34.2976);
-    --card-foreground: oklch(0.9699 0.0013 106.4238);
-    --popover: oklch(0.2685 0.0063 34.2976);
-    --popover-foreground: oklch(0.9699 0.0013 106.4238);
-    --primary: oklch(0.7049 0.1867 47.6044);
-    --primary-foreground: oklch(1.0000 0 0);
-    --secondary: oklch(0.4444 0.0096 73.6390);
-    --secondary-foreground: oklch(0.9232 0.0026 48.7171);
-    --muted: oklch(0.2685 0.0063 34.2976);
-    --muted-foreground: oklch(0.7161 0.0091 56.2590);
-    --accent: oklch(0.3598 0.0497 229.3202);
-    --accent-foreground: oklch(0.9232 0.0026 48.7171);
-    --destructive: oklch(0.5771 0.2152 27.3250);
-    --destructive-foreground: oklch(1.0000 0 0);
-    --border: oklch(0.3741 0.0087 67.5582);
-    --input: oklch(0.3741 0.0087 67.5582);
-    --ring: oklch(0.7049 0.1867 47.6044);
-    --chart-1: oklch(0.7049 0.1867 47.6044);
-    --chart-2: oklch(0.6847 0.1479 237.3225);
-    --chart-3: oklch(0.7952 0.1617 86.0468);
-    --chart-4: oklch(0.7161 0.0091 56.2590);
-    --chart-5: oklch(0.5534 0.0116 58.0708);
-    --sidebar: oklch(0.2685 0.0063 34.2976);
-    --sidebar-foreground: oklch(0.9699 0.0013 106.4238);
-    --sidebar-primary: oklch(0.7049 0.1867 47.6044);
-    --sidebar-primary-foreground: oklch(1.0000 0 0);
-    --sidebar-accent: oklch(0.6847 0.1479 237.3225);
-    --sidebar-accent-foreground: oklch(0.2839 0.0734 254.5378);
-    --sidebar-border: oklch(0.3741 0.0087 67.5582);
-    --sidebar-ring: oklch(0.7049 0.1867 47.6044);
-    --font-sans: var(--font-inter), system-ui, sans-serif;
+    /* Espresso base #1a1310, cream text #f3ece2, tan-caramel accent #b0855b.
+       Palette pulled from the portrait: warm browns rising to cream. */
+    --background: 20 24% 8%;
+    --foreground: 35 35% 92%;
+    --card: 22 22% 11%;
+    --card-foreground: 35 35% 92%;
+    --popover: 22 24% 10%;
+    --popover-foreground: 35 35% 92%;
+    --primary: 28 34% 52%;
+    --primary-foreground: 22 30% 10%;
+    --secondary: 24 18% 15%;
+    --secondary-foreground: 35 24% 86%;
+    --muted: 24 18% 13%;
+    --muted-foreground: 32 16% 66%;
+    --accent: 26 24% 18%;
+    --accent-foreground: 35 30% 90%;
+    --destructive: 8 62% 48%;
+    --destructive-foreground: 35 35% 94%;
+    --border: 26 16% 20%;
+    --input: 26 16% 20%;
+    --ring: 28 34% 52%;
+    --chart-1: 28 34% 52%;
+    --chart-2: 20 28% 40%;
+    --chart-3: 38 44% 64%;
+    --chart-4: 32 16% 60%;
+    --chart-5: 24 14% 42%;
+    --sidebar: 22 24% 10%;
+    --sidebar-background: 22 24% 10%;
+    --sidebar-foreground: 35 35% 92%;
+    --sidebar-primary: 28 34% 52%;
+    --sidebar-primary-foreground: 22 30% 10%;
+    --sidebar-accent: 26 24% 18%;
+    --sidebar-accent-foreground: 35 30% 90%;
+    --sidebar-border: 26 16% 20%;
+    --sidebar-ring: 28 34% 52%;
+    --glass-blur: 18px;
+    --glass-edge: rgba(243, 236, 226, 0.16);
+    --font-sans: var(--font-body), system-ui, sans-serif;
     --font-serif: Georgia, serif;
-    --font-mono: var(--font-jetbrains-mono), 'Courier New', monospace;
     --radius: 0.3rem;
     --shadow-2xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.09);
     --shadow-xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.09);
@@ -167,4 +179,192 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Liquid Glass primitive (components/glass/Glass.tsx)                 */
+/* ------------------------------------------------------------------ */
+@layer components {
+  .glass {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: rgba(243, 236, 226, 0.045);
+    /* Specular edge: warm cream light catches the top lip, shadow pools at the
+       bottom. Tint matches the espresso palette, not cold white. */
+    box-shadow:
+      inset 0 1px 0 0 rgba(243, 236, 226, 0.14),
+      inset 0 -1px 0 0 rgba(15, 10, 8, 0.45),
+      0 12px 40px -12px rgba(10, 7, 5, 0.55);
+  }
+
+  /* Plain frosted backdrop — lives on the root when no distortion layer. */
+  .glass-frost {
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  }
+
+  /* 1px gradient border ring, painted via mask so the fill stays clear. */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      var(--glass-edge),
+      rgba(243, 236, 226, 0.035) 40%,
+      rgba(243, 236, 226, 0.02) 60%,
+      rgba(243, 236, 226, 0.13)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Liquid refraction backdrop (the single extra layer, behind content).
+     filter: url() distorts only this layer's backdrop-filtered output —
+     children/text render above, untouched. Chromium-only: WebKit/Firefox
+     drop the backdrop blur when filter: url() is present, so Glass.tsx only
+     mounts this layer (and removes root frost) after detecting Chromium;
+     other engines keep .glass-frost on the root. */
+  .glass-refraction {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: block;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    filter: url(#glass-distortion);
+  }
+
+  /* Pointer-tracked specular spot; GSAP quickTo drives the vars. */
+  .glass-interactive::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: var(--spot-opacity, 0);
+    background: radial-gradient(
+      var(--spot-size, 180px) circle at var(--spot-x, 50%) var(--spot-y, 50%),
+      rgba(243, 236, 226, 0.15),
+      rgba(243, 236, 226, 0.05) 45%,
+      transparent 70%
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero portrait treatment — grade the real photo into the espresso   */
+/* palette (warm sepia lift), a soft feathered edge, and film grain    */
+/* so the figure reads as one art-directed layer, not a pasted crop.   */
+/* ------------------------------------------------------------------ */
+@layer components {
+  .hero-portrait {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* The photo itself: warm-graded. contrast + sepia + a brightness pull
+     drag the bright cold concrete toward the espresso background so the
+     subject stays foreground and the frame recedes. */
+  .hero-portrait img {
+    filter: contrast(1.05) saturate(0.72) sepia(0.32) brightness(0.82) hue-rotate(-6deg);
+  }
+
+  /* Espresso duotone wash: warm multiply + soft-light gradients in the
+     bg/accent tones so the photo's palette matches the page exactly and
+     the top/left dissolve toward the espresso field. */
+  .hero-portrait::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        180deg,
+        hsl(20 24% 8% / 0.55) 0%,
+        transparent 22%,
+        transparent 68%,
+        hsl(20 24% 8% / 0.72) 100%
+      ),
+      linear-gradient(
+        90deg,
+        hsl(20 24% 8% / 0.6) 0%,
+        transparent 34%,
+        transparent 74%,
+        hsl(20 24% 8% / 0.5) 100%
+      ),
+      linear-gradient(
+        160deg,
+        hsl(30 40% 55% / 0.22) 0%,
+        transparent 45%,
+        hsl(18 40% 9% / 0.4) 100%
+      );
+  }
+
+  /* Feathered bottom + side edges so the figure dissolves into the page
+     rather than ending on a hard rectangle, and a fine grain overlay. */
+  .hero-portrait::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.14;
+  }
+
+  /* Feathered edges: the figure emerges from the espresso on the left and
+     top, and bleeds off the bottom. Both mask layers must be present so the
+     intersect keeps only where BOTH are opaque. */
+  .hero-portrait-mask {
+    -webkit-mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        #000 24%,
+        #000 94%,
+        transparent 100%
+      ),
+      linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%),
+      linear-gradient(to top, #000 0%, #000 88%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(
+        to right,
+        transparent 0%,
+        #000 24%,
+        #000 94%,
+        transparent 100%
+      ),
+      linear-gradient(to bottom, #000 0%, #000 78%, transparent 100%),
+      linear-gradient(to top, #000 0%, #000 88%, transparent 100%);
+    mask-composite: intersect;
+  }
+}
+
+/* Chat "thinking" shimmer dots — motion-safe pulse while the assistant streams. */
+@keyframes chat-shimmer {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
+}
+.chat-shimmer-dot {
+  display: inline-block;
+  animation: chat-shimmer 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-shimmer-dot { animation: none; opacity: 0.7; }
 }
