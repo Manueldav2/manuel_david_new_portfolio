@@ -247,7 +247,7 @@ export function Hero() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, transparent 30%, hsl(20 24% 8%) 92%)",
+              "linear-gradient(to bottom, hsl(20 24% 8% / 0.72) 0%, hsl(20 24% 8% / 0.34) 20%, hsl(20 24% 8% / 0.34) 40%, hsl(20 24% 8% / 0.82) 68%, hsl(20 24% 8%) 90%)",
           }}
         />
       </div>
@@ -279,7 +279,7 @@ export function Hero() {
           {/* Top-left metadata — country / circuit style */}
           <div
             data-hero-meta
-            className="mb-5 flex flex-col gap-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground sm:text-xs"
+            className="mb-5 flex flex-col gap-1 font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground [text-shadow:0_1px_12px_hsl(20_24%_8%/0.9)] sm:text-xs sm:[text-shadow:none]"
           >
             <span className="text-foreground/90">{profile.location}</span>
             <span className="inline-flex items-center">
@@ -305,7 +305,7 @@ export function Hero() {
           </div>
 
           {/* THE NAME — massive, bleeding left */}
-          <h1 className="relative -ml-[0.04em] select-none font-display uppercase leading-[0.92] tracking-[-0.01em] text-foreground">
+          <h1 className="relative -ml-[0.04em] select-none font-display uppercase leading-[0.92] tracking-[-0.01em] text-foreground [text-shadow:0_2px_30px_hsl(20_24%_8%/0.7)] sm:[text-shadow:none]">
             <span
               data-name-line
               className="block text-[clamp(56px,13vw,228px)] opacity-0"
