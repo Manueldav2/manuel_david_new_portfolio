@@ -3,6 +3,8 @@ import { Inter, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { Chatbot } from "@/components/ui/chatbot"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Nav } from "@/components/site/Nav"
+import { Footer } from "@/components/site/Footer"
 import { display, body, mono } from "@/lib/fonts"
 
 const inter = Inter({
@@ -94,7 +96,10 @@ export default function RootLayout({
           </filter>
         </svg>
         <ThemeProvider attribute="class" forcedTheme="dark" enableSystem={false} disableTransitionOnChange>
-          {children}
+          <Nav />
+          {/* pt clears the fixed nav pill so page content never sits under it. */}
+          <main className="pt-24">{children}</main>
+          <Footer />
           <Chatbot />
         </ThemeProvider>
       </body>

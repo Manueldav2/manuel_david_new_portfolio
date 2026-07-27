@@ -1,0 +1,167 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useRef, useState } from "react"
+import gsap from "gsap"
+import { Flip } from "gsap/Flip"
+import { useGSAP } from "@gsap/react"
+import { Menu, X } from "lucide-react"
+import { Glass } from "@/components/glass/Glass"
+import { cn } from "@/lib/utils"
+
+gsap.registerPlugin(useGSAP, Flip)
+
+const LINKS = [
+  { href: "/work", label: "work" },
+  { href: "/projects", label: "projects" },
+  { href: "/chat", label: "chat" },
+] as const
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+export function Nav() {
+  const pathname = usePathname()
+  const navRef = useRef<HTMLElement | null>(null)
+  const indicatorRef = useRef<HTMLSpanElement | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // Slide the accent underline between links on route change using GSAP Flip.
+  // The indicator is a single shared span; on each pathname change we move it
+  // under the active link and Flip.from the previous layout. Under reduced
+  // motion it simply snaps (Flip.from with duration 0 via matchMedia).
+  useGSAP(
+    () => {
+      const indicator = indicatorRef.current
+      const nav = navRef.current
+      if (!indicator || !nav) return
+
+      const active = nav.querySelector<HTMLElement>('[data-nav-link][data-active="true"]')
+
+      if (!active) {
+        indicator.style.opacity = "0"
+        return
+      }
+
+      const state = Flip.getState(indicator)
+      // Re-parent the indicator into the active link so its measured box
+      // matches that link, then Flip animates from the captured position.
+      active.appendChild(indicator)
+      indicator.style.opacity = "1"
+
+      const mm = gsap.matchMedia()
+      mm.add(
+        {
+          animate: "(prefers-reduced-motion: no-preference)",
+          reduce: "(prefers-reduced-motion: reduce)",
+        },
+        (ctx) => {
+          const { animate } = ctx.conditions as { animate: boolean }
+          Flip.from(state, {
+            duration: animate ? 0.4 : 0,
+            ease: "power3.inOut",
+            absolute: false,
+          })
+        }
+      )
+      return () => mm.revert()
+    },
+    { scope: navRef, dependencies: [pathname] }
+  )
+
+  return (
+    <header
+      ref={navRef}
+      className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
+    >
+      <Glass
+        as="nav"
+        distort
+        className="relative flex w-full max-w-5xl items-center justify-between gap-4 rounded-full px-5 py-2.5"
+      >
+        {/* Wordmark */}
+        <Link
+          href="/"
+          className="font-display text-lg lowercase tracking-tight text-foreground transition-opacity hover:opacity-70"
+        >
+          manuel david
+        </Link>
+
+        {/* Desktop links */}
+        <nav className="hidden items-center gap-1 md:flex">
+          {LINKS.map((link) => {
+            const active = isActive(pathname, link.href)
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                data-nav-link
+                data-active={active}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative px-3 py-1.5 font-mono text-sm lowercase transition-colors",
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {link.label}
+              </Link>
+            )
+          })}
+          {/* Shared sliding accent underline (moved between links via Flip) */}
+          <span
+            ref={indicatorRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-0.5 left-3 right-3 h-[2px] rounded-full bg-[#ff2d2d]"
+          />
+          {/* TODO: theme toggle once light tokens exist (site is forcedTheme dark) */}
+        </nav>
+
+        {/* Mobile menu trigger */}
+        <button
+          type="button"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white/10 md:hidden"
+        >
+          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </Glass>
+
+      {/* Mobile menu — rendered OUTSIDE the Glass bar because Glass clips
+          overflow (overflow: hidden). Absolute sibling panel. */}
+      {menuOpen && (
+        <div className="absolute inset-x-4 top-[calc(100%+0.5rem)] md:hidden">
+          <Glass className="flex flex-col gap-1 rounded-2xl p-3">
+            {LINKS.map((link) => {
+              const active = isActive(pathname, link.href)
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-xl px-4 py-3 font-mono text-base lowercase transition-colors",
+                    active
+                      ? "bg-white/5 text-foreground"
+                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    {active && (
+                      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#ff2d2d]" />
+                    )}
+                    {link.label}
+                  </span>
+                </Link>
+              )
+            })}
+          </Glass>
+        </div>
+      )}
+    </header>
+  )
+}
