@@ -6,26 +6,37 @@ import { useGSAP } from "@gsap/react"
 
 gsap.registerPlugin(useGSAP)
 
+export type ChartPoint = { label: string; value: number }
+
 export type ChartSpec = {
-  type?: "bar" | "line" | "pie"
+  type: "bar" | "line" | "pie"
   title?: string
-  data?: { label?: string; value?: number }[]
+  data: ChartPoint[]
+}
+
+// Loose shape of the raw JSON before normalization (every field untrusted).
+type RawChartSpec = {
+  type?: unknown
+  title?: unknown
+  data?: { label?: unknown; value?: unknown }[]
 }
 
 /**
  * Parses a ```chart fenced block's JSON into a ChartSpec, tolerating malformed
  * input (returns null so the caller can fall back to rendering the raw code).
+ * Output data is fully normalized: label is a string, value a finite number.
  */
 export function parseChartSpec(raw: string): ChartSpec | null {
   try {
-    const parsed = JSON.parse(raw) as ChartSpec
+    const parsed = JSON.parse(raw) as RawChartSpec
     if (!parsed || !Array.isArray(parsed.data) || parsed.data.length === 0) return null
-    const data = parsed.data
+    const data: ChartPoint[] = parsed.data
       .filter((d) => d && typeof d.value === "number" && Number.isFinite(d.value))
       .map((d) => ({ label: String(d.label ?? ""), value: Number(d.value) }))
     if (data.length === 0) return null
     const type = parsed.type === "line" || parsed.type === "pie" ? parsed.type : "bar"
-    return { type, title: parsed.title, data }
+    const title = typeof parsed.title === "string" ? parsed.title : undefined
+    return { type, title, data }
   } catch {
     return null
   }

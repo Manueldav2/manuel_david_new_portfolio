@@ -25,7 +25,7 @@ export const profile = {
   // Kept for the chat system prompt; no longer rendered on the home page.
   bioClosing: "I build like it's already a few years from now.",
   stats: [
-    { label: "Projects shipped", value: 15 },
+    { label: "Projects built", value: 12 },
     { label: "Years building", value: 4 },
   ],
   skills: [

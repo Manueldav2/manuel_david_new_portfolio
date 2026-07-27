@@ -9,6 +9,13 @@
 }
 
 @layer base {
+  /*
+   * NOTE: This :root (light) block is intentionally unused. The site is
+   * dark-only — layout.tsx sets next-themes forcedTheme="dark" with
+   * enableSystem=false, so the .dark block below always wins. These light
+   * oklch values are the shadcn stub, kept only as a reference. Do NOT flip
+   * forcedTheme without first porting the espresso palette up here.
+   */
   :root {
     --background: oklch(0.9885 0.0057 84.5659);
     --foreground: oklch(0.3660 0.0251 49.6085);

@@ -19,19 +19,8 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   generator: "Manuel David Portfolio",
   icons: {
-    icon: [
-      {
-        url: "https://i.imgur.com/EGSz1Un.jpg",
-        sizes: "any",
-      },
-    ],
-    apple: [
-      {
-        url: "https://i.imgur.com/EGSz1Un.jpg",
-        sizes: "180x180",
-        type: "image/jpeg",
-      },
-    ],
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/favicon.svg", type: "image/svg+xml" }],
   },
   openGraph: {
     title: "Manuel David — Founding Engineer at Configure",
