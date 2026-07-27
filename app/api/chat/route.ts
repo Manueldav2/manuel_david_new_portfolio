@@ -16,6 +16,31 @@ const SYSTEM = buildSystemPrompt()
 
 const MODEL = "claude-haiku-4-5-20251001" // fast; low time-to-first-token
 
+// Per-IP token bucket. This is a public, unauthenticated endpoint proxying a
+// paid API, so we cap request volume per IP. In-memory (per warm Cloud Function
+// instance) — not perfect across cold starts, but it stops the trivial
+// single-source flood, which is the realistic threat for a personal site. The
+// real backstop is a spend cap on the Anthropic key.
+const BUCKET = new Map<string, { tokens: number; ts: number }>()
+const RL_LIMIT = 20 // requests
+const RL_WINDOW_MS = 60_000 // per minute per IP
+const RL_REFILL = RL_LIMIT / RL_WINDOW_MS
+
+function rateLimited(ip: string): boolean {
+  const now = Date.now()
+  const b = BUCKET.get(ip) ?? { tokens: RL_LIMIT, ts: now }
+  b.tokens = Math.min(RL_LIMIT, b.tokens + (now - b.ts) * RL_REFILL)
+  b.ts = now
+  if (b.tokens < 1) {
+    BUCKET.set(ip, b)
+    return true
+  }
+  b.tokens -= 1
+  BUCKET.set(ip, b)
+  if (BUCKET.size > 5000) BUCKET.clear() // crude unbounded-growth guard
+  return false
+}
+
 type Role = "user" | "assistant"
 interface InMessage {
   role: unknown
@@ -30,6 +55,17 @@ interface InMessage {
  * the build and the route stay healthy with or without a key.
  */
 export async function POST(req: Request): Promise<Response> {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  if (rateLimited(ip)) {
+    return Response.json(
+      { error: "Too many requests. Give it a moment." },
+      { status: 429, headers: { "Retry-After": "30" } }
+    )
+  }
+
   let body: { messages?: unknown }
   try {
     body = await req.json()
