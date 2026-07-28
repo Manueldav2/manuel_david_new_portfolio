@@ -33,11 +33,10 @@ export function Footer() {
             href={profile.x}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`X, ${profile.xHandle}`}
-            className="flex items-center gap-2 transition-colors hover:text-foreground"
+            aria-label="X"
+            className="flex items-center transition-colors hover:text-foreground"
           >
-            <BrandIcon name="x" size={16} />
-            <span>{profile.xHandle}</span>
+            <BrandIcon name="x" size={18} />
           </a>
           <a
             href={profile.linkedin}
