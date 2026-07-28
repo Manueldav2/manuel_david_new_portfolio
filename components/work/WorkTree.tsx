@@ -1,15 +1,149 @@
 "use client"
 
-import { useRef } from "react"
+import { useId, useRef, useState } from "react"
 import gsap from "gsap"
 import { useGSAP } from "@gsap/react"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { SplitText } from "gsap/SplitText"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Plus } from "lucide-react"
 import { StatusTag } from "@/components/work/StatusTag"
 import { work } from "@/lib/content"
 
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText)
+
+/**
+ * StoryToggle — the expandable "the story" affordance under a role.
+ *
+ * Collapsed by default. A tan mono button ("the story" + a rotating plus) that,
+ * when clicked, expands a panel of first-person story paragraphs. It reads as a
+ * quiet hairline reveal, not a boxed accordion: a thin tan rule runs down the
+ * left of the story, the text is indented under the role and set in font-body at
+ * a comfortable measure, cream on espresso.
+ *
+ * Motion: a GSAP height (auto <-> 0) + opacity tween wrapped in matchMedia. The
+ * reduced-motion branch toggles the final state instantly (no height tween). The
+ * plus mark rotates to an x on open. Height is measured off scrollHeight so the
+ * panel animates to its natural size and is then set back to auto so it stays
+ * responsive to reflow.
+ *
+ * Accessibility: a real <button> with aria-expanded + aria-controls; the panel
+ * carries the controlled id and is hidden from AT (and tab order) while closed.
+ */
+function StoryToggle({ story, name }: { story: string[]; name: string }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const iconRef = useRef<SVGSVGElement | null>(null)
+  const openRef = useRef(false)
+  const panelId = useId()
+
+  // Land the panel collapsed on mount via GSAP (not React inline style). Keeping
+  // the animated props out of the JSX style prop is deliberate: React re-writes
+  // the style attribute on every re-render, which would fight and clobber GSAP's
+  // inline height/opacity mid-tween. useGSAP here only runs this once and never
+  // reverts it out from under an in-flight toggle (empty deps).
+  const { contextSafe } = useGSAP(
+    () => {
+      if (panelRef.current) {
+        gsap.set(panelRef.current, { height: 0, opacity: 0, overflow: "hidden" })
+      }
+    },
+    { scope: rootRef }
+  )
+
+  const toggle = contextSafe(() => {
+    const panel = panelRef.current
+    const icon = iconRef.current
+    if (!panel) return
+    const next = !openRef.current
+    openRef.current = next
+    setOpen(next)
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+    if (icon) {
+      gsap.to(icon, {
+        rotate: next ? 135 : 0,
+        duration: reduced ? 0 : 0.4,
+        ease: "power2.out",
+      })
+    }
+
+    // Kill any in-flight tween so a fast double-toggle can't strand the panel at
+    // a partial height.
+    gsap.killTweensOf(panel)
+
+    if (reduced) {
+      gsap.set(panel, { height: next ? "auto" : 0, opacity: next ? 1 : 0 })
+      return
+    }
+
+    if (next) {
+      gsap.set(panel, { height: "auto", opacity: 1 })
+      gsap.from(panel, {
+        height: 0,
+        opacity: 0,
+        duration: 0.55,
+        ease: "power3.out",
+        // Back to auto so the panel keeps flexing with reflow (resize, font swap).
+        onComplete: () => {
+          gsap.set(panel, { height: "auto" })
+        },
+      })
+    } else {
+      gsap.to(panel, {
+        height: 0,
+        opacity: 0,
+        duration: 0.4,
+        ease: "power3.in",
+      })
+    }
+  })
+
+  return (
+    <div ref={rootRef} className="mt-5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="group/story inline-flex items-center gap-2 font-mono text-xs lowercase tracking-[0.14em] text-primary transition-opacity hover:opacity-70"
+      >
+        <Plus
+          ref={iconRef}
+          size={13}
+          aria-hidden
+          className="text-primary"
+        />
+        {open ? "close the story" : "read the story"}
+      </button>
+
+      {/* Panel stays mounted so the collapse can animate out; while closed it is
+          hidden from assistive tech. GSAP owns height + opacity (set on mount and
+          on toggle); the JSX carries NO inline height/opacity so React can never
+          overwrite the animation. The left hairline + indent give it an
+          intentional, quiet reveal instead of a boxed accordion. */}
+      <div
+        id={panelId}
+        ref={panelRef}
+        role="region"
+        aria-label={`Why I did ${name}`}
+        aria-hidden={!open}
+      >
+        <div className="mt-5 border-l border-primary/30 pl-5 sm:pl-6">
+          {story.map((para, i) => (
+            <p
+              key={i}
+              className="max-w-[60ch] font-body text-sm leading-[1.7] text-foreground/90 [text-wrap:pretty] first:mt-0 [&:not(:first-child)]:mt-4 sm:text-[15px]"
+            >
+              {para}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /**
  * WORK — a career telemetry spine.
@@ -334,6 +468,13 @@ export function WorkTree() {
                           className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                         />
                       </a>
+                    </div>
+                  )}
+
+                  {/* the story — expandable, first-person, why I did this role */}
+                  {entry.story && entry.story.length > 0 && (
+                    <div data-node-inner className="opacity-0">
+                      <StoryToggle story={entry.story} name={entry.company} />
                     </div>
                   )}
                 </div>

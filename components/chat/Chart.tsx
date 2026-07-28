@@ -46,7 +46,10 @@ const W = 340
 const H = 180
 const PAD_L = 8
 const PAD_R = 8
-const PAD_T = 8
+// Top padding reserves headroom for the value label that rides above each bar
+// (and the tallest bar reaches y = PAD_T). At 24 the label at y - 4 = 20 clears
+// the top of the viewBox, so even the max-value bar's number renders in full.
+const PAD_T = 24
 const PAD_B = 28
 
 // Espresso-palette series colors (tan → cream range), tuned for the dark theme.
