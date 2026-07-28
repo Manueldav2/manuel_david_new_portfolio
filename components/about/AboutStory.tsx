@@ -138,17 +138,20 @@ export function AboutStory() {
       </header>
 
       {/* ============================== LEAD ============================== */}
-      {/* Portrait + the opening line of the story, set big. */}
-      <div className="mb-20 grid grid-cols-1 gap-8 sm:mb-28 sm:grid-cols-[minmax(0,220px)_1fr] sm:items-center sm:gap-12">
+      {/* Portrait alongside the opening paragraph, set as an editorial lead:
+          font-body prose, a touch larger than the body, sentence-case, with a
+          tan drop-cap on the first letter. The only large type on the page is
+          the ghost ABOUT above; this reads like the opening of a feature. */}
+      <div className="mb-16 grid grid-cols-1 gap-8 sm:mb-24 sm:grid-cols-[minmax(0,200px)_1fr] sm:items-start sm:gap-12">
         <div
           data-portrait
-          className="relative aspect-[4/5] w-40 overflow-hidden rounded-2xl border border-foreground/10 opacity-0 shadow-[0_24px_60px_-24px_hsl(20_24%_4%/0.9)] sm:w-full"
+          className="relative aspect-[4/5] w-36 overflow-hidden rounded-2xl border border-foreground/10 opacity-0 shadow-[0_24px_60px_-24px_hsl(20_24%_4%/0.9)] sm:sticky sm:top-28 sm:w-full"
         >
           <Image
             src="/images/manuel-hero.jpg"
             alt="Manuel David"
             fill
-            sizes="(min-width: 640px) 220px, 160px"
+            sizes="(min-width: 640px) 200px, 144px"
             className="object-cover"
             priority
           />
@@ -161,8 +164,8 @@ export function AboutStory() {
 
         <p
           ref={leadRef}
-          className="max-w-[24ch] font-display uppercase leading-[0.98] tracking-[-0.01em] text-foreground opacity-0"
-          style={{ fontSize: "clamp(28px, 4.4vw, 52px)" }}
+          className="about-lead max-w-[64ch] font-body leading-relaxed text-foreground opacity-0 [text-wrap:pretty]"
+          style={{ fontSize: "clamp(20px, 2.4vw, 26px)" }}
         >
           {lead}
         </p>
@@ -170,18 +173,18 @@ export function AboutStory() {
 
       {/* ============================== BODY ============================== */}
       {/* Each remaining paragraph is a story beat: a two-digit index + a thin
-          tan rule on the left, the text set large in font-body. */}
-      <ol className="relative space-y-16 sm:space-y-24">
+          tan rule on the left, the text set as calm, readable font-body prose. */}
+      <ol className="relative ml-0 space-y-12 sm:ml-[calc(200px+3rem)] sm:space-y-16">
         {rest.map((para, i) => (
           <li
             key={i}
             data-beat
-            className="grid grid-cols-[auto_1fr] gap-x-5 sm:gap-x-10"
+            className="grid grid-cols-[auto_1fr] gap-x-5 sm:gap-x-8"
           >
             {/* index + rule rail */}
             <div
               data-beat-inner
-              className="flex flex-col items-center gap-3 pt-1.5 opacity-0"
+              className="flex flex-col items-center gap-3 pt-2 opacity-0"
             >
               <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-primary">
                 {String(i + 1).padStart(2, "0")}
@@ -194,8 +197,8 @@ export function AboutStory() {
 
             <p
               data-beat-inner
-              className="max-w-[54ch] font-body leading-[1.6] text-foreground/90 opacity-0 [text-wrap:pretty]"
-              style={{ fontSize: "clamp(18px, 2.2vw, 24px)" }}
+              className="max-w-[66ch] font-body leading-relaxed text-foreground/90 opacity-0 [text-wrap:pretty]"
+              style={{ fontSize: "clamp(18px, 1.6vw, 21px)" }}
             >
               {para}
             </p>

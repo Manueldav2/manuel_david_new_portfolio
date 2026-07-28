@@ -370,8 +370,26 @@
 }
 
 /* About page lead: SplitText line wrapper clips so the yPercent slide-up is
-   masked to a clean edge. Overflow-y hidden keeps descenders from clipping. */
+   masked to a clean edge. A little vertical padding keeps ascenders and
+   descenders (and the drop-cap) from being sheared by the clip. */
 .about-line {
   overflow: hidden;
-  padding-bottom: 0.08em;
+  padding-top: 0.12em;
+  padding-bottom: 0.12em;
+}
+
+/* Editorial drop-cap on the very first line of the opening paragraph. Applied
+   to the SplitText line wrapper (::first-letter on the raw <p> stops matching
+   once SplitText re-wraps the text into line divs). Tan, font-display, sunk
+   two lines in. */
+.about-lead .about-line:first-child::first-letter,
+.about-lead:not(:has(.about-line))::first-letter {
+  float: left;
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 3.1em;
+  line-height: 0.72;
+  padding-right: 0.08em;
+  padding-top: 0.02em;
+  color: hsl(var(--primary));
 }
