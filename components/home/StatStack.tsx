@@ -87,18 +87,22 @@ export function StatStack() {
       {profile.stats.map((stat, i) => {
         const isLast = i === profile.stats.length - 1
         const padSample = String(stat.value).padStart(2, "0")
+        const suffix = "suffix" in stat ? (stat as { suffix?: string }).suffix : undefined
         return (
           <div key={stat.label} className="flex flex-col items-start">
             <span
-              data-stat-value={stat.value}
-              data-stat-pad={padSample}
               className={
-                "font-display leading-[0.82] tracking-tight tabular-nums " +
+                "flex items-end font-display leading-[0.82] tracking-tight tabular-nums " +
                 "text-[clamp(52px,6vw,92px)] " +
                 (isLast ? "text-primary" : "text-foreground/85")
               }
             >
-              {padSample}
+              {/* Only this span's textContent is driven by the count-up, so the
+                  suffix ("+") is never clobbered mid-tween. */}
+              <span data-stat-value={stat.value} data-stat-pad={padSample}>
+                {padSample}
+              </span>
+              {suffix && <span aria-hidden>{suffix}</span>}
             </span>
             <span className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground sm:text-[11px]">
               {stat.label}

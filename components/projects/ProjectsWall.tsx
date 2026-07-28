@@ -7,7 +7,7 @@ import { Flip } from "gsap/Flip"
 import { Search, X } from "lucide-react"
 import { Glass } from "@/components/glass/Glass"
 import { ProjectCard } from "@/components/projects/ProjectCard"
-import { projects, type ProjectStatus } from "@/lib/content"
+import { projects, profile, type ProjectStatus } from "@/lib/content"
 import { cn } from "@/lib/utils"
 
 gsap.registerPlugin(useGSAP, Flip)
@@ -53,7 +53,13 @@ function matches(
   return (
     project.name.toLowerCase().includes(q) ||
     project.blurb.toLowerCase().includes(q) ||
-    project.status.toLowerCase().includes(q)
+    project.status.toLowerCase().includes(q) ||
+    // Collection cards are findable by the client names inside them.
+    (project.clients?.some(
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.kind.toLowerCase().includes(q)
+    ) ??
+      false)
   )
 }
 
@@ -186,11 +192,11 @@ export function ProjectsWall() {
         </span>
 
         <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 sm:absolute sm:bottom-3 sm:left-1 sm:mt-0">
-          <span className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">
-            Things I build when no one asks
-          </span>
           <span className="font-mono text-xs uppercase tracking-[0.28em] text-primary">
-            {String(projects.length).padStart(2, "0")} shipped &amp; in flight
+            {profile.projectsTotalLabel} things I&rsquo;ve built
+          </span>
+          <span className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">
+            A selection is shown
           </span>
         </div>
       </header>
@@ -264,7 +270,7 @@ export function ProjectsWall() {
       {/* ============================== GRID ============================== */}
       <div
         ref={gridRef}
-        className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
       >
         {projects.map((project) => {
           const show = matches(project, filter, query)
@@ -287,6 +293,33 @@ export function ProjectsWall() {
         <p className="mt-16 text-center font-mono text-sm lowercase tracking-[0.1em] text-muted-foreground">
           nothing matches that. try another word.
         </p>
+      )}
+
+      {/* ============================== CLOSING ============================== */}
+      {/* The wall is a curated slice, not the whole archive. This says so and
+          points to where the rest actually lives. */}
+      {visibleCount > 0 && (
+        <div className="mt-14 flex items-center gap-4 border-t border-border/60 pt-8 sm:mt-16">
+          <span aria-hidden className="hidden h-px flex-1 bg-border/40 sm:block" />
+          <div className="sm:text-center">
+            <p className="font-mono text-xs lowercase tracking-[0.14em] text-muted-foreground">
+              This isn&rsquo;t everything. There&rsquo;s more on my{" "}
+              <a
+                href={profile.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline decoration-primary/40 decoration-1 underline-offset-4 transition-colors hover:decoration-primary"
+              >
+                GitHub
+              </a>{" "}
+              and Firebase.
+            </p>
+            <p className="mt-2 font-mono text-xs lowercase tracking-[0.2em] text-primary">
+              always building &middot; more to come
+            </p>
+          </div>
+          <span aria-hidden className="hidden h-px flex-1 bg-border/40 sm:block" />
+        </div>
       )}
     </section>
   )

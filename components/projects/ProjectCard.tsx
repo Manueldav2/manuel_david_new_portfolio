@@ -1,13 +1,14 @@
 "use client"
 
 import Image from "next/image"
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import gsap from "gsap"
 import { useGSAP } from "@gsap/react"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Layers } from "lucide-react"
 import { Glass } from "@/components/glass/Glass"
 import { StatusTag } from "@/components/work/StatusTag"
 import { BrandIcon } from "@/components/site/BrandIcon"
+import { ClientGalleryModal } from "@/components/projects/ClientGalleryModal"
 import type { Project } from "@/lib/content"
 
 gsap.registerPlugin(useGSAP)
@@ -32,8 +33,12 @@ gsap.registerPlugin(useGSAP)
  */
 export function ProjectCard({ project }: { project: Project }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  const cardRef = useRef<HTMLAnchorElement | HTMLDivElement | null>(null)
+  const cardRef = useRef<HTMLAnchorElement | HTMLButtonElement | HTMLDivElement | null>(null)
   const tileRef = useRef<HTMLDivElement | null>(null)
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  // A collection card (has `clients`) opens a gallery modal instead of linking.
+  const isCollection = Array.isArray(project.clients) && project.clients.length > 0
 
   useGSAP(
     () => {
@@ -106,29 +111,53 @@ export function ProjectCard({ project }: { project: Project }) {
     <>
       {/* ---------- TOP ROW: tile + telemetry ---------- */}
       <div className="flex items-start justify-between gap-4">
-        {/* favicon / monogram tile — light frosted backing keeps dark marks
-            legible on the espresso card. */}
-        <div
-          ref={tileRef}
-          className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-foreground/12 bg-foreground/[0.08] shadow-[inset_0_1px_0_hsl(35_35%_92%/0.14),0_8px_24px_-12px_hsl(20_24%_4%/0.9)] [transform:translateZ(30px)] sm:h-14 sm:w-14"
-        >
-          {project.favicon ? (
-            <Image
-              src={project.favicon}
-              alt=""
-              width={48}
-              height={48}
-              className="h-8 w-8 object-contain sm:h-9 sm:w-9"
-            />
-          ) : (
-            <span className="font-display text-2xl leading-none text-primary sm:text-3xl">
-              {monogram}
+        {/* Tile. A collection card gets a stacked-layers treatment (two offset
+            backing plates behind a gallery glyph) so it reads as "many sites,"
+            not one project. Regular cards show a favicon or monogram on a light
+            frosted backing that keeps dark marks legible on the espresso card. */}
+        {isCollection ? (
+          <div
+            ref={tileRef}
+            aria-hidden
+            className="relative h-12 w-12 shrink-0 [transform:translateZ(30px)] sm:h-14 sm:w-14"
+          >
+            {/* offset backing plates */}
+            <span className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl border border-foreground/10 bg-foreground/[0.05]" />
+            <span className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-foreground/12 bg-foreground/[0.06]" />
+            <span className="absolute inset-0 flex items-center justify-center rounded-xl border border-primary/25 bg-foreground/[0.08] shadow-[inset_0_1px_0_hsl(35_35%_92%/0.14),0_8px_24px_-12px_hsl(20_24%_4%/0.9)]">
+              <Layers className="h-6 w-6 text-primary sm:h-7 sm:w-7" strokeWidth={1.6} />
             </span>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            ref={tileRef}
+            className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-foreground/12 bg-foreground/[0.08] shadow-[inset_0_1px_0_hsl(35_35%_92%/0.14),0_8px_24px_-12px_hsl(20_24%_4%/0.9)] [transform:translateZ(30px)] sm:h-14 sm:w-14"
+          >
+            {project.favicon ? (
+              <Image
+                src={project.favicon}
+                alt=""
+                width={48}
+                height={48}
+                className="h-8 w-8 object-contain sm:h-9 sm:w-9"
+              />
+            ) : (
+              <span className="font-display text-2xl leading-none text-primary sm:text-3xl">
+                {monogram}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col items-end gap-2 pt-0.5 text-right [transform:translateZ(22px)]">
-          <StatusTag status={project.status} />
+          {isCollection ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 font-mono text-[10px] uppercase leading-none tracking-[0.18em] text-primary">
+              <Layers size={11} strokeWidth={1.8} />
+              {project.clients!.length} sites
+            </span>
+          ) : (
+            <StatusTag status={project.status} />
+          )}
           <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
             {project.year}
           </span>
@@ -150,7 +179,15 @@ export function ProjectCard({ project }: { project: Project }) {
 
       {/* ---------- LINKS ROW ---------- */}
       <div className="mt-1 flex items-center justify-between gap-4 [transform:translateZ(16px)]">
-        {host ? (
+        {isCollection ? (
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs lowercase tracking-[0.08em] text-primary transition-opacity group-hover/card:opacity-80">
+            view the gallery
+            <ArrowUpRight
+              size={14}
+              className="transition-transform duration-300 group-hover/card:translate-x-0.5 group-hover/card:-translate-y-0.5"
+            />
+          </span>
+        ) : host ? (
           <span className="inline-flex items-center gap-1.5 font-mono text-xs lowercase tracking-[0.08em] text-primary transition-opacity group-hover/card:opacity-80">
             visit {host}
             <ArrowUpRight
@@ -204,7 +241,20 @@ export function ProjectCard({ project }: { project: Project }) {
       ref={wrapRef}
       className="group/wrap h-full [perspective:1000px]"
     >
-      {project.url ? (
+      {isCollection ? (
+        <Glass
+          as="button"
+          type="button"
+          ref={cardRef as React.Ref<HTMLButtonElement>}
+          interactive
+          onClick={() => setGalleryOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={`${project.name} — open the gallery of ${project.clients!.length} client sites`}
+          className={`${commonCardClass} cursor-pointer text-left`}
+        >
+          {cardInner}
+        </Glass>
+      ) : project.url ? (
         <Glass
           as="a"
           ref={cardRef as React.Ref<HTMLAnchorElement>}
@@ -225,6 +275,15 @@ export function ProjectCard({ project }: { project: Project }) {
         >
           {cardInner}
         </Glass>
+      )}
+
+      {isCollection && galleryOpen && (
+        <ClientGalleryModal
+          title={project.name}
+          clients={project.clients!}
+          onClose={() => setGalleryOpen(false)}
+          triggerRef={cardRef as React.RefObject<HTMLElement | null>}
+        />
       )}
     </div>
   )

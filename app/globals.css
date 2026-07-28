@@ -368,3 +368,10 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-shimmer-dot { animation: none; opacity: 0.7; }
 }
+
+/* About page lead: SplitText line wrapper clips so the yPercent slide-up is
+   masked to a clean edge. Overflow-y hidden keeps descenders from clipping. */
+.about-line {
+  overflow: hidden;
+  padding-bottom: 0.08em;
+}

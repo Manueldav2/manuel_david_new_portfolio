@@ -24,9 +24,22 @@ export const profile = {
   bioItalic: "I decided to build the future infrastructure they'll run on.",
   // Kept for the chat system prompt; no longer rendered on the home page.
   bioClosing: "I build like it's already a few years from now.",
-  stats: [
-    { label: "Projects built", value: 19 },
+  // First-person story, one string per paragraph. Rendered on /about and folded
+  // into the chat system prompt. Humanized, warm, no em-dashes.
+  about: [
+    "I left college and moved to San Francisco, a city I had never once set foot in, because I felt called to build. That was not a light decision. It took a lot of prayer and a lot of long talks with my family before I bought the ticket. Looking back, it is the best chance I have ever taken. I am living closer to my potential out here than I ever was in a lecture hall.",
+    "I am a believer, and I try to stay faithful to God. That is a real part of who I am and a big part of why I am here at all. It sits under everything else I do, the thing the rest of my life is built on top of.",
+    "I build fast. Break fast, fix fast, learn fast, that is the whole loop. I have spent years building agentic systems and workflows, and I have made just about every mistake there is to make. I once burned a couple hundred dollars sending out a batch of genuinely terrible emails before I caught it. That one still makes me laugh. Mistakes are fine. A mistake you learn from is just tuition.",
+    "My most expensive mistake was never a bug. It was imposter syndrome. For too long I second-guessed my own work instead of believing in it and telling people about it. If I could hand one thing to anyone starting out, it would be this: take a chance on yourself and say out loud what you are building. Nobody bets on you if you will not bet on you first.",
+    "Here is what I am actually convinced of. We are walking into a world run by agents. Agents talking to agents, our attention filtered for us before we ever see it, whole workflows handed off and handled while we sleep. Someone has to build the infrastructure underneath all of that, the layer that decides what those agents know and who they are working for. That is the work I care about. That is why I do any of this.",
   ],
+  stats: [
+    { label: "Projects built", value: 30, suffix: "+" },
+  ],
+  // The real portfolio is bigger than the curated wall: public GitHub repos
+  // plus private ones plus client sites. The projects page shows a selection;
+  // this is the honest total the page and stat both point at.
+  projectsTotalLabel: "30+",
   skills: [
     "TypeScript", "Python", "Next.js", "React", "Node.js",
     "AI agents", "MCP", "Claude API", "Gemini API", "GSAP",
@@ -77,12 +90,25 @@ export const work: readonly WorkEntry[] = [
   },
 ];
 
+/**
+ * A live client site inside a collection project (the Nouvo Clients card).
+ * `kind` is the short mono descriptor shown in the gallery; `url` is a
+ * verified-live site opened in a new tab.
+ */
+export type ProjectClient = { name: string; kind: string; url: string };
+
 export type Project = {
   slug: string; name: string; status: ProjectStatus; year: string;
   blurb: string; url?: string; github?: string; favicon?: string;
+  // When present, the card is a COLLECTION: clicking it opens a gallery modal
+  // of these client sites instead of navigating anywhere. See ProjectCard.
+  clients?: readonly ProjectClient[];
 };
 
 export const projects: readonly Project[] = [
+  { slug: "paradigm", name: "Paradigm", status: "shipped", year: "2025",
+    blurb: "The first agentic voice-powered growth engine. It finds prospects, calls and emails them, handles the replies, and books the meeting. My flagship.",
+    url: "https://paradigmoutreach.com" },
   { slug: "idex", name: "IDEX", status: "open-source", year: "2026",
     blurb: "The IDE that watches the wait. A free, open-source cockpit for coding agents with a contextual scroll feed.",
     url: "https://idex.dev", github: "https://github.com/Manueldav2/idex", favicon: "/brand/proj-idex.svg" },
@@ -92,7 +118,7 @@ export const projects: readonly Project[] = [
   { slug: "launch-control", name: "Launch Control", status: "open-source", year: "2026",
     blurb: "One idea in, a week of on-brand launch content out. A swarm of Claude agents plans it, makes it, grades its own work, and ships it. Built for Claude Build Day.",
     github: "https://github.com/Manueldav2/launch-control", favicon: "/brand/proj-launch-control.svg" },
-  { slug: "gideon", name: "Gideon", status: "shipped", year: "2026",
+  { slug: "gideon", name: "Gideon", status: "open-source", year: "2026",
     blurb: "AI study platform (a.k.a. VisboardAI / ThoughtPlot): talk to it, and it maps what you're learning visually.",
     github: "https://github.com/Manueldav2/VisboardAI", favicon: "/brand/proj-gideon.svg" },
   { slug: "claude-classroom", name: "Claude Classroom", status: "open-source", year: "2026",
@@ -101,49 +127,42 @@ export const projects: readonly Project[] = [
   { slug: "claude-skills-sync", name: "claude-skills-sync", status: "open-source", year: "2026",
     blurb: "Run npx claude-skills-sync to sync your Claude skills across machines with one token.",
     url: "https://www.npmjs.com/package/claude-skills-sync", favicon: "/favicons/claude-skills-sync.png" },
-  { slug: "ats-resume-optimizer", name: "ATS Resume Optimizer", status: "shipped", year: "2025",
+  { slug: "ats-resume-optimizer", name: "ATS Resume Optimizer", status: "open-source", year: "2025",
     blurb: "My resume ATS breaker. It reads your resume against a job post, finds what the tracker will trip on, and rewrites it to get through.",
     url: "https://ats-resume-optimizer.vercel.app", github: "https://github.com/Manueldav2/ats-resume-optimizer", favicon: "/brand/proj-ats-resume-optimizer.svg" },
-  { slug: "tripfund", name: "TripFund", status: "shipped", year: "2026",
+  { slug: "tripfund", name: "TripFund", status: "open-source", year: "2026",
     blurb: "Trip savings tracker with live flight search, an AI assistant, and Stripe group contributions.",
     url: "https://tripfund-mocha.vercel.app", github: "https://github.com/Manueldav2/destino", favicon: "/favicons/tripfund.png" },
-  { slug: "satisfying-video-generator", name: "Satisfying Video Generator", status: "shipped", year: "2026",
+  { slug: "satisfying-video-generator", name: "Satisfying Video Generator", status: "open-source", year: "2026",
     blurb: "Gemini + Veo 3.1 pipeline that generates satisfying TikToks and posts them itself.",
     url: "https://satisfying-video-gen.web.app", github: "https://github.com/Manueldav2/satisfying-video-generator", favicon: "/brand/proj-satisfying-video-generator.svg" },
   { slug: "sovereign", name: "SOVEREIGN", status: "exploration", year: "2026",
     blurb: "Browser 3D RTS in Three.js. Command armies, or possess a single unit and fight first-person.",
     github: "https://github.com/Manueldav2/sovereign", favicon: "/brand/proj-sovereign.svg" },
-  { slug: "zantana", name: "Zantana", status: "exploration", year: "2026",
+  { slug: "zantana", name: "Zantana", status: "open-source", year: "2026",
     blurb: "Quiplash-style party game in a single HTML file. No backend, no build, just open it and play.",
     github: "https://github.com/Manueldav2/zantana", favicon: "/brand/proj-zantana.svg" },
-  { slug: "revive-rides", name: "Revive Rides", status: "shipped", year: "2026",
-    blurb: "Client work: a mobile detailing company's site, built and shipped on Firebase.",
-    url: "https://revive-rides.web.app", favicon: "/brand/proj-revive-rides.svg" },
+  { slug: "blast-beyond", name: "Blast Beyond", status: "open-source", year: "2025",
+    blurb: "A Next.js and Firebase build I shipped to GitHub. Public repo, still an experiment.",
+    github: "https://github.com/Manueldav2/blast-beyond" },
   { slug: "ai-generated-leads", name: "AI Lead Gen", status: "open-source", year: "2025",
     blurb: "Point it at a market and it uses Gemini to pull qualified business leads for you. Small, fast, and open.",
     url: "https://ai.studio/apps/drive/1Nqhuc3R48xDHk8Pub3WkH0dURcOQUQoz",
     github: "https://github.com/Manueldav2/AI_generated_leads" },
 
-  // ---- Nouvo client sites -------------------------------------------------
-  // Manuel's web studio. One collection card links to the studio, and a few
-  // named client sites (all live on Firebase, verified) sit alongside it so the
-  // body of client work is visible and clickable. Built at Nouvo.
-  { slug: "nouvo-client-sites", name: "Nouvo Client Sites", status: "shipped", year: "2025",
-    blurb: "The studio side of my work. Dozens of client sites built and shipped through Nouvo, from athlete portfolios to resume pages. A few live ones are below.",
-    url: "https://nouvo.dev" },
-  { slug: "bella-bland", name: "Bella Bland", status: "shipped", year: "2025",
-    blurb: "Resume site for Bella, a marketing pro out of Tempe. Built at Nouvo.",
-    url: "https://bella-bland-resume-website.web.app" },
-  { slug: "kennedy-ragar", name: "Kennedy Ragar", status: "shipped", year: "2025",
-    blurb: "Competitive dance portfolio: titles, reels, and a recruiting pitch. Built at Nouvo.",
-    url: "https://kennedy-ragar-dance-website.web.app" },
-  { slug: "kate-phillips", name: "Kate Phillips", status: "shipped", year: "2025",
-    blurb: "Standout resume page for a graduating senior. Built at Nouvo.",
-    url: "https://kate-phillips-resweb.web.app" },
-  { slug: "ashtin-dowler", name: "Ashtin Dowler", status: "shipped", year: "2025",
-    blurb: "Portfolio for a content strategist and educator out of Oklahoma. Built at Nouvo.",
-    url: "https://ashtin-dowler-resweb.web.app" },
-  { slug: "addison-reed", name: "Addison Reed", status: "shipped", year: "2025",
-    blurb: "Dance portfolio for a competitor and choreographer chasing collegiate spots. Built at Nouvo.",
-    url: "https://addison-reed-dance-portf-9dafd.web.app" },
+  // ---- Nouvo Clients ------------------------------------------------------
+  // One collection card for the studio work. Clicking it opens a gallery modal
+  // of real, verified-live client sites (see ProjectCard). Revive Rides lives
+  // here too: it is a Nouvo client (a mobile detailing business), not a
+  // standalone card.
+  { slug: "nouvo-clients", name: "Nouvo Clients", status: "shipped", year: "2025",
+    blurb: "A slice of the sites I've built for real people at Nouvo. Resume sites, athletic portfolios, business pages.",
+    clients: [
+      { name: "Addison Reed", kind: "Dance portfolio", url: "https://addison-reed-dance-portf-9dafd.firebaseapp.com" },
+      { name: "Ashtin Dowler", kind: "Resume site", url: "https://ashtin-dowler-resweb.web.app" },
+      { name: "Bella Bland", kind: "Resume site", url: "https://bella-bland-resume-website.web.app" },
+      { name: "Kate Phillips", kind: "Resume site", url: "https://kate-phillips-resweb.web.app" },
+      { name: "Kennedy Ragar", kind: "Dance website", url: "https://kennedy-ragar-dance-website.web.app" },
+      { name: "Revive Rides", kind: "Mobile detailing business", url: "https://revive-rides.web.app" },
+    ] },
 ];

@@ -8,7 +8,7 @@ import { Flip } from "gsap/Flip"
 import { useGSAP } from "@gsap/react"
 import { Menu, X } from "lucide-react"
 import { Glass } from "@/components/glass/Glass"
-import { useChat } from "@/components/chat/ChatProvider"
+import { useChat, DRAWER_WIDTH } from "@/components/chat/ChatProvider"
 import { cn } from "@/lib/utils"
 
 gsap.registerPlugin(useGSAP, Flip)
@@ -16,6 +16,7 @@ gsap.registerPlugin(useGSAP, Flip)
 const LINKS = [
   { href: "/work", label: "work" },
   { href: "/projects", label: "projects" },
+  { href: "/about", label: "about" },
 ] as const
 
 function isActive(pathname: string, href: string) {
@@ -24,7 +25,7 @@ function isActive(pathname: string, href: string) {
 
 export function Nav() {
   const pathname = usePathname()
-  const { openChat } = useChat()
+  const { open: chatOpen } = useChat()
   const navRef = useRef<HTMLElement | null>(null)
   const indicatorRef = useRef<HTMLSpanElement | null>(null)
   const toggleRef = useRef<HTMLButtonElement | null>(null)
@@ -101,8 +102,24 @@ export function Nav() {
   return (
     <header
       ref={navRef}
+      data-nav-shell
+      // Fixed + full-width, so it lives OUTSIDE the ChatShell push. When the
+      // chat drawer opens it would otherwise slide under the drawer and its
+      // links become unclickable. We add a right pad equal to the drawer width
+      // (desktop only) so the centered pill stays inside the pushed content
+      // area and every link remains visible and clickable. The transition
+      // matches ChatShell's push (500ms, same easing).
       className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
+      style={{
+        paddingRight: chatOpen ? "var(--nav-push, 1rem)" : undefined,
+        transitionProperty: "padding",
+        transitionDuration: "500ms",
+        transitionTimingFunction: "cubic-bezier(.22,1,.36,1)",
+      }}
     >
+      {/* Desktop-only push: on mobile the drawer is full-width and covers the
+          page, so the nav can stay centered underneath it. */}
+      <style>{`@media (min-width:768px){[data-nav-shell]{--nav-push:calc(${DRAWER_WIDTH} + 1rem);}}`}</style>
       <Glass
         as="nav"
         distort
@@ -136,14 +153,6 @@ export function Nav() {
               </Link>
             )
           })}
-          {/* Chat opens the side-drawer instead of routing. */}
-          <button
-            type="button"
-            onClick={openChat}
-            className="relative px-3 py-2 font-mono text-sm lowercase text-muted-foreground transition-colors hover:text-foreground"
-          >
-            chat
-          </button>
           {/* Shared sliding accent underline (moved between links via Flip) */}
           <span
             ref={indicatorRef}
@@ -196,16 +205,6 @@ export function Nav() {
                 </Link>
               )
             })}
-            <button
-              type="button"
-              onClick={() => {
-                closeMenu()
-                openChat()
-              }}
-              className="rounded-xl px-4 py-3 text-left font-mono text-base lowercase text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
-            >
-              chat
-            </button>
           </Glass>
         </div>
       )}
