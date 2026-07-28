@@ -11,7 +11,13 @@ export const maxDuration = 60
 // every request.
 const SYSTEM = buildSystemPrompt()
 
-const MODEL = "gemini-2.5-flash" // fast; free-tier friendly
+// The lite tier is Google's lowest-latency model — measured ~0.5s to first
+// token here vs ~2.2s for plain gemini-2.5-flash (~4x faster), and plenty for
+// grounded portfolio Q&A. Use the `*-latest` alias, not a pinned `-lite` id:
+// the pinned gemini-2.5-flash-lite returns 404 "no longer available to new
+// users" on this key, while the alias always resolves to the current, callable
+// lite model. API surface is identical, so this is the only line that changes.
+const MODEL = "gemini-flash-lite-latest" // fastest; free-tier friendly
 
 // Per-IP token bucket. This is a public, unauthenticated endpoint proxying an
 // external API, so we cap request volume per IP. In-memory (per warm Cloud

@@ -63,6 +63,9 @@ export function ChatDrawer() {
   const listRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  // rAF-batching for the token stream: incoming deltas accumulate here and get
+  // flushed to React state at most once per animation frame (see send()).
+  const rafRef = useRef<number | null>(null)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
@@ -71,9 +74,15 @@ export function ChatDrawer() {
 
   useEffect(() => setMounted(true), [])
 
-  // Auto-scroll to the newest content while it streams.
+  // Auto-scroll to the newest content while it streams. Smooth scrolling on
+  // every token restarts the animation each frame, which reads as jitter; keep
+  // smooth only for discrete events (new message / stream start/stop) and snap
+  // instantly during the token stream.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" })
+    endRef.current?.scrollIntoView({
+      block: "end",
+      behavior: streaming ? "auto" : "smooth",
+    })
   }, [messages, streaming])
 
   // Slide-in / slide-out + fade via matchMedia. Reduced motion snaps.
@@ -172,10 +181,30 @@ export function ChatDrawer() {
       setInput("")
       setStreaming(true)
 
-      const setAssistant = (updater: (prev: string) => string) =>
+      // Write an absolute content value straight into state (no functional
+      // prev-based accumulation — we keep the running text locally so batched
+      // flushes are cheap and can't race).
+      const writeAssistant = (content: string) =>
         setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: updater(m.content) } : m))
+          prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
         )
+
+      // rAF batching: deltas land in `buffer`; a single scheduled frame flushes
+      // the whole buffer to state. Many network chunks collapse into one render
+      // per frame (~60fps cap) instead of one render per token — this is what
+      // kills the streaming flicker/reflow.
+      let buffer = ""
+      let dirty = false
+      const flush = () => {
+        rafRef.current = null
+        if (!dirty) return
+        dirty = false
+        writeAssistant(buffer)
+      }
+      const scheduleFlush = () => {
+        if (rafRef.current != null) return
+        rafRef.current = requestAnimationFrame(flush)
+      }
 
       try {
         const res = await fetch("/api/chat", {
@@ -196,19 +225,34 @@ export function ChatDrawer() {
           } catch {
             /* keep default */
           }
-          setAssistant(() => msg)
+          writeAssistant(msg)
           return
         }
 
-        await readTextStream(res, (delta) => setAssistant((prev) => prev + delta))
+        await readTextStream(res, (delta) => {
+          buffer += delta
+          dirty = true
+          scheduleFlush()
+        })
 
-        setAssistant((prev) =>
-          prev.trim().length > 0 ? prev : "Sorry, I didn't catch that. Try asking again."
+        // Stream done: cancel any pending frame and flush the final text once,
+        // synchronously, so the settled (non-streaming) render is exact.
+        if (rafRef.current != null) {
+          cancelAnimationFrame(rafRef.current)
+          rafRef.current = null
+        }
+        writeAssistant(
+          buffer.trim().length > 0
+            ? buffer
+            : "Sorry, I didn't catch that. Try asking again."
         )
       } catch {
-        setAssistant(
-          () =>
-            "I couldn't reach the server just now. Try again, or reach Manuel at manuel@configure.dev."
+        if (rafRef.current != null) {
+          cancelAnimationFrame(rafRef.current)
+          rafRef.current = null
+        }
+        writeAssistant(
+          "I couldn't reach the server just now. Try again, or reach Manuel at manuel@configure.dev."
         )
       } finally {
         setStreaming(false)
@@ -217,6 +261,13 @@ export function ChatDrawer() {
     },
     [messages, streaming]
   )
+
+  // Cancel any in-flight rAF flush if the drawer unmounts mid-stream.
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    }
+  }, [])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -317,7 +368,7 @@ export function ChatDrawer() {
                 streaming && i === messages.length - 1 && m.role === "assistant"
               return (
                 <div key={m.id} data-chat-msg>
-                  <Message message={m} />
+                  <Message message={m} streaming={isStreamingAssistant} />
                   {isStreamingAssistant && m.content.length === 0 && (
                     <span className="mt-1 inline-flex items-center gap-1" aria-label="Thinking">
                       <span className="chat-shimmer-dot h-1.5 w-1.5 rounded-full bg-primary/70" />

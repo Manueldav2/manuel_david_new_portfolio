@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, type ReactNode } from "react"
+import { memo, useMemo, type ReactNode } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Chart, parseChartSpec } from "@/components/chat/Chart"
@@ -10,6 +10,11 @@ export type ChatMessage = {
   role: "user" | "assistant"
   content: string
 }
+
+// Stable module-level plugin array so react-markdown doesn't re-instantiate
+// plugins on every render (a new [remarkGfm] literal each render defeats its
+// internal memoization).
+const REMARK_PLUGINS = [remarkGfm]
 
 /**
  * Extracts the raw text of a markdown code node's single text child.
@@ -26,8 +31,16 @@ function codeText(children: ReactNode): string {
  * in mono on a subtle glass background, links in tan, tidy lists. A ```chart
  * fenced block is intercepted and rendered as a real <Chart> instead of code.
  * react-markdown is XSS-safe by default (no raw HTML passthrough).
+ *
+ * Built as a factory so the ```chart renderer can know whether the message is
+ * still streaming. While streaming, a chart block may only be partially
+ * received — parsing its half-written JSON would render code, then flip to a
+ * chart the moment the closing fence lands, which reads as a flicker. So while
+ * streaming we render the raw chart source as plain code and only swap to the
+ * real <Chart> once the stream is done and the block is complete.
  */
-const components: Components = {
+function buildComponents(streaming: boolean): Components {
+  return {
   h1: ({ children }) => (
     <h1 className="mb-2 mt-3 font-display text-lg uppercase tracking-tight text-foreground">{children}</h1>
   ),
@@ -64,8 +77,10 @@ const components: Components = {
   code: ({ className, children, ...props }) => {
     const lang = /language-(\w+)/.exec(className ?? "")?.[1]
 
-    // ```chart fenced block → real chart
-    if (lang === "chart") {
+    // ```chart fenced block → real chart, but only once streaming is done so a
+    // partially-received block doesn't render-then-swap (flicker). While
+    // streaming it falls through to the plain code branch below.
+    if (lang === "chart" && !streaming) {
       const spec = parseChartSpec(codeText(children))
       if (spec) return <Chart spec={spec} />
     }
@@ -102,10 +117,22 @@ const components: Components = {
   th: ({ children }) => (
     <th className="border-b border-border px-2 py-1.5 text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{children}</th>
   ),
-  td: ({ children }) => <td className="border-b border-border/40 px-2 py-1.5 text-foreground/85">{children}</td>,
+    td: ({ children }) => <td className="border-b border-border/40 px-2 py-1.5 text-foreground/85">{children}</td>,
+  }
 }
 
-function MessageImpl({ message }: { message: ChatMessage }) {
+// The two component maps (streaming / settled) are stable module singletons so
+// react-markdown gets referentially-identical `components` across renders.
+const COMPONENTS_STREAMING = buildComponents(true)
+const COMPONENTS_SETTLED = buildComponents(false)
+
+function MessageImpl({
+  message,
+  streaming = false,
+}: {
+  message: ChatMessage
+  streaming?: boolean
+}) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -116,13 +143,23 @@ function MessageImpl({ message }: { message: ChatMessage }) {
     )
   }
 
-  return (
-    <div className="max-w-[92%] text-[14px]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+  // useMemo keyed on the exact inputs that affect output. When this assistant
+  // message is settled (not streaming) and its content is unchanged, the parsed
+  // markdown tree is reused verbatim — so a *different* message streaming next
+  // to it never re-parses this one.
+  const rendered = useMemo(
+    () => (
+      <ReactMarkdown
+        remarkPlugins={REMARK_PLUGINS}
+        components={streaming ? COMPONENTS_STREAMING : COMPONENTS_SETTLED}
+      >
         {message.content}
       </ReactMarkdown>
-    </div>
+    ),
+    [message.content, streaming]
   )
+
+  return <div className="max-w-[92%] text-[14px]">{rendered}</div>
 }
 
 export const Message = memo(MessageImpl)
