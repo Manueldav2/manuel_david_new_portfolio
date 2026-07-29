@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import {
   AdditiveBlending,
   BufferAttribute,
@@ -8,71 +8,35 @@ import {
   Color,
   DynamicDrawUsage,
   LineSegments,
-  PerspectiveCamera,
-  Points,
+  OrthographicCamera,
   Scene,
   ShaderMaterial,
   WebGLRenderer,
 } from "three"
 
+import { pickFragments } from "./fragments"
+import styles from "./hero-field.module.css"
+
 /**
  * CONTEXT FIELD
  *
- * A drifting field of points. Whatever the cursor passes near wakes up,
- * recognises its neighbours, and draws hairlines between them and back to
- * the cursor. Move on and the constellation dissolves, slower than it
- * formed, because forgetting takes longer than recognising.
+ * A drifting field of context. Not points, not particles: small real pieces
+ * of one person's profile, set in type, mostly too dim to read. Whatever the
+ * cursor passes near wakes up, becomes legible, recognises its neighbours and
+ * draws hairlines between them. Move on and the constellation dissolves,
+ * slower than it formed, because forgetting takes longer than recognising.
  *
- * Written against three.js directly rather than react-three-fiber. This is
- * one Points object and one LineSegments object driven by a custom shader
- * with no scene graph to speak of, which is exactly the case where the
- * reconciler costs bundle weight and buys nothing. Every rule from the
- * R3F playbook still applies here: no allocation inside the loop, no React
- * state per frame, everything disposed on unmount.
+ * Split by what each renderer is good at:
+ *   - the fragments are DOM text, so they are crisp at any DPI, hinted by the
+ *     same font stack as the page, and never resampled;
+ *   - the links are one LineSegments in an orthographic WebGL pass sized in
+ *     CSS pixels, so hairlines stay hairlines and additive blending gives the
+ *     ink ground a little depth without a bloom pass.
+ *
+ * Everything runs off one simulation in viewport pixel space. Nothing inside
+ * the frame loop allocates, nothing touches React state, and the only layout
+ * reads happen on mount, on resize and when the webfonts land.
  */
-
-const POINT_VERT = /* glsl */ `
-  uniform float uScale;
-  uniform float uSize;
-  attribute float aWake;
-  attribute float aVar;
-  varying float vWake;
-  varying float vFade;
-
-  void main() {
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    float dist = -mv.z;
-    vWake = aWake;
-    // Shallow depth atmosphere. Enough parallax to feel like a volume,
-    // not so much that it reads as a starfield.
-    vFade = 0.46 + 0.54 * smoothstep(8.6, 4.6, dist);
-    // Brightness and size lag behind wake on a curve so the recognition
-    // radius does not read as a visible disc of half-lit points.
-    float lit = aWake * aWake;
-    gl_PointSize = uSize * aVar * (1.0 + lit * 1.5) * (uScale / dist);
-    gl_Position = projectionMatrix * mv;
-  }
-`
-
-const POINT_FRAG = /* glsl */ `
-  uniform vec3 uBase;
-  uniform vec3 uEmber;
-  uniform float uAlpha;
-  varying float vWake;
-  varying float vFade;
-
-  void main() {
-    float d = length(gl_PointCoord - vec2(0.5));
-    // Tight core with a one-pixel shoulder. A wide falloff turns points
-    // into bokeh, which is exactly the atmospheric cliche to avoid.
-    float core = smoothstep(0.5, 0.22, d);
-    if (core <= 0.001) discard;
-    // Ember is reserved for the instant of recognition, so the curve is
-    // cubed: a point has to be genuinely close before it takes any warmth.
-    vec3 c = mix(uBase, uEmber, pow(vWake, 3.0) * 0.44);
-    gl_FragColor = vec4(c, core * vFade * (uAlpha + vWake * vWake * 0.62));
-  }
-`
 
 const LINE_VERT = /* glsl */ `
   attribute float aAlpha;
@@ -94,18 +58,46 @@ const LINE_FRAG = /* glsl */ `
   varying float vTint;
 
   void main() {
-    gl_FragColor = vec4(mix(uBase, uEmber, vTint * 0.7), vAlpha);
+    gl_FragColor = vec4(mix(uBase, uEmber, vTint * 0.72), vAlpha);
   }
 `
 
-const MAX_SEGMENTS = 300
-const MAX_AWAKE = 46
-const CURSOR_LINKS = 5
+const MAX_SEGMENTS = 180
+const MAX_AWAKE = 24
+const CURSOR_LINKS = 4
+/** Gap left between the edge of a word and the hairline that reaches for it. */
+const NODE_PAD = 7
 
 const smoothstep = (edge0: number, edge1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
   return t * t * (3 - 2 * t)
 }
+
+const mix = (a: number, b: number, t: number) => a + (b - a) * t
+
+/**
+ * Resting brightness and pixel size per tier, near depth then far depth.
+ *
+ * The resting values are low on purpose. The whole gesture depends on the gap
+ * between texture and fact: if the field is already readable there is nothing
+ * for the cursor to reveal, and it collapses back into wallpaper.
+ */
+const TIER = {
+  key: { alpha: [0.26, 0.17], size: [14.5, 12.5], depth: [0, 0.32] },
+  mid: { alpha: [0.17, 0.1], size: [12.5, 10.5], depth: [0.22, 0.68] },
+  low: { alpha: [0.125, 0.075], size: [11, 9.5], depth: [0.5, 1] },
+} as const
+
+/** Padding kept around each word, and around the page's own type. */
+const WORD_PAD_X = 22
+const WORD_PAD_Y = 9
+const TYPE_PAD_X = 18
+const TYPE_PAD_Y = 12
+
+type Box = [x0: number, y0: number, x1: number, y1: number]
+
+const hits = (a: Box, b: Box) =>
+  a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
 
 export default function ContextField({
   className,
@@ -115,12 +107,27 @@ export default function ContextField({
   onReady?: () => void
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
+  const canvasHostRef = useRef<HTMLDivElement | null>(null)
+  const wordsRef = useRef<HTMLDivElement | null>(null)
   const readyRef = useRef(onReady)
   readyRef.current = onReady
 
+  // ssr:false, so this first render already happens in the browser and the
+  // count can be decided before a single node is created.
+  const fragments = useMemo(() => {
+    const w = typeof window === "undefined" ? 1440 : window.innerWidth
+    return pickFragments(w < 720 ? 14 : w < 1100 ? 30 : 44)
+  }, [])
+
   useEffect(() => {
     const host = hostRef.current
-    if (!host) return
+    const canvasHost = canvasHostRef.current
+    const wordsHost = wordsRef.current
+    if (!host || !canvasHost || !wordsHost) return
+
+    const els = Array.from(wordsHost.children) as HTMLElement[]
+    const COUNT = els.length
+    if (!COUNT) return
 
     const reduced =
       typeof window.matchMedia === "function" &&
@@ -128,86 +135,49 @@ export default function ContextField({
     const coarse =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(pointer: coarse)").matches
+    const narrow = window.innerWidth < 720
 
-    let renderer: WebGLRenderer
+    const bx = new Float32Array(COUNT)
+    const by = new Float32Array(COUNT)
+    const depth = new Float32Array(COUNT)
+    const phase = new Float32Array(COUNT)
+    const wake = new Float32Array(COUNT)
+    const px = new Float32Array(COUNT)
+    const py = new Float32Array(COUNT)
+    const halfW = new Float32Array(COUNT)
+    const halfH = new Float32Array(COUNT)
+    const baseA = new Float32Array(COUNT)
+    const chan = new Float32Array(COUNT)
+
+    for (let i = 0; i < COUNT; i++) {
+      phase[i] = Math.random()
+      const tier = TIER[fragments[i].tier]
+      const t = Math.random()
+      depth[i] = mix(tier.depth[0], tier.depth[1], t)
+      baseA[i] = mix(tier.alpha[0], tier.alpha[1], t)
+      const size = mix(tier.size[0], tier.size[1], t) * (narrow ? 0.86 : 1)
+      els[i].style.fontSize = `${size.toFixed(2)}px`
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Renderer: links only. One draw call, orthographic, CSS pixels.     */
+    /* ---------------------------------------------------------------- */
+    let renderer: WebGLRenderer | null = null
+    let canvas: HTMLCanvasElement | null = null
     try {
       renderer = new WebGLRenderer({
         alpha: true,
-        antialias: false,
+        antialias: true,
         powerPreference: "high-performance",
       })
     } catch {
-      // No WebGL. The typography is the page; it stands on its own.
-      return
+      // No WebGL. The fragments still drift and wake; only the hairlines are
+      // lost, and the page is type first anyway.
+      renderer = null
     }
-
-    const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.75 : 2)
-    renderer.setPixelRatio(dpr)
-    renderer.setClearAlpha(0)
-    const canvas = renderer.domElement
-    canvas.style.width = "100%"
-    canvas.style.height = "100%"
-    canvas.style.display = "block"
-    host.appendChild(canvas)
 
     const scene = new Scene()
-    const camera = new PerspectiveCamera(50, 1, 0.1, 40)
-    camera.position.z = 6
-
-    const COUNT = coarse ? 560 : 1900
-
-    // Base positions live in normalised space so a resize just rescales the
-    // field instead of regenerating it.
-    const base = new Float32Array(COUNT * 3)
-    const phase = new Float32Array(COUNT)
-    const variance = new Float32Array(COUNT)
-    const positions = new Float32Array(COUNT * 3)
-    const wake = new Float32Array(COUNT)
-
-    for (let i = 0; i < COUNT; i++) {
-      // Elliptical disc, gently denser toward the middle. A uniform box
-      // reads as wallpaper; a slight density gradient reads as a field
-      // that has a centre.
-      const a = Math.random() * Math.PI * 2
-      const r = Math.pow(Math.random(), 0.78)
-      base[i * 3] = Math.cos(a) * r * 1.22
-      base[i * 3 + 1] = Math.sin(a) * r * 1.1
-      base[i * 3 + 2] = Math.random() * 2 - 1
-      phase[i] = Math.random()
-      variance[i] = 0.72 + Math.random() * 0.56
-    }
-
-    const pointGeo = new BufferGeometry()
-    const posAttr = new BufferAttribute(positions, 3)
-    posAttr.setUsage(DynamicDrawUsage)
-    const wakeAttr = new BufferAttribute(wake, 1)
-    wakeAttr.setUsage(DynamicDrawUsage)
-    pointGeo.setAttribute("position", posAttr)
-    pointGeo.setAttribute("aWake", wakeAttr)
-    pointGeo.setAttribute("aVar", new BufferAttribute(variance, 1))
-
-    const bone = new Color("#c9dcd6")
-    const ember = new Color("#e2552c")
-
-    const pointMat = new ShaderMaterial({
-      vertexShader: POINT_VERT,
-      fragmentShader: POINT_FRAG,
-      uniforms: {
-        uScale: { value: 800 },
-        uSize: { value: 0.0158 },
-        uBase: { value: bone },
-        uEmber: { value: ember },
-        uAlpha: { value: 0.3 },
-      },
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      blending: AdditiveBlending,
-    })
-
-    const points = new Points(pointGeo, pointMat)
-    points.frustumCulled = false
-    scene.add(points)
+    const camera = new OrthographicCamera(0, 1, 0, 1, -1, 1)
 
     const linePositions = new Float32Array(MAX_SEGMENTS * 2 * 3)
     const lineAlpha = new Float32Array(MAX_SEGMENTS * 2)
@@ -229,8 +199,8 @@ export default function ContextField({
       vertexShader: LINE_VERT,
       fragmentShader: LINE_FRAG,
       uniforms: {
-        uBase: { value: bone },
-        uEmber: { value: ember },
+        uBase: { value: new Color("#c9dcd6") },
+        uEmber: { value: new Color("#e2552c") },
       },
       transparent: true,
       depthWrite: false,
@@ -242,98 +212,256 @@ export default function ContextField({
     lines.frustumCulled = false
     scene.add(lines)
 
-    // Scratch buffers, allocated once. Nothing below this line allocates.
+    if (renderer) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+      renderer.setClearAlpha(0)
+      canvas = renderer.domElement
+      canvas.style.width = "100%"
+      canvas.style.height = "100%"
+      canvas.style.display = "block"
+      canvasHost.appendChild(canvas)
+    }
+
+    // Scratch, allocated once.
     const awakeIdx = new Int32Array(COUNT)
-    const awakeWeight = new Float32Array(COUNT)
+    const awakeW = new Float32Array(COUNT)
     const nearIdx = new Int32Array(CURSOR_LINKS)
     const nearDist = new Float32Array(CURSOR_LINKS)
 
-    let halfW = 4.5
-    let halfH = 2.8
-    let extentZ = 2.4
-    let radius = 1.4
-    let linkRadius = 1
+    let vw = 1
+    let vh = 1
+    let radius = 300
+    let linkRadius = 220
+    let bandInner = 340
+    let bandOuter = 580
+
+    const measure = () => {
+      for (let i = 0; i < COUNT; i++) {
+        halfW[i] = els[i].offsetWidth / 2
+        halfH[i] = els[i].offsetHeight / 2
+      }
+    }
+
+    const toX = (n: number) => vw * 0.5 + n * (vw * 0.5 - 26)
+    const toY = (n: number) => vh * 0.5 + n * (vh * 0.5 - 24)
+
+    /* ---------------------------------------------------------------- */
+    /* Layout                                                            */
+    /*                                                                   */
+    /* Base positions live in normalised space so small resizes just      */
+    /* rescale the field. Placement is rejection sampling against two     */
+    /* sets of boxes: the words already placed, and the page's own type.  */
+    /*                                                                   */
+    /* The keep-out boxes are read straight off the DOM rather than       */
+    /* hard-coded as fractions of the viewport, so the field gets out of  */
+    /* the way of the real headline at whatever size it actually wrapped  */
+    /* to. Nothing readable ever has a stray word sitting behind it.      */
+    /* ---------------------------------------------------------------- */
+    const place = () => {
+      const keepouts: Box[] = []
+      const sx = window.scrollX || 0
+      const sy = window.scrollY || 0
+      document.querySelectorAll("[data-hf-keepout]").forEach((node) => {
+        const r = (node as HTMLElement).getBoundingClientRect()
+        if (r.width < 2 || r.height < 2) return
+        keepouts.push([
+          r.left + sx - TYPE_PAD_X,
+          r.top + sy - TYPE_PAD_Y,
+          r.right + sx + TYPE_PAD_X,
+          r.bottom + sy + TYPE_PAD_Y,
+        ])
+      })
+
+      const placed: Box[] = []
+      const cand: Box = [0, 0, 0, 0]
+
+      for (let i = 0; i < COUNT; i++) {
+        const hw = halfW[i]
+        const hh = halfH[i]
+        // Keep the whole word inside the frame, not just its centre.
+        const spanX = vw * 0.5 - 26
+        const spanY = vh * 0.5 - 24
+        const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 16 - hw) / spanX) : 0
+        const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 14 - hh) / spanY) : 0
+
+        let okX = 0
+        let okY = 0
+        let bestX = 0
+        let bestY = 0
+        let bestClear = -Infinity
+        let found = false
+
+        for (let k = 0; k < 420 && !found; k++) {
+          const nx = (Math.random() * 2 - 1) * limX
+          const ny = (Math.random() * 2 - 1) * limY
+          const x = toX(nx)
+          const y = toY(ny)
+          cand[0] = x - hw - WORD_PAD_X
+          cand[1] = y - hh - WORD_PAD_Y
+          cand[2] = x + hw + WORD_PAD_X
+          cand[3] = y + hh + WORD_PAD_Y
+
+          let blocked = false
+          for (let b = 0; b < keepouts.length; b++) {
+            if (hits(cand, keepouts[b])) {
+              blocked = true
+              break
+            }
+          }
+          if (blocked) continue
+
+          let clear = Infinity
+          for (let b = 0; b < placed.length; b++) {
+            if (hits(cand, placed[b])) {
+              clear = -1
+              break
+            }
+            const dx = Math.abs(x - (placed[b][0] + placed[b][2]) * 0.5)
+            const dy = Math.abs(y - (placed[b][1] + placed[b][3]) * 0.5) * 2.6
+            const d = dx * dx + dy * dy
+            if (d < clear) clear = d
+          }
+
+          if (clear < 0) {
+            continue
+          }
+          if (clear > bestClear) {
+            bestClear = clear
+            bestX = nx
+            bestY = ny
+            okX = x
+            okY = y
+          }
+          // Take the first candidate that clears everything with room to
+          // spare; otherwise keep hunting for the roomiest one.
+          if (clear > 34000 || k > 120) found = true
+        }
+
+        if (bestClear === -Infinity) {
+          // Nothing fitted. Park it off frame rather than stack it on the
+          // headline; a missing fragment costs less than an unreadable page.
+          bx[i] = 2.4
+          by[i] = 0
+          continue
+        }
+
+        bx[i] = bestX
+        by[i] = bestY
+        placed.push([
+          okX - hw - WORD_PAD_X,
+          okY - hh - WORD_PAD_Y,
+          okX + hw + WORD_PAD_X,
+          okY + hh + WORD_PAD_Y,
+        ])
+      }
+    }
+
+    let placedW = 0
+    let placedH = 0
 
     const resize = () => {
-      const w = host.clientWidth || window.innerWidth
-      const h = host.clientHeight || window.innerHeight
-      camera.aspect = w / h
-      camera.updateProjectionMatrix()
-      renderer.setSize(w, h, false)
-
-      halfH = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z
-      halfW = halfH * camera.aspect
-      extentZ = 1.5
-      // Recognition radius scales with the smaller axis so the constellation
-      // stays the same relative size on a phone as on a display.
-      radius = Math.min(halfW, halfH) * (coarse ? 0.66 : 0.58)
-      linkRadius = radius * 0.5
-
-      pointMat.uniforms.uScale.value =
-        renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360))
+      vw = host.clientWidth || window.innerWidth
+      vh = host.clientHeight || window.innerHeight
+      if (renderer) {
+        renderer.setSize(vw, vh, false)
+        camera.left = 0
+        camera.right = vw
+        camera.top = 0
+        camera.bottom = vh
+        camera.updateProjectionMatrix()
+      }
+      // Recognition radius scales with the short axis so a constellation is
+      // the same relative size on a phone as on a display.
+      radius = Math.min(vw, vh) * (coarse ? 0.44 : 0.33)
+      linkRadius = radius * 0.8
+      // The channel the reading column carves through the field once you
+      // scroll past the hero.
+      bandInner = Math.min(360, vw * 0.34)
+      bandOuter = bandInner + 250
+      measure()
+      // Re-place only on a real change of shape. Reshuffling the field while
+      // someone drags a window edge would be gratuitous.
+      if (
+        Math.abs(vw - placedW) > placedW * 0.22 ||
+        Math.abs(vh - placedH) > placedH * 0.22
+      ) {
+        placedW = vw
+        placedH = vh
+        place()
+      }
     }
 
     resize()
 
-    // Cursor state. Two positions: where the pointer actually is, and where
-    // the field believes it is. The second chases the first, which is what
-    // makes recognition feel like weight rather than a lookup.
-    let targetNdcX = 0
-    let targetNdcY = 0
+    /* ---------------------------------------------------------------- */
+    /* Cursor. Two positions: where the pointer is, and where the field   */
+    /* believes it is. The second chases the first, which is what makes   */
+    /* recognition feel like weight rather than a lookup.                 */
+    /* ---------------------------------------------------------------- */
+    let targetX = 0
+    let targetY = 0
     let easedX = 0
     let easedY = 0
     let userBlend = 0
     let hasPointer = false
+    let litIndex = -1
 
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return
-      targetNdcX = (e.clientX / window.innerWidth) * 2 - 1
-      targetNdcY = -((e.clientY / window.innerHeight) * 2 - 1)
+      targetX = e.clientX
+      targetY = e.clientY
       hasPointer = true
     }
 
     let raf = 0
     let last = performance.now()
-    let clock = reduced ? 9.4 : 0
+    // The still frame is composed, not arbitrary: this is the point on the idle
+    // path where the ghost cursor sits above the headline and to the right of
+    // centre, so the reduced-motion constellation lands in clear space.
+    let clock = reduced ? 14 : 0
     let disposed = false
 
     const step = (dt: number) => {
       clock += dt
 
-      // Idle / touch: a ghost cursor wanders the field so the page
-      // demonstrates itself before anyone touches it.
+      const scrollY = window.scrollY || 0
+      // How far past the hero we are. Drives the retreat of the field to the
+      // margins so body copy is never read through drifting words.
+      const past = smoothstep(vh * 0.12, vh * 0.8, scrollY)
+      const dim = 1 - 0.45 * past
+      const spread = 1 + 0.1 * past
+      const driftY = 26 * Math.sin(scrollY / (vh * 1.7))
+
+      // Idle: a ghost cursor wanders the field so the page demonstrates
+      // itself before anyone touches it, and forever on touch devices.
       const ghostX =
-        Math.sin(clock * 0.21) * 0.5 + Math.sin(clock * 0.083 + 2.1) * 0.24
+        vw * 0.5 +
+        Math.sin(clock * 0.2) * vw * 0.29 +
+        Math.sin(clock * 0.081 + 2.1) * vw * 0.11
       const ghostY =
-        Math.sin(clock * 0.157 + 1.7) * 0.38 + Math.cos(clock * 0.061) * 0.17
+        vh * 0.48 +
+        Math.sin(clock * 0.151 + 1.7) * vh * 0.24 +
+        Math.cos(clock * 0.059) * vh * 0.11
 
-      if (hasPointer && !coarse) {
-        userBlend = Math.min(1, userBlend + dt / 1.1)
-      }
+      if (hasPointer && !coarse) userBlend = Math.min(1, userBlend + dt / 1.1)
 
-      const wantX = ghostX + (targetNdcX - ghostX) * userBlend
-      const wantY = ghostY + (targetNdcY - ghostY) * userBlend
+      const wantX = ghostX + (targetX - ghostX) * userBlend
+      const wantY = ghostY + (targetY - ghostY) * userBlend
 
       if (reduced) {
-        easedX = 0.3
-        easedY = -0.06
+        easedX = ghostX
+        easedY = ghostY
       } else {
         const k = 1 - Math.exp(-dt * 6.5)
         easedX += (wantX - easedX) * k
         easedY += (wantY - easedY) * k
       }
 
-      const cx = easedX * halfW
-      const cy = easedY * halfH
+      const cx = easedX
+      const cy = easedY
 
-      // Very slow rotation of the whole field. Nothing is legible as motion,
-      // but the parallax keeps the ground alive.
-      const spin = clock * 0.006
-      const cs = Math.cos(spin)
-      const sn = Math.sin(spin)
-
-      const riseK = reduced ? 1 : 1 - Math.exp(-dt * 9)
-      const fallK = reduced ? 1 : 1 - Math.exp(-dt * 3.1)
+      const riseK = reduced ? 1 : 1 - Math.exp(-dt * 8.5)
+      const fallK = reduced ? 1 : 1 - Math.exp(-dt * 2.9)
 
       let awakeCount = 0
       for (let n = 0; n < CURSOR_LINKS; n++) {
@@ -341,38 +469,61 @@ export default function ContextField({
         nearDist[n] = Infinity
       }
 
+      let bestLit = -1
+      let bestLitD = Infinity
+
       for (let i = 0; i < COUNT; i++) {
-        const i3 = i * 3
         const ph = phase[i]
-        const nx = base[i3] + Math.sin(clock * 0.13 + ph * 6.2832) * 0.055
-        const ny = base[i3 + 1] + Math.cos(clock * 0.11 + ph * 5.1) * 0.05
-        const nz = base[i3 + 2] + Math.sin(clock * 0.09 + ph * 4.1) * 0.09
+        const nx = bx[i] + Math.sin(clock * 0.107 + ph * 6.2832) * 0.03
+        const ny = by[i] + Math.cos(clock * 0.089 + ph * 5.1) * 0.034
 
-        const px = (nx * cs - ny * sn) * halfW * 1.06
-        const py = (nx * sn + ny * cs) * halfH * 1.06
-        const pz = nz * extentZ
+        let x = vw * 0.5 + nx * spread * (vw * 0.5 - 26)
+        let y =
+          vh * 0.5 + ny * (vh * 0.5 - 24) + driftY * (0.4 + depth[i] * 0.8)
+        x = Math.min(vw - halfW[i] - 8, Math.max(halfW[i] + 8, x))
+        y = Math.min(vh - halfH[i] - 6, Math.max(halfH[i] + 6, y))
 
-        positions[i3] = px
-        positions[i3 + 1] = py
-        positions[i3 + 2] = pz
+        px[i] = x
+        py[i] = y
 
-        const dx = px - cx
-        const dy = py - cy
-        const dz = pz * 0.55
-        const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const dx = x - cx
+        const dy = y - cy
+        const d = Math.sqrt(dx * dx + dy * dy)
 
-        const target = smoothstep(radius, radius * 0.16, d)
+        // Anything well inside the radius is fully awake, not partly awake.
+        // The soft outer half is what keeps arrivals and departures from
+        // popping; the inner half is where a fragment is simply readable.
+        const target = smoothstep(radius, radius * 0.45, d)
         const w = wake[i]
         wake[i] = w + (target - w) * (target > w ? riseK : fallK)
 
-        if (wake[i] > 0.02 && awakeCount < COUNT) {
+        // Reading channel: below the hero the field steps aside for the text.
+        const c = mix(1, smoothstep(bandInner, bandOuter, Math.abs(x - vw * 0.5)), past)
+        chan[i] = c
+
+        const ww = wake[i]
+        const lit = ww * ww * (3 - 2 * ww)
+        const o = (baseA[i] + lit * (0.94 - baseA[i])) * c * dim
+        const el = els[i]
+        el.style.transform = `translate3d(${(x - halfW[i]).toFixed(1)}px, ${(
+          y - halfH[i]
+        ).toFixed(1)}px, 0)`
+        el.style.opacity = o.toFixed(3)
+
+        if (wake[i] > 0.02) {
           awakeIdx[awakeCount] = i
-          awakeWeight[awakeCount] = wake[i]
+          awakeW[awakeCount] = wake[i]
           awakeCount++
         }
 
-        // Running top-K nearest for the cursor tethers.
-        if (d < nearDist[CURSOR_LINKS - 1] && target > 0.03) {
+        // The single fragment actually under the cursor takes the ember. One
+        // word at a time, so the accent stays an event and not a colour.
+        if (wake[i] > 0.82 && d < bestLitD && c > 0.5) {
+          bestLitD = d
+          bestLit = i
+        }
+
+        if (d < nearDist[CURSOR_LINKS - 1] && target > 0.04) {
           let n = CURSOR_LINKS - 1
           while (n > 0 && nearDist[n - 1] > d) {
             nearDist[n] = nearDist[n - 1]
@@ -384,18 +535,24 @@ export default function ContextField({
         }
       }
 
+      if (bestLit !== litIndex) {
+        if (litIndex >= 0) delete els[litIndex].dataset.lit
+        if (bestLit >= 0) els[bestLit].dataset.lit = "true"
+        litIndex = bestLit
+      }
+
       // Cap the awake set by brightness so the pair loop stays bounded.
       if (awakeCount > MAX_AWAKE) {
         for (let a = 1; a < awakeCount; a++) {
           const ki = awakeIdx[a]
-          const kw = awakeWeight[a]
+          const kw = awakeW[a]
           let b = a - 1
-          while (b >= 0 && awakeWeight[b] < kw) {
-            awakeWeight[b + 1] = awakeWeight[b]
+          while (b >= 0 && awakeW[b] < kw) {
+            awakeW[b + 1] = awakeW[b]
             awakeIdx[b + 1] = awakeIdx[b]
             b--
           }
-          awakeWeight[b + 1] = kw
+          awakeW[b + 1] = kw
           awakeIdx[b + 1] = ki
         }
         awakeCount = MAX_AWAKE
@@ -403,16 +560,60 @@ export default function ContextField({
 
       let seg = 0
 
-      // Point to point: the recognition itself.
-      //
-      // Every awake point reaches for its two nearest awake neighbours and
-      // nothing else. Linking every pair inside a radius produces a hairball
-      // that reads as generic particle wallpaper; capping the degree
-      // produces a graph you can actually follow, which is the difference
-      // between decoration and an argument about relationships.
+      /**
+       * Writes one hairline between two nodes, trimmed to stop clear of each
+       * word's box so the line reads as a connection between two pieces of
+       * type rather than a strike-through.
+       */
+      const push = (
+        ax: number,
+        ay: number,
+        ahw: number,
+        ahh: number,
+        bxp: number,
+        byp: number,
+        bhw: number,
+        bhh: number,
+        alpha: number,
+        tintA: number,
+        tintB: number,
+      ) => {
+        const dx = bxp - ax
+        const dy = byp - ay
+        const len = Math.sqrt(dx * dx + dy * dy)
+        if (len < 1) return
+        const ux = dx / len
+        const uy = dy / len
+        const tA = boxT(ux, uy, ahw, ahh) + NODE_PAD
+        const tB = boxT(ux, uy, bhw, bhh) + NODE_PAD
+        if (tA + tB >= len - 4) return
+
+        const v = seg * 6
+        linePositions[v] = ax + ux * tA
+        linePositions[v + 1] = ay + uy * tA
+        linePositions[v + 2] = 0
+        linePositions[v + 3] = bxp - ux * tB
+        linePositions[v + 4] = byp - uy * tB
+        linePositions[v + 5] = 0
+        const t = seg * 2
+        lineAlpha[t] = alpha
+        lineAlpha[t + 1] = alpha
+        lineTint[t] = tintA
+        lineTint[t + 1] = tintB
+        seg++
+      }
+
+      /**
+       * Fragment to fragment: the recognition itself.
+       *
+       * Every awake fragment reaches for its two nearest awake neighbours and
+       * nothing else. Linking every pair inside a radius makes a hairball that
+       * reads as generic particle wallpaper; capping the degree makes a graph
+       * you can follow, which is the difference between decoration and an
+       * argument about relationships.
+       */
       for (let a = 0; a < awakeCount && seg < MAX_SEGMENTS; a++) {
         const i = awakeIdx[a]
-        const i3 = i * 3
         const wi = wake[i]
 
         let n0 = -1
@@ -422,20 +623,19 @@ export default function ContextField({
 
         for (let b = 0; b < awakeCount; b++) {
           if (b === a) continue
-          const j3 = awakeIdx[b] * 3
-          const dx = positions[i3] - positions[j3]
-          const dy = positions[i3 + 1] - positions[j3 + 1]
-          const dz = positions[i3 + 2] - positions[j3 + 2]
-          const dij = Math.sqrt(dx * dx + dy * dy + dz * dz)
+          const j = awakeIdx[b]
+          const dx = px[i] - px[j]
+          const dy = py[i] - py[j]
+          const dij = Math.sqrt(dx * dx + dy * dy)
           if (dij >= linkRadius) continue
           if (dij < d0) {
             d1 = d0
             n1 = n0
             d0 = dij
-            n0 = awakeIdx[b]
+            n0 = j
           } else if (dij < d1) {
             d1 = dij
-            n1 = awakeIdx[b]
+            n1 = j
           }
         }
 
@@ -443,25 +643,15 @@ export default function ContextField({
           const j = k === 0 ? n0 : n1
           const dij = k === 0 ? d0 : d1
           if (j < 0) continue
-
           const alpha =
-            wi * wake[j] * smoothstep(linkRadius, linkRadius * 0.15, dij) * 0.46
-          if (alpha < 0.008) continue
-
-          const j3 = j * 3
-          const v = seg * 6
-          linePositions[v] = positions[i3]
-          linePositions[v + 1] = positions[i3 + 1]
-          linePositions[v + 2] = positions[i3 + 2]
-          linePositions[v + 3] = positions[j3]
-          linePositions[v + 4] = positions[j3 + 1]
-          linePositions[v + 5] = positions[j3 + 2]
-          const t = seg * 2
-          lineAlpha[t] = alpha
-          lineAlpha[t + 1] = alpha
-          lineTint[t] = 0
-          lineTint[t + 1] = 0
-          seg++
+            wi *
+            wake[j] *
+            smoothstep(linkRadius, linkRadius * 0.14, dij) *
+            0.82 *
+            Math.min(chan[i], chan[j]) *
+            dim
+          if (alpha < 0.01) continue
+          push(px[i], py[i], halfW[i], halfH[i], px[j], py[j], halfW[j], halfH[j], alpha, 0, 0)
         }
       }
 
@@ -469,37 +659,21 @@ export default function ContextField({
       for (let n = 0; n < CURSOR_LINKS && seg < MAX_SEGMENTS; n++) {
         const i = nearIdx[n]
         if (i < 0) continue
-        const i3 = i * 3
-        const alpha = wake[i] * 0.6 * smoothstep(radius, radius * 0.1, nearDist[n])
-        if (alpha < 0.006) continue
-
-        const v = seg * 6
-        linePositions[v] = cx
-        linePositions[v + 1] = cy
-        linePositions[v + 2] = 0
-        linePositions[v + 3] = positions[i3]
-        linePositions[v + 4] = positions[i3 + 1]
-        linePositions[v + 5] = positions[i3 + 2]
-        const t = seg * 2
-        lineAlpha[t] = alpha * 0.35
-        lineAlpha[t + 1] = alpha
-        lineTint[t] = 0.15
-        lineTint[t + 1] = 0.85
-        seg++
+        const alpha =
+          wake[i] * 0.6 * smoothstep(radius, radius * 0.1, nearDist[n]) * chan[i] * dim
+        if (alpha < 0.008) continue
+        push(cx, cy, 0, 0, px[i], py[i], halfW[i], halfH[i], alpha, 0.9, 0.1)
       }
 
-      posAttr.needsUpdate = true
-      wakeAttr.needsUpdate = true
-      lineGeo.setDrawRange(0, seg * 2)
-      if (seg > 0) {
-        // Whole-buffer upload: 13 kB of line data is cheaper than the
-        // bookkeeping for partial ranges, and drawRange bounds what is read.
-        linePosAttr.needsUpdate = true
-        lineAlphaAttr.needsUpdate = true
-        lineTintAttr.needsUpdate = true
+      if (renderer) {
+        lineGeo.setDrawRange(0, seg * 2)
+        if (seg > 0) {
+          linePosAttr.needsUpdate = true
+          lineAlphaAttr.needsUpdate = true
+          lineTintAttr.needsUpdate = true
+        }
+        renderer.render(scene, camera)
       }
-
-      renderer.render(scene, camera)
     }
 
     const loop = (now: number) => {
@@ -515,7 +689,8 @@ export default function ContextField({
     }
 
     if (reduced) {
-      // One composed frame. Two passes so the wake damping settles first.
+      // One composed frame, twice, so the wake damping settles before it is
+      // read. A still, legible, connected constellation. Never blank.
       step(0)
       step(0)
     } else {
@@ -523,28 +698,82 @@ export default function ContextField({
       window.addEventListener("pointermove", onPointerMove, { passive: true })
     }
 
-    readyRef.current?.()
-
     const onResize = () => {
       resize()
-      if (reduced) step(0)
+      if (reduced) {
+        step(0)
+        step(0)
+      }
     }
     window.addEventListener("resize", onResize)
 
+    // Widths measured before the webfonts land are the fallback's widths, and
+    // the whole layout is built out of those widths. Re-place once the real
+    // metrics exist, then let the field fade up. Nothing is visible until
+    // this settles, so the reshuffle is never seen.
+    const settle = () => {
+      if (disposed) return
+      measure()
+      placedW = 0
+      placedH = 0
+      resize()
+      if (reduced) {
+        step(0)
+        step(0)
+      }
+      readyRef.current?.()
+    }
+
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(settle)
+      // Belt and braces: never leave the field invisible if fonts stall.
+      window.setTimeout(settle, 1400)
+    } else {
+      settle()
+    }
+
     return () => {
       disposed = true
+      // The spans outlive this effect (React reuses the nodes across a
+      // StrictMode remount), so hand them back clean. Otherwise the ember
+      // from the previous run is still sitting on a word the next run knows
+      // nothing about, and two fragments read as recognised at once.
+      for (let i = 0; i < COUNT; i++) delete els[i].dataset.lit
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", onResize)
       window.removeEventListener("pointermove", onPointerMove)
-      pointGeo.dispose()
-      pointMat.dispose()
       lineGeo.dispose()
       lineMat.dispose()
-      renderer.dispose()
-      renderer.forceContextLoss()
-      if (canvas.parentNode) canvas.parentNode.removeChild(canvas)
+      if (renderer) {
+        renderer.dispose()
+        renderer.forceContextLoss()
+      }
+      if (canvas?.parentNode) canvas.parentNode.removeChild(canvas)
     }
-  }, [])
+  }, [fragments])
 
-  return <div ref={hostRef} className={className} aria-hidden="true" />
+  return (
+    <div ref={hostRef} className={className} aria-hidden="true">
+      <div ref={canvasHostRef} className={styles.fieldCanvas} />
+      <div ref={wordsRef} className={styles.fieldWords}>
+        {fragments.map((f, i) => (
+          <span key={`${f.text}-${i}`} className={styles.frag}>
+            {f.label ? <i className={styles.fragLabel}>{f.label}</i> : null}
+            {f.text}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Distance from a box centre to its boundary along a unit direction. Used to
+ * park hairline endpoints just outside each word instead of through it.
+ */
+function boxT(ux: number, uy: number, hw: number, hh: number) {
+  if (hw <= 0 && hh <= 0) return 0
+  const tx = Math.abs(ux) > 1e-4 ? hw / Math.abs(ux) : Infinity
+  const ty = Math.abs(uy) > 1e-4 ? hh / Math.abs(uy) : Infinity
+  return Math.min(tx, ty)
 }
