@@ -1,0 +1,329 @@
+/* ------------------------------------------------------------------ */
+/* /1 — CONTEXT FIELD                                                  */
+/*                                                                     */
+/* Palette: a cold ink ground, bone type, a cool pale field, and one   */
+/* ember accent that only ever appears at the moment of recognition.   */
+/* ------------------------------------------------------------------ */
+
+.root {
+  --hf-ink: #06080a;
+  --hf-ink-lift: #0c1113;
+  --hf-bone: #ece9e2;
+  --hf-mute: #939c98;
+  --hf-ember: #e2552c;
+  --hf-rule: rgba(236, 233, 226, 0.14);
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--hf-ink);
+  color: var(--hf-bone);
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.root ::selection {
+  background: rgba(236, 233, 226, 0.22);
+  color: var(--hf-bone);
+}
+
+/* Atmosphere: a neutral lift toward the optical centre so the ground is
+   not a dead flat fill. No colour, no bloom. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    118% 88% at 46% 44%,
+    var(--hf-ink-lift) 0%,
+    #080b0d 42%,
+    var(--hf-ink) 76%
+  );
+  pointer-events: none;
+}
+
+.canvasLayer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1500ms cubic-bezier(0.33, 0, 0.2, 1);
+}
+
+.canvasLayer[data-ready="true"] {
+  opacity: 1;
+}
+
+.canvasHost {
+  width: 100%;
+  height: 100%;
+}
+
+/* Fine grain. Kills gradient banding on the ground and gives the ink a
+   surface. Inline SVG, so nothing is fetched. */
+.grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------------ */
+/* Composition                                                         */
+/*                                                                     */
+/* Four corners of quiet type framing a living centre. Weight is        */
+/* deliberately lopsided: identity is small top-left, the statement is   */
+/* heavy bottom-left, place and links are hairline at the right edge.    */
+/* The middle of the screen is left entirely to the field.              */
+/* ------------------------------------------------------------------ */
+.frame {
+  position: relative;
+  display: grid;
+  height: 100%;
+  grid-template-areas:
+    "id    place"
+    "void  void"
+    "say   links";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(3rem, 1fr) auto;
+  gap: 1.5rem 2rem;
+  padding: clamp(1.375rem, 3.4vw, 3.25rem);
+  pointer-events: none;
+}
+
+.frame a {
+  pointer-events: auto;
+}
+
+.identity {
+  grid-area: id;
+}
+
+.name {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.0625rem, 1.35vw, 1.3125rem);
+  letter-spacing: -0.012em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.role {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.008em;
+  color: var(--hf-mute);
+  max-width: 26ch;
+}
+
+.place {
+  grid-area: place;
+  justify-self: end;
+  text-align: right;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.008em;
+  color: var(--hf-mute);
+  margin: 0;
+}
+
+.statement {
+  grid-area: say;
+  align-self: end;
+}
+
+/* Measured to break in three, with a ragged right edge that leans into the
+   field rather than squaring off against it. */
+.headline {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(1.875rem, 3.9vw, 3.25rem);
+  line-height: 1.07;
+  letter-spacing: -0.026em;
+  margin: 0;
+  max-width: clamp(16rem, 34vw, 29rem);
+  text-wrap: pretty;
+  color: var(--hf-bone);
+}
+
+.deck {
+  margin: 1.5rem 0 0;
+  max-width: 40ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  letter-spacing: 0.004em;
+  text-wrap: pretty;
+  color: var(--hf-mute);
+}
+
+.deck em {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-style: italic;
+  font-size: 1.0625em;
+  letter-spacing: 0;
+  color: #b9c0bc;
+}
+
+.links {
+  grid-area: links;
+  align-self: end;
+  justify-self: end;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.link {
+  color: var(--hf-mute);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+  width: fit-content;
+  transition: color 180ms cubic-bezier(0.2, 0, 0, 1),
+    text-decoration-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--hf-bone);
+  text-decoration-color: var(--hf-ember);
+}
+
+.link:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 4px;
+  border-radius: 1px;
+}
+
+.inlineLink {
+  color: #bcc3bf;
+  text-decoration: underline;
+  text-decoration-color: var(--hf-rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.28em;
+  transition: color 180ms cubic-bezier(0.2, 0, 0, 1),
+    text-decoration-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.inlineLink:hover,
+.inlineLink:focus-visible {
+  color: var(--hf-bone);
+  text-decoration-color: var(--hf-ember);
+}
+
+.inlineLink:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 4px;
+  border-radius: 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Entrance                                                            */
+/*                                                                     */
+/* Premium archetype: 780ms, decelerating, no overshoot, 7px of travel. */
+/* Pure CSS with per-element delay so it plays on first paint, before   */
+/* any bundle for the field has downloaded.                            */
+/* ------------------------------------------------------------------ */
+@keyframes hfRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: hfRise 780ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-delay: var(--hf-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+/* ------------------------------------------------------------------ */
+/* 390px                                                               */
+/* ------------------------------------------------------------------ */
+@media (max-width: 40rem) {
+  .frame {
+    grid-template-areas:
+      "id"
+      "place"
+      "void"
+      "say"
+      "links";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(2rem, 1fr) auto auto;
+    gap: 0.75rem 0;
+  }
+
+  .place {
+    justify-self: start;
+    text-align: left;
+    margin-top: -0.25rem;
+  }
+
+  .statement {
+    margin-top: 0.5rem;
+  }
+
+  .headline {
+    font-size: clamp(1.75rem, 8.4vw, 2.375rem);
+    max-width: 11ch;
+    letter-spacing: -0.022em;
+  }
+
+  .deck {
+    max-width: 34ch;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .links {
+    justify-self: start;
+    text-align: left;
+    align-items: flex-start;
+    margin-top: 1.625rem;
+  }
+}
+
+/* Short landscape viewports: pull the statement in so it never collides
+   with the identity block. */
+@media (max-height: 34rem) and (min-width: 40rem) {
+  .headline {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .deck {
+    margin-top: 0.875rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion: the composition still arrives whole, it just         */
+/* arrives instead of animating. The field renders one static frame.    */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .canvasLayer {
+    transition: none;
+  }
+
+  .link,
+  .inlineLink {
+    transition: none;
+  }
+}
