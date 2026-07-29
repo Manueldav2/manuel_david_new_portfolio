@@ -1,11 +1,17 @@
 /* ------------------------------------------------------------------ */
-/* /1 — THE MIND                                                       */
+/* /1 — THE CONTEXT MAP                                                */
 /*                                                                     */
 /* Palette: warm ink ground, bone type, one ember accent that only     */
 /* appears on the selected node and the pulses that leave it.          */
 /*                                                                     */
+/* Layering: the web (canvas + label buttons) is FIXED behind the      */
+/* whole page. The hero floats its type over it (pointer-events pass   */
+/* through to the map everywhere except the type itself), and the      */
+/* reading channel below carries its own near-opaque band so the web   */
+/* keeps breathing at the page edges while the prose stays solid.      */
+/*                                                                     */
 /* Type has two jobs and two faces. Newsreader carries the voice:      */
-/* headline, prose, node titles. IBM Plex Sans carries the data:       */
+/* headline, prose, panel titles. IBM Plex Sans carries the data:      */
 /* dates, links, node labels, panel metadata. Nothing is set in caps.  */
 /* ------------------------------------------------------------------ */
 
@@ -38,32 +44,178 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero                                                                */
+/* The web: fixed behind the whole page                                */
+/* ------------------------------------------------------------------ */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: radial-gradient(
+    120% 90% at 66% 40%,
+    var(--hf-lift) 0%,
+    #090c0e 46%,
+    var(--hf-ink) 78%
+  );
+}
+
+.stageCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  appearance: none;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 1px 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--hf-bone);
+  opacity: 0;
+  will-change: transform, opacity;
+  /* Knocks back any hairline passing behind the word. */
+  text-shadow:
+    0 0 8px var(--hf-ink),
+    0 0 3px var(--hf-ink),
+    0 0 1px var(--hf-ink);
+  transition: color 220ms var(--hf-ease);
+}
+
+.node[data-side="l"] {
+  transform-origin: right center;
+}
+
+.node[data-side="r"] {
+  transform-origin: left center;
+}
+
+/* The word itself grows a touch on hover and focus: the label is a
+   button and should feel like one the moment the cursor arrives. The
+   outer button's transform belongs to the projection loop, so the
+   growth lives on an inner span. */
+.nodeText {
+  display: inline-block;
+  transition: transform 200ms var(--hf-ease);
+}
+
+.node[data-side="l"] .nodeText {
+  transform-origin: right center;
+}
+
+.node[data-side="r"] .nodeText {
+  transform-origin: left center;
+}
+
+.node:hover .nodeText,
+.node:focus-visible .nodeText,
+.node[data-on="true"] .nodeText {
+  transform: scale(1.07);
+}
+
+.node[data-rank="0"] {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+}
+
+.node[data-rank="1"] {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.node[data-rank="2"] {
+  font-size: 11.5px;
+  color: var(--hf-read);
+}
+
+.node:hover {
+  color: var(--hf-ember-soft);
+}
+
+.node[data-on="true"] {
+  color: var(--hf-ember-soft);
+}
+
+.node:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1100px) {
+  .node[data-rank="0"] {
+    font-size: 14.5px;
+  }
+  .node[data-rank="1"] {
+    font-size: 12px;
+  }
+  .node[data-rank="2"] {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 719px) {
+  .node[data-rank="0"] {
+    font-size: 13px;
+  }
+  /* Anchors only on phones; the rest stay as points in the web and are
+     still reachable through the story panel's connected-to links. */
+  .node[data-rank="1"],
+  .node[data-rank="2"] {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero: type floating over the map                                    */
 /* ------------------------------------------------------------------ */
 
 .hero {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(340px, 430px) 1fr;
-  gap: clamp(1.5rem, 3vw, 3.5rem);
-  align-items: stretch;
+  z-index: 2;
+  display: flex;
+  align-items: center;
   min-height: 100svh;
   padding: var(--hf-pad);
-  background:
-    radial-gradient(
-      120% 90% at 72% 42%,
-      var(--hf-lift) 0%,
-      #090c0e 46%,
-      var(--hf-ink) 78%
-    );
+  /* The section is a transparent window onto the map; only the type
+     itself takes the pointer, so the web stays clickable everywhere. */
+  pointer-events: none;
+}
+
+/* A soft pool of ink under the intro so strings can pass behind the
+   words without ever fighting them. Not a card, not a blur: a shadow
+   the type casts on the web. */
+.heroScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    46rem 32rem at 16% 52%,
+    rgba(7, 9, 11, 0.82) 0%,
+    rgba(7, 9, 11, 0.44) 52%,
+    rgba(7, 9, 11, 0) 74%
+  );
 }
 
 .intro {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 1.1rem;
-  max-width: 34rem;
+  max-width: 33rem;
 }
 
 .name {
@@ -115,6 +267,18 @@
   max-width: 44ch;
 }
 
+/* The concept, said out loud. Italic serif, brighter than the deck:
+   this line is the door into the whole page. */
+.mapNote {
+  margin: 0;
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-style: italic;
+  font-size: 1.06rem;
+  line-height: 1.55;
+  color: var(--hf-bone);
+  max-width: 40ch;
+}
+
 .links {
   display: flex;
   flex-wrap: wrap;
@@ -142,7 +306,44 @@
   outline-offset: 3px;
 }
 
-/* Hero entrance: one composed stagger, 430ms of budget, nothing else. */
+/* Names the layer, anchored to the web's lower corner. */
+.mapTag {
+  position: absolute;
+  right: calc(var(--hf-pad) + 0.15rem);
+  bottom: calc(var(--hf-pad) - 0.35rem);
+  z-index: 1;
+  pointer-events: none;
+  text-align: right;
+}
+
+.mapTagName {
+  display: block;
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--hf-bone);
+  opacity: 0.85;
+}
+
+.mapTagName::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--hf-ember);
+  margin-right: 0.5rem;
+  vertical-align: 0.14em;
+}
+
+.mapTagHint {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--hf-mute);
+}
+
+/* Hero entrance: one composed stagger, 600ms of budget, nothing else. */
 .reveal {
   opacity: 0;
   transform: translateY(10px);
@@ -158,39 +359,37 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Story panel                                                         */
+/* Floating story panel                                                */
 /* ------------------------------------------------------------------ */
 
-.panelSlot {
-  margin-top: 0.9rem;
-  min-height: 15.5rem;
-  border-top: 1px solid var(--hf-rule-soft);
-  padding-top: 1.1rem;
+.panelWrap {
+  position: fixed;
+  right: clamp(1rem, 2.6vw, 2.4rem);
+  bottom: clamp(1rem, 2.6vw, 2.4rem);
+  z-index: 40;
+  width: min(23.5rem, calc(100vw - 2rem));
+  pointer-events: none;
 }
 
 .panel {
-  animation: hfPanel 260ms var(--hf-ease) both;
+  pointer-events: auto;
+  background: #0a0d10;
+  border: 1px solid var(--hf-rule);
+  padding: 1.15rem 1.3rem 1.05rem;
+  max-height: min(26rem, 62svh);
+  overflow-y: auto;
+  animation: hfPanel 280ms var(--hf-ease) both;
 }
 
 @keyframes hfPanel {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.panelHint {
-  margin: 0;
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-style: italic;
-  font-size: 0.98rem;
-  line-height: 1.55;
-  color: var(--hf-mute);
-  max-width: 38ch;
 }
 
 .panelKind {
@@ -300,122 +499,31 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* The mind                                                            */
-/* ------------------------------------------------------------------ */
-
-.mindWrap {
-  position: relative;
-  min-height: 540px;
-}
-
-.stage {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.stageCanvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.node {
-  position: absolute;
-  top: 0;
-  left: 0;
-  appearance: none;
-  background: none;
-  border: none;
-  margin: 0;
-  padding: 1px 2px;
-  cursor: pointer;
-  white-space: nowrap;
-  color: var(--hf-bone);
-  opacity: 0;
-  will-change: transform, opacity;
-  /* Knocks back any hairline passing behind the word. */
-  text-shadow:
-    0 0 8px var(--hf-ink),
-    0 0 3px var(--hf-ink),
-    0 0 1px var(--hf-ink);
-  transition: color 220ms var(--hf-ease);
-}
-
-.node[data-side="l"] {
-  transform-origin: right center;
-}
-
-.node[data-side="r"] {
-  transform-origin: left center;
-}
-
-.node[data-rank="0"] {
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 17px;
-  font-weight: 500;
-  letter-spacing: 0.002em;
-}
-
-.node[data-rank="1"] {
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 14px;
-  font-weight: 400;
-}
-
-.node[data-rank="2"] {
-  font-size: 11.5px;
-  color: var(--hf-read);
-}
-
-.node:hover {
-  color: var(--hf-ember-soft);
-}
-
-.node[data-on="true"] {
-  color: var(--hf-ember-soft);
-}
-
-.node:focus-visible {
-  outline: 1px solid var(--hf-rule);
-  outline-offset: 2px;
-}
-
-@media (max-width: 1100px) {
-  .node[data-rank="0"] {
-    font-size: 14.5px;
-  }
-  .node[data-rank="1"] {
-    font-size: 12px;
-  }
-  .node[data-rank="2"] {
-    font-size: 10px;
-  }
-}
-
-@media (max-width: 719px) {
-  .node[data-rank="0"] {
-    font-size: 13px;
-  }
-  /* Anchors only on phones; the rest stay as points in the tissue and are
-     still reachable through the story panel's connected-to links. */
-  .node[data-rank="1"],
-  .node[data-rank="2"] {
-    display: none;
-  }
-}
-
-/* ------------------------------------------------------------------ */
 /* Reading                                                             */
 /* ------------------------------------------------------------------ */
 
 .reading {
   position: relative;
+  z-index: 1;
   max-width: 72rem;
   margin: 0 auto;
   padding: 0 var(--hf-pad) clamp(4rem, 9vw, 8rem);
+}
+
+/* The reading channel: a near-opaque band under the prose, fading at
+   its outer edges so the dimmed web still breathes in the gutters. */
+.reading::before {
+  content: "";
+  position: absolute;
+  inset: 0 -6rem;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    rgba(7, 9, 11, 0) 0%,
+    rgba(7, 9, 11, 0.94) 6rem,
+    rgba(7, 9, 11, 0.94) calc(100% - 6rem),
+    rgba(7, 9, 11, 0) 100%
+  );
 }
 
 .chapter {
@@ -578,6 +686,20 @@
   color: var(--hf-mute);
 }
 
+.rowNoteLink {
+  color: var(--hf-mute);
+  text-decoration: underline;
+  text-decoration-color: var(--hf-rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
+}
+
+.rowNoteLink:hover {
+  color: var(--hf-bone);
+  text-decoration-color: var(--hf-ember);
+}
+
 /* ------------------------------------------------------------------ */
 /* Close                                                               */
 /* ------------------------------------------------------------------ */
@@ -628,24 +750,22 @@
 
 @media (max-width: 980px) {
   .hero {
-    grid-template-columns: 1fr;
-    min-height: auto;
-    padding-bottom: 0.5rem;
+    align-items: flex-start;
+    padding-top: clamp(4rem, 12vw, 6rem);
+  }
+
+  .heroScrim {
+    background: radial-gradient(
+      34rem 26rem at 40% 22%,
+      rgba(7, 9, 11, 0.84) 0%,
+      rgba(7, 9, 11, 0.46) 54%,
+      rgba(7, 9, 11, 0) 76%
+    );
   }
 
   .intro {
-    padding-top: clamp(1rem, 6vw, 3rem);
     max-width: 40rem;
   }
-
-  .mindWrap {
-    min-height: min(118vw, 520px);
-  }
-
-  /* On one column the map should sit between the deck and the panel:
-     intro (text) → mind → panel is handled by moving the panel visually
-     below the stage. Simplest honest layout: keep panel in the intro flow,
-     mind after it; on phones the reader meets words, then the map. */
 
   .chapterBody,
   .entry {
@@ -668,9 +788,26 @@
   .close {
     grid-template-columns: 1fr;
   }
+}
 
-  .panelSlot {
-    min-height: 0;
+@media (max-width: 719px) {
+  .panelWrap {
+    right: 0;
+    bottom: 0;
+    width: 100%;
+  }
+
+  .panel {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    max-height: 58svh;
+    padding: 1.05rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .mapTag {
+    right: var(--hf-pad);
+    bottom: calc(var(--hf-pad) + 0.4rem);
   }
 }
 
@@ -690,12 +827,14 @@
   }
 
   .node,
+  .nodeText,
   .link,
   .inlineLink,
   .panelChip,
   .panelClose,
   .panelLink,
   .railLink,
+  .rowNoteLink,
   .rowName a {
     transition: none;
   }

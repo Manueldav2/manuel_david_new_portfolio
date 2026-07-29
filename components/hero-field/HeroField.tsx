@@ -2,18 +2,19 @@
 
 import dynamic from "next/dynamic"
 import type { CSSProperties } from "react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { profile, projects, work } from "@/lib/content"
 import { KIND_LABEL, neighbours, nodeById } from "./graph"
 import styles from "./hero-field.module.css"
 
 /**
- * /1 — THE MIND
+ * /1 — THE CONTEXT MAP
  *
- * His life as a connected graph, drawn as a two-lobed volume that reads as a
- * head. The type is plain DOM in the first HTML response; the mind itself is
- * client-only underneath it.
+ * His life as a connected web, fixed behind the whole page like the layer he
+ * builds for a living. The type is plain DOM in the first HTML response and
+ * floats over the web; the map itself is client-only underneath it. Clicking
+ * a node opens a floating story panel that follows you anywhere on the page.
  */
 const Mind = dynamic(() => import("./Mind"), { ssr: false })
 
@@ -27,13 +28,14 @@ const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 const byCompany = (name: string) => work.find((w) => w.company === name)
 
 /**
- * Person first: the roles read as one continuous story, Configure fullest
- * because it is current, Nouvo shortest because it is oldest.
+ * Person first: the roles read as one continuous story. Configure and Nouvo
+ * run their full arcs; Paradigm keeps the two paragraphs that are not
+ * already retold elsewhere on the page.
  */
-const ROLES = [
+const ROLES: { company: string; lead: boolean; paragraphs: number[] | "all" }[] = [
   { company: "Configure", lead: true, paragraphs: [0, 1] },
   { company: "Paradigm", lead: false, paragraphs: [0, 2] },
-  { company: "Nouvo", lead: false, paragraphs: [0] },
+  { company: "Nouvo", lead: false, paragraphs: "all" },
 ]
 
 const SELECTED_PROJECTS = [
@@ -61,6 +63,11 @@ const contact = [
   { label: profile.xHandle, href: profile.x },
 ]
 
+/**
+ * The floating story panel. Fixed to the lower right (a bottom sheet on
+ * phones), so a story reads the same whether you clicked a node at the top
+ * of the web or halfway down the page. Solid ink, hairline border, no blur.
+ */
 function StoryPanel({
   selected,
   onSelect,
@@ -71,7 +78,7 @@ function StoryPanel({
   const node = selected ? nodeById.get(selected) : undefined
 
   return (
-    <div className={styles.panelSlot} aria-live="polite">
+    <div className={styles.panelWrap} aria-live="polite">
       {node ? (
         <aside key={node.id} className={styles.panel}>
           <p className={styles.panelKind}>{KIND_LABEL[node.kind]}</p>
@@ -114,26 +121,59 @@ function StoryPanel({
             close
           </button>
         </aside>
-      ) : (
-        <aside className={styles.panel} data-empty="true">
-          <p className={styles.panelHint}>
-            Every node on this map is a real piece of my life, and every line
-            is cause and effect. Select one and I’ll tell you the story behind
-            it.
-          </p>
-        </aside>
-      )}
+      ) : null}
     </div>
   )
 }
 
+const HINT_KEY = "hf-map-hint-done"
+
 export function HeroField({ className }: { className?: string }) {
   const [selected, setSelected] = useState<string | null>(null)
+  // null = not yet known (avoids a server/client flash); the hint renders
+  // only once we know this visitor has never opened a node.
+  const [hintDone, setHintDone] = useState<boolean | null>(null)
+  const [verb, setVerb] = useState("click")
+  const introRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    try {
+      setHintDone(window.localStorage.getItem(HINT_KEY) === "1")
+    } catch {
+      setHintDone(false)
+    }
+    if (window.matchMedia("(hover: none)").matches) setVerb("tap")
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
+  const select = (id: string | null) => {
+    setSelected(id)
+    if (id && hintDone === false) {
+      setHintDone(true)
+      try {
+        window.localStorage.setItem(HINT_KEY, "1")
+      } catch {
+        /* private mode; the hint just returns next visit */
+      }
+    }
+  }
 
   return (
     <div className={`${styles.root} ${className ?? ""}`}>
+      {/* The map: fixed behind everything, spanning the viewport. */}
+      <Mind selected={selected} onSelect={select} keepOut={introRef} />
+
       <section className={styles.hero}>
-        <div className={styles.intro}>
+        <div className={styles.heroScrim} aria-hidden="true" />
+
+        <div className={styles.intro} ref={introRef}>
           <header>
             <h1 className={`${styles.name} ${styles.reveal}`} style={at(0)}>
               {profile.name}
@@ -159,14 +199,19 @@ export function HeroField({ className }: { className?: string }) {
 
           <p className={`${styles.deck} ${styles.reveal}`} style={at(260)}>
             So I dropped out of college, moved to a city I had never set foot
-            in, and started building. First a studio, then a company, then the
-            problem I could not stop hitting. This map is my head: how one
-            decision led to the next.
+            in, and started building. First a studio, then a company, then
+            the problem I could not stop hitting.
+          </p>
+
+          <p className={`${styles.mapNote} ${styles.reveal}`} style={at(340)}>
+            The web behind this page is my context map. Every node is a real
+            piece of my life, every string is cause and effect. Pick one and
+            I’ll tell you the story.
           </p>
 
           <nav
             className={`${styles.links} ${styles.reveal}`}
-            style={at(350)}
+            style={at(430)}
             aria-label="Elsewhere"
           >
             <a className={styles.link} href={`mailto:${profile.email}`}>
@@ -189,14 +234,21 @@ export function HeroField({ className }: { className?: string }) {
               {profile.xHandle}
             </a>
           </nav>
-
-          <div className={styles.reveal} style={at(430)}>
-            <StoryPanel selected={selected} onSelect={setSelected} />
-          </div>
         </div>
 
-        <div className={styles.mindWrap}>
-          <Mind selected={selected} onSelect={setSelected} />
+        {/* Names the layer, and invites the first click. The hint line
+            retires forever after the first node is opened. */}
+        <div
+          className={`${styles.mapTag} ${styles.reveal}`}
+          style={at(600)}
+          aria-hidden="true"
+        >
+          <span className={styles.mapTagName}>my context map</span>
+          {hintDone === false ? (
+            <span className={styles.mapTagHint}>
+              {verb} a node for its story
+            </span>
+          ) : null}
         </div>
       </section>
 
@@ -229,6 +281,12 @@ export function HeroField({ className }: { className?: string }) {
           {ROLES.map((role) => {
             const entry = byCompany(role.company)
             if (!entry) return null
+            const paragraphs =
+              role.paragraphs === "all"
+                ? (entry.story ?? [])
+                : role.paragraphs
+                    .map((n) => entry.story?.[n])
+                    .filter((p): p is string => Boolean(p))
             return (
               <article
                 key={entry.company}
@@ -256,10 +314,9 @@ export function HeroField({ className }: { className?: string }) {
 
                 <div className={styles.prose}>
                   <p className={styles.lede}>{typo(entry.blurb)}</p>
-                  {role.paragraphs.map((n) => {
-                    const para = entry.story?.[n]
-                    return para ? <p key={n}>{typo(para)}</p> : null
-                  })}
+                  {paragraphs.map((para, n) => (
+                    <p key={n}>{typo(para)}</p>
+                  ))}
                 </div>
               </article>
             )
@@ -295,7 +352,16 @@ export function HeroField({ className }: { className?: string }) {
                     {p.clients ? (
                       <span className={styles.rowNote}>
                         {" "}
-                        {p.clients.length} of them are live right now.
+                        Check them out at{" "}
+                        <a
+                          className={styles.rowNoteLink}
+                          href="https://nouvo.dev"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          nouvo.dev
+                        </a>
+                        .
                       </span>
                     ) : null}
                   </p>
@@ -346,6 +412,8 @@ export function HeroField({ className }: { className?: string }) {
           </p>
         </section>
       </main>
+
+      <StoryPanel selected={selected} onSelect={select} />
     </div>
   )
 }

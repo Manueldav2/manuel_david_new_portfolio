@@ -1,27 +1,40 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import type { RefObject } from "react"
 
 import { KIND_LABEL, edges, neighbours, nodes, revealOrder } from "./graph"
 import styles from "./hero-field.module.css"
 
 /**
- * THE MIND
+ * THE CONTEXT MAP
  *
- * The graph from graph.ts rendered as a slowly breathing, two-lobed volume:
- * a person's head drawn as a map. Labels are real DOM buttons (crisp at any
- * DPI, keyboard reachable, hover and focus for free); the tissue underneath
- * them, the dust that gives the lobes mass, the causal edges and the pulses
- * that walk them, is one 2D canvas. No three.js, no assets, nothing fetched.
+ * The graph from graph.ts rendered as a slowly breathing web that spans the
+ * whole viewport, fixed behind the page. Labels are real DOM buttons (crisp
+ * at any DPI, keyboard reachable, hover and focus for free); the strings,
+ * the dust that gives the web body, and the ember pulses that walk the
+ * causal edges are one 2D canvas. No three.js, no assets, nothing fetched.
  *
- * At rest it is fully legible: every label readable, every edge visible,
- * ambient pulses retracing the spine of the story. Selection is deliberate.
- * Click or focus a node and its neighbourhood lifts while the rest recedes,
- * pulses run outward along its real edges, and the story panel (owned by the
- * parent) tells you what that node actually is.
+ * Three things keep the type on top of it legible:
+ *  1. A screen-space keep-out. The hero intro passes its rect down via
+ *     `keepOut`; any node whose projected position lands inside it is eased
+ *     out through the cheapest exit. Strings follow the displaced dots, so
+ *     the web still threads behind the words but no label or dot ever sits
+ *     under the headline.
+ *  2. The parent lays a soft scrim over the intro area (CSS).
+ *  3. Scroll dimming. As the reader scrolls into the page the whole canvas
+ *     fades to roughly a quarter of its strength and labels fade out
+ *     entirely, so the web keeps breathing behind the reading channel
+ *     without competing with it.
+ *
+ * At rest the web is fully composed: every label readable, every string
+ * visible, ambient pulses retracing the spine of the story. Hovering a node
+ * brightens it, grows it slightly, and rings its dot; clicking lifts its
+ * neighbourhood while the rest recedes, and the floating story panel (owned
+ * by the parent) tells you what that node actually is.
  *
  * Nothing in the frame loop allocates, and selection never re-runs the
- * effect: the loop reads the current selection through a ref.
+ * effect: the loop reads the current selection and hover through refs.
  */
 
 const PERSP = 3.4
@@ -46,21 +59,16 @@ function mulberry(seed: number) {
   }
 }
 
-/** Unlabelled points that give the two lobes their mass. Texture, not data. */
+/** Unlabelled points scattered through the volume. Texture, not data. */
 const DUST = (() => {
   const rand = mulberry(20260729)
   const pts: { x: number; y: number; z: number; a: number }[] = []
-  for (let i = 0; i < 96; i++) {
-    const side = i % 2 === 0 ? -1 : 1
-    const u = rand() * 2 - 1
-    const th = rand() * Math.PI * 2
-    const r = Math.cbrt(rand())
-    const ring = Math.sqrt(1 - u * u)
+  for (let i = 0; i < 104; i++) {
     pts.push({
-      x: side * 0.47 + Math.cos(th) * ring * r * 0.48,
-      y: 0.05 + u * r * 0.8,
-      z: Math.sin(th) * ring * r * 0.54,
-      a: 0.09 + rand() * 0.17,
+      x: (rand() * 2 - 1) * 0.96,
+      y: (rand() * 2 - 1) * 0.9,
+      z: (rand() * 2 - 1) * 0.5,
+      a: 0.08 + rand() * 0.16,
     })
   }
   return pts
@@ -86,11 +94,11 @@ const ADJ: boolean[][] = (() => {
 const SPINE_IDX = (
   [
     ["faith", "dropped-out"],
-    ["dropped-out", "moved-to-sf"],
-    ["moved-to-sf", "paradigm"],
-    ["paradigm", "context-wall"],
-    ["context-wall", "configure"],
-    ["no-internship", "nouvo"],
+    ["dropped-out", "san-francisco"],
+    ["san-francisco", "paradigm"],
+    ["paradigm", "context"],
+    ["context", "configure"],
+    ["rejection", "nouvo"],
     ["nouvo", "paradigm"],
     ["customer-first", "configure"],
   ] as const
@@ -98,7 +106,7 @@ const SPINE_IDX = (
   edges.findIndex(([x, y]) => (x === a && y === b) || (x === b && y === a)),
 )
 
-/** Per-edge curvature, deterministic, so the tissue looks organic, not drawn with a ruler. */
+/** Per-edge curvature, deterministic, so the web reads strung, not ruled. */
 const CURVE = edges.map((_, i) => ((i * 37) % 2 ? 1 : -1) * (0.05 + ((i * 53) % 9) * 0.008))
 
 const RANK_ALPHA = [0.96, 0.82, 0.7] as const
@@ -110,14 +118,18 @@ type Pulse = { e: number; from: 0 | 1; t: number; wait: number; loop: boolean }
 export default function Mind({
   selected,
   onSelect,
+  keepOut,
 }: {
   selected: string | null
   onSelect: (id: string | null) => void
+  /** The hero intro block; projected nodes are eased out of its rect. */
+  keepOut?: RefObject<HTMLElement | null>
 }) {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const labelsRef = useRef<(HTMLButtonElement | null)[]>([])
   const selectedRef = useRef<string | null>(selected)
+  const hoveredRef = useRef<string | null>(null)
   const redrawRef = useRef<(() => void) | null>(null)
 
   // Keep the loop's view of the selection current without re-running the
@@ -149,6 +161,8 @@ export default function Mind({
     const intro = new Float32Array(N)
     const lw = new Float32Array(N)
     const lh = new Float32Array(N)
+    const dispX = new Float32Array(N)
+    const dispY = new Float32Array(N)
     const dsx = new Float32Array(DUST.length)
     const dsy = new Float32Array(DUST.length)
     const dsc = new Float32Array(DUST.length)
@@ -161,6 +175,39 @@ export default function Mind({
     let ry = 100
     let cx = 0
     let cyc = 0
+    let scrollYv = window.scrollY
+
+    // Keep-out rect. The stage is fixed at the viewport origin, so client
+    // coordinates are stage coordinates.
+    let kx0 = 0
+    let ky0 = 0
+    let kx1 = 0
+    let ky1 = 0
+    let hasKeep = false
+    // An exit only counts if it actually clears the type on screen. On
+    // phones the intro spans the full width, so the sideways exit is a lie
+    // and nodes must leave through the top or bottom instead.
+    let exitR = true
+    let exitU = true
+    let exitD = true
+
+    const updateKeepOut = () => {
+      const el = keepOut?.current
+      if (!el) {
+        hasKeep = false
+        return
+      }
+      const r = el.getBoundingClientRect()
+      hasKeep = r.width > 0 && r.bottom > -40 && r.top < h + 40
+      kx0 = r.left - 26
+      ky0 = r.top - 22
+      kx1 = r.right + 30
+      ky1 = r.bottom + 22
+      exitR = kx1 < w - 40
+      exitU = ky0 > 120
+      exitD = ky1 < h - 40
+      if (!exitR && !exitU && !exitD) hasKeep = false
+    }
 
     const measure = () => {
       for (let i = 0; i < N; i++) {
@@ -177,20 +224,20 @@ export default function Mind({
       dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.round(w * dpr)
       canvas.height = Math.round(h * dpr)
-      const margin = w < 720 ? 86 : 132
-      rx = Math.max(80, w / 2 - margin)
-      ry = Math.max(80, h / 2 - 46)
+      rx = Math.max(80, w / 2 - (w < 720 ? 48 : 118))
+      ry = Math.max(80, h / 2 - (h < 720 ? 52 : 64))
       cx = w / 2
       cyc = h / 2
       measure()
+      updateKeepOut()
       redrawRef.current?.()
     }
 
     /* -------------------------------------------------------------- */
     /* Orientation: a slow breath, tilted a little by the pointer.      */
     /* -------------------------------------------------------------- */
-    let yaw = 0.1
-    let pitch = -0.055
+    let yaw = 0.08
+    let pitch = -0.045
     let pointerX = 0
     let pointerY = 0
     let rawPX = 0
@@ -198,13 +245,17 @@ export default function Mind({
 
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return
-      const r = stage.getBoundingClientRect()
-      rawPX = clamp01((e.clientX - r.left) / r.width) - 0.5
-      rawPY = clamp01((e.clientY - r.top) / r.height) - 0.5
+      rawPX = clamp01(e.clientX / w) - 0.5
+      rawPY = clamp01(e.clientY / h) - 0.5
     }
     const onPointerLeave = () => {
       rawPX = 0
       rawPY = 0
+    }
+    const onScroll = () => {
+      scrollYv = window.scrollY
+      updateKeepOut()
+      redrawRef.current?.()
     }
 
     /* -------------------------------------------------------------- */
@@ -251,17 +302,24 @@ export default function Mind({
         else pulses = []
       }
       const selIdx = sel ? (IDX.get(sel) ?? -1) : -1
+      const hov = hoveredRef.current
+      const hovIdx = hov ? (IDX.get(hov) ?? -1) : -1
       const kSel = reduced ? 1 : 1 - Math.exp(-dt * 7)
       selBlend += ((selIdx >= 0 ? 1 : 0) - selBlend) * kSel
 
+      // Scroll dimming: the web keeps living behind the reading channel,
+      // but it steps back. Labels leave entirely.
+      const webDim = 1 - 0.78 * smooth(h * 0.18, h * 0.9, scrollYv)
+      const labelDim = 1 - smooth(h * 0.12, h * 0.55, scrollYv)
+
       // Orientation.
-      const idleYaw = 0.05 + Math.sin(time * 0.07) * 0.085
-      const idlePitch = -0.05 + Math.sin(time * 0.047 + 1.3) * 0.032
+      const idleYaw = 0.045 + Math.sin(time * 0.07) * 0.07
+      const idlePitch = -0.04 + Math.sin(time * 0.047 + 1.3) * 0.028
       const kP = reduced ? 1 : 1 - Math.exp(-dt * 2.6)
       pointerX += (rawPX - pointerX) * kP
       pointerY += (rawPY - pointerY) * kP
-      const wantYaw = idleYaw + pointerX * 0.17
-      const wantPitch = idlePitch - pointerY * 0.11
+      const wantYaw = idleYaw + pointerX * 0.13
+      const wantPitch = idlePitch - pointerY * 0.09
       const kO = reduced ? 1 : 1 - Math.exp(-dt * 3)
       yaw += (wantYaw - yaw) * kO
       pitch += (wantPitch - pitch) * kO
@@ -286,10 +344,36 @@ export default function Mind({
         return s
       }
 
+      const kD = reduced ? 1 : 1 - Math.exp(-dt * 6)
       for (let i = 0; i < N; i++) {
         const n = nodes[i]
         project(n.x, n.y, n.z, i)
         intro[i] = reduced ? 1 : smooth(REVEAL_DELAY[i], REVEAL_DELAY[i] + 0.55, introT)
+
+        // Keep-out: ease the dot (and everything strung to it) out of the
+        // intro type through the cheapest exit. The push is zero at the rect
+        // edge, so nodes drifting near the boundary glide instead of popping.
+        let tx = 0
+        let ty = 0
+        if (hasKeep) {
+          const px = sx[i]
+          const py = sy[i]
+          if (px > kx0 && px < kx1 && py > ky0 && py < ky1) {
+            const pr = exitR ? kx1 - px : Infinity
+            const pu = exitU ? py - ky0 : Infinity
+            const pd = exitD ? ky1 - py : Infinity
+            // Nodes evicted through the same edge would otherwise line up on
+            // it; a small deterministic per-node offset staggers them.
+            const spread = (i % 6) * 18
+            if (pr <= pu && pr <= pd) tx = pr + spread
+            else if (pu <= pd) ty = -(pu + spread)
+            else ty = pd + spread
+          }
+        }
+        dispX[i] += (tx - dispX[i]) * kD
+        dispY[i] += (ty - dispY[i]) * kD
+        sx[i] += dispX[i]
+        sy[i] += dispY[i]
 
         const target =
           selIdx < 0 ? 1 : i === selIdx ? 1 : ADJ[selIdx][i] ? 0.82 : 0.3
@@ -311,6 +395,7 @@ export default function Mind({
 
       /* Labels ------------------------------------------------------ */
       const introAll = reduced ? 1 : smooth(0, 0.4, introT)
+      const labelsOn = labelDim > 0.35
       for (let i = 0; i < N; i++) {
         const el = els[i]
         if (!el) continue
@@ -346,15 +431,18 @@ export default function Mind({
           mix(depthMod, 1, selfSel) *
           (0.22 + 0.78 * emph[i])
         if (selfSel > 0.5) o = Math.max(o, 0.98 * intro[i])
+        o *= labelDim
 
         el.style.transform = `translate3d(${px.toFixed(1)}px, ${py.toFixed(1)}px, 0) scale(${(s * (1 + 0.06 * selfSel)).toFixed(3)})`
         el.style.opacity = o.toFixed(3)
+        el.style.pointerEvents = labelsOn ? "" : "none"
         el.style.zIndex = String(20 + Math.round(dep[i] * 40) + (i === selIdx ? 60 : 0))
       }
 
       /* Canvas ------------------------------------------------------ */
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, w, h)
+      ctx.globalAlpha = webDim
 
       // Dust.
       for (let d = 0; d < DUST.length; d++) {
@@ -364,14 +452,14 @@ export default function Mind({
         ctx.fill()
       }
 
-      // Edges.
+      // Strings.
       for (let e = 0; e < EDGE_IDX.length; e++) {
         const [a, b] = EDGE_IDX[e]
         const ia = Math.min(intro[a], intro[b])
         if (ia <= 0.01) continue
         const touching = selIdx >= 0 && (a === selIdx || b === selIdx)
         const avgDepth = (dep[a] + dep[b]) / 2
-        const base = 0.15 + 0.12 * avgDepth
+        const base = 0.17 + 0.13 * avgDepth
         const alpha = Math.min(
           0.62,
           base * ia * mix(1, touching ? 3.1 : 0.32, selBlend),
@@ -452,11 +540,12 @@ export default function Mind({
         }
       }
 
-      // Node points, drawn last so they sit on top of their edges.
+      // Node points, drawn last so they sit on top of their strings.
       for (let i = 0; i < N; i++) {
         const n = nodes[i]
         const isSel = i === selIdx
-        const r = RANK_DOT[n.rank] * sc[i] * (isSel ? 1.25 : 1)
+        const isHov = i === hovIdx && !isSel
+        const r = RANK_DOT[n.rank] * sc[i] * (isSel ? 1.25 : isHov ? 1.12 : 1)
         const a =
           intro[i] * (0.4 + 0.5 * dep[i]) * (0.3 + 0.7 * emph[i])
         if (isSel && selBlend > 0.04) {
@@ -470,12 +559,22 @@ export default function Mind({
           ctx.arc(sx[i], sy[i], r + 3.5, 0, 6.2832)
           ctx.stroke()
         } else {
-          ctx.fillStyle = `rgba(${BONE},${a.toFixed(3)})`
+          ctx.fillStyle = `rgba(${BONE},${(isHov ? Math.max(a, 0.85 * intro[i]) : a).toFixed(3)})`
           ctx.beginPath()
           ctx.arc(sx[i], sy[i], r, 0, 6.2832)
           ctx.fill()
+          if (isHov) {
+            // The invitation: a thin ring that says "this one opens".
+            ctx.strokeStyle = `rgba(${BONE},${(0.55 * intro[i]).toFixed(3)})`
+            ctx.lineWidth = 1
+            ctx.beginPath()
+            ctx.arc(sx[i], sy[i], r + 3.5, 0, 6.2832)
+            ctx.stroke()
+          }
         }
       }
+
+      ctx.globalAlpha = 1
     }
 
     /* -------------------------------------------------------------- */
@@ -506,6 +605,7 @@ export default function Mind({
     const ready = () => {
       if (disposed) return
       measure()
+      updateKeepOut()
       introT = reduced ? 99 : 0
       if (reduced) render(0)
     }
@@ -516,6 +616,7 @@ export default function Mind({
       ready()
     }
 
+    window.addEventListener("scroll", onScroll, { passive: true })
     if (reduced) {
       render(0)
     } else {
@@ -528,13 +629,19 @@ export default function Mind({
       disposed = true
       cancelAnimationFrame(raf)
       ro.disconnect()
+      window.removeEventListener("scroll", onScroll)
       stage.removeEventListener("pointermove", onPointerMove)
       stage.removeEventListener("pointerleave", onPointerLeave)
       redrawRef.current = null
     }
-    // The graph is static and selection flows through selectedRef.
+    // The graph is static; selection and hover flow through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const hover = (id: string | null) => {
+    hoveredRef.current = id
+    redrawRef.current?.()
+  }
 
   return (
     <div
@@ -545,7 +652,7 @@ export default function Mind({
         if (e.key === "Escape") onSelect(null)
       }}
       role="group"
-      aria-label="A map of Manuel's life. Each node is a real event, belief, company or project; select one to read its story."
+      aria-label="Manuel's context map. Each node is a real event, belief, company or project; select one to read its story."
     >
       <canvas ref={canvasRef} className={styles.stageCanvas} aria-hidden="true" />
       {nodes.map((n, i) => (
@@ -566,8 +673,12 @@ export default function Mind({
             e.stopPropagation()
             onSelect(selected === n.id ? null : n.id)
           }}
+          onPointerEnter={() => hover(n.id)}
+          onPointerLeave={() => hover(null)}
+          onFocus={() => hover(n.id)}
+          onBlur={() => hover(null)}
         >
-          {n.label}
+          <span className={styles.nodeText}>{n.label}</span>
         </button>
       ))}
     </div>
