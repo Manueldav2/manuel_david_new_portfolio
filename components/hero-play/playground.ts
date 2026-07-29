@@ -6,6 +6,8 @@ import {
   BALL_R,
   BLOCK,
   BLOCKS,
+  FOCUS_PULL,
+  LIFT,
   MAT,
   MATS,
   PALETTE,
@@ -34,13 +36,13 @@ import { createFaceTexture, createLabelTexture, type FaceTexture } from "./lette
  * Why no react-three-fiber: Next 15 aliases client `react` to its own React 19
  * build, and fiber v8 sits on react-reconciler 0.27, which reads the React 18
  * shared internals and throws on import. Vanilla three plus rapier costs less
- * anyway (no reconciler, no drei) and gives exact control over the drag, which
- * is the entire point of this page.
+ * anyway (no reconciler, no drei) and gives exact control over the drag and
+ * the pick, which is the entire point of this page.
  *
- * The world is ONE table. Scroll walks the camera down it. Crossing a section
- * hands that section's objects to gravity for the first time, and they fall
- * into the same rapier world the name blocks live in, so everything that lands
- * is throwable for the rest of the visit.
+ * The world is ONE table. Scroll walks the camera down it. Everything that has
+ * landed stays throwable for the rest of the visit, and every labelled object
+ * is also a control: pick one up with a click and the page opens what it is
+ * next to the object itself.
  *
  * Everything here is procedural. Two rounded-box geometries, one sphere,
  * canvas-drawn labels. No model, no HDRI, no texture request.
@@ -58,6 +60,8 @@ export type PlaygroundOptions = {
   onReady: () => void;
   /** Physics could not be loaded, so nothing is throwable. */
   onNoPhysics: () => void;
+  /** An object was picked, or the pick was dropped. */
+  onSelect: (id: string | null) => void;
   /** Scroll offsets (px) at which each camera stop is composed. */
   stops: () => number[];
 };
@@ -67,20 +71,33 @@ export type PlaygroundHandle = {
   reset: () => void;
   /** Re-read the scroll stops after the document height changed. */
   measure: () => void;
+  /** Pick an object from the outside, which is what the list rows do. */
+  select: (id: string | null) => void;
+  /** Where an object currently is on screen. Used by the browser tests. */
+  screenPos: (id: string) => { x: number; y: number } | null;
   dispose: () => void;
 };
 
 type PieceKind = "block" | "ball" | "plate";
+type SectionKind = "hero" | "work" | "projects";
+
+type Tint = { mat: THREE.MeshStandardMaterial; base: THREE.Color };
 
 type Piece = {
   id: string;
   mesh: THREE.Mesh;
   kind: PieceKind;
+  /** Camera stop this piece belongs to. */
   section: number;
   beat: number;
   home: { x: number; y: number; z: number };
   yaw: number;
   half: { x: number; y: number; z: number };
+  /** Labelled objects can be picked. Letters and balls are only throwable. */
+  pickable: boolean;
+  /** Materials that recede while a sibling is the one being read. */
+  tints: Tint[];
+  dim: number;
   body?: RBody;
 };
 
@@ -100,6 +117,13 @@ const STEP = 1 / 60;
 const REST_Y = MAT.h + BLOCK / 2;
 /** Sections this far behind the camera are frozen and stop being simulated. */
 const SLEEP_RANGE = 1.35;
+/** Pointer travel, in px, under which a press counts as a pick not a drag. */
+const CLICK_SLOP = 7;
+const CLICK_TIME = 460;
+/** Release a picked object faster than this and you meant to throw it away. */
+const THROW_AWAY = 6.5;
+/** How much a sibling object recedes while something else is being read. */
+const DIM_AMOUNT = 0.46;
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
@@ -107,8 +131,8 @@ function lerp(a: number, b: number, t: number) {
 
 /**
  * Quintic, so the camera sits still at each stop for most of the section and
- * crosses the bare stretch of table between mats quickly. A gentler curve
- * spends the middle of every section staring at an empty tabletop.
+ * crosses the stretch of table between mats quickly. A gentler curve spends
+ * the middle of every section staring at an empty tabletop.
  */
 function easeInOut(t: number) {
   return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
@@ -124,6 +148,7 @@ function mixStop(a: CamStop, b: CamStop, t: number): CamStop {
     z: lerp(a.z, b.z, t),
     bias: lerp(a.bias, b.bias, t),
     pitch: lerp(a.pitch, b.pitch, t),
+    yaw: lerp(a.yaw, b.yaw, t),
     fit: lerp(a.fit, b.fit, t),
     sy: lerp(a.sy, b.sy, t),
   };
@@ -202,6 +227,7 @@ export function createPlayground(
 
   const disposables: { dispose: () => void }[] = [];
   const faces: FaceTexture[] = [];
+  const DIM_TO = new THREE.Color(PALETTE.floor);
 
   const floorGeo = new THREE.PlaneGeometry(140, 140);
   const floorMat = new THREE.MeshStandardMaterial({
@@ -239,11 +265,13 @@ export function createPlayground(
   const pieces: Piece[] = [];
   const grabbables: THREE.Mesh[] = [];
   const byMesh = new Map<string, Piece>();
+  const byId = new Map<string, Piece>();
 
   function register(p: Piece) {
     pieces.push(p);
     grabbables.push(p.mesh);
     byMesh.set(p.mesh.uuid, p);
+    byId.set(p.id, p);
   }
 
   for (const b of BLOCKS) {
@@ -273,6 +301,9 @@ export function createPlayground(
       home: { x: b.x, y: REST_Y, z: b.z },
       yaw: 0,
       half: { x: BLOCK / 2, y: BLOCK / 2, z: BLOCK / 2 },
+      pickable: false,
+      tints: [],
+      dim: 0,
     });
   }
 
@@ -296,13 +327,18 @@ export function createPlayground(
       home: { x: s.x, y: MAT.h + BALL_R, z: s.z },
       yaw: 0,
       half: { x: BALL_R, y: BALL_R, z: BALL_R },
+      pickable: false,
+      tints: [],
+      dim: 0,
     });
   }
 
   /* ---------------------------------------------------------- the sections */
 
   type Section = {
-    index: number;
+    /** The camera stop this section is composed at. */
+    stop: number;
+    kind: SectionKind;
     size: { w: number; h: number; d: number };
     specs: readonly PlateSpec[];
     pieces: Piece[];
@@ -314,38 +350,63 @@ export function createPlayground(
   let portrait = false;
 
   const sections: Section[] = [
-    { index: 0, size: SLAB, specs: [], pieces, built: true, armed: false, frozen: false },
-    { index: 1, size: SLAB, specs: WORK_WIDE, pieces: [], built: false, armed: false, frozen: false },
-    { index: 2, size: TILE, specs: PROJECTS_WIDE, pieces: [], built: false, armed: false, frozen: false },
+    {
+      stop: 0,
+      kind: "hero",
+      size: SLAB,
+      specs: [],
+      pieces: pieces.slice(),
+      built: true,
+      armed: false,
+      frozen: false,
+    },
+    {
+      stop: 2,
+      kind: "work",
+      size: SLAB,
+      specs: WORK_WIDE,
+      pieces: [],
+      built: false,
+      armed: false,
+      frozen: false,
+    },
+    {
+      stop: 3,
+      kind: "projects",
+      size: TILE,
+      specs: PROJECTS_WIDE,
+      pieces: [],
+      built: false,
+      armed: false,
+      frozen: false,
+    },
   ];
-  // Section 0 owns the name blocks and balls; the array above aliases `pieces`
-  // before the plates exist, so give it its own list.
-  sections[0].pieces = pieces.slice();
 
-  const plateGeo = new Map<number, THREE.BufferGeometry>();
-  const labelGeo = new Map<number, THREE.BufferGeometry>();
+  const plateGeo = new Map<SectionKind, THREE.BufferGeometry>();
+  const labelGeo = new Map<SectionKind, THREE.BufferGeometry>();
 
-  function specsFor(index: number): readonly PlateSpec[] {
-    if (index === 1) return portrait ? WORK_TALL : WORK_WIDE;
-    return portrait ? PROJECTS_TALL : PROJECTS_WIDE;
+  function specsFor(kind: SectionKind): readonly PlateSpec[] {
+    if (kind === "work") return portrait ? WORK_TALL : WORK_WIDE;
+    if (kind === "projects") return portrait ? PROJECTS_TALL : PROJECTS_WIDE;
+    return [];
   }
 
   function buildSection(sec: Section) {
     if (sec.built) return;
     sec.built = true;
-    sec.specs = specsFor(sec.index);
+    sec.specs = specsFor(sec.kind);
     const { w, h, d } = sec.size;
 
-    let body = plateGeo.get(sec.index);
+    let body = plateGeo.get(sec.kind);
     if (!body) {
       body = new RoundedBoxGeometry(w, h, d, 2, Math.min(0.07, h / 2.2));
-      plateGeo.set(sec.index, body);
+      plateGeo.set(sec.kind, body);
       disposables.push(body);
     }
-    let plate = labelGeo.get(sec.index);
+    let plate = labelGeo.get(sec.kind);
     if (!plate) {
       plate = new THREE.PlaneGeometry(w * 0.9, d * 0.86);
-      labelGeo.set(sec.index, plate);
+      labelGeo.set(sec.kind, plate);
       disposables.push(plate);
     }
     const aspect = (w * 0.9) / (d * 0.86);
@@ -393,11 +454,17 @@ export function createPlayground(
         id: spec.id,
         mesh,
         kind: "plate",
-        section: sec.index,
+        section: sec.stop,
         beat: i,
         home: { x: spec.x, y: MAT.h + h / 2, z: spec.z },
         yaw: spec.yaw,
         half: { x: w / 2, y: h / 2, z: d / 2 },
+        pickable: true,
+        tints: [
+          { mat: material, base: material.color.clone() },
+          { mat: labelMat, base: labelMat.color.clone() },
+        ],
+        dim: 0,
       };
       sec.pieces.push(piece);
       register(piece);
@@ -486,11 +553,12 @@ export function createPlayground(
     camera.aspect = width / height;
 
     // A rotation swaps the composed layout of the plates, so anything already
-    // on the table is picked up and re-dropped into the new arrangement.
+    // on the table is picked up and re-dropped into the new arrangement. Both
+    // layouts carry the same ids in the same order, so index mapping is safe.
     if (wasPortrait !== portrait) {
       for (const sec of sections) {
-        if (sec.index === 0 || !sec.built) continue;
-        const next = specsFor(sec.index);
+        if (sec.kind === "hero" || !sec.built) continue;
+        const next = specsFor(sec.kind);
         sec.pieces.forEach((p, i) => {
           const spec = next[i] ?? next[next.length - 1];
           p.home.x = spec.x;
@@ -504,24 +572,172 @@ export function createPlayground(
     measure();
   }
 
+  /* --------------------------------------------------------- the selection */
+
+  let selectedId: string | null = null;
+  let selected: Piece | null = null;
+  /** Kept while the camera eases back out, after the pick has been dropped. */
+  let focusOn: Piece | null = null;
+  let focus = 0;
+
+  function setSelected(piece: Piece | null, id: string | null, tell: boolean) {
+    if (selected && selected !== piece) {
+      // Let go: it drops back onto the mat under its own weight.
+      selected.body?.setGravityScale(1, true);
+      selected.body?.wakeUp();
+    }
+    selected = piece;
+    selectedId = piece ? piece.id : id;
+    if (piece) {
+      focusOn = piece;
+      piece.body?.setGravityScale(0, true);
+      piece.body?.wakeUp();
+      const sec = sections.find((s) => s.stop === piece.section);
+      if (sec) sec.frozen = false;
+      if (opts.reduced) {
+        piece.mesh.position.set(piece.home.x, piece.home.y + LIFT, piece.home.z);
+        piece.mesh.rotation.set(-0.3, piece.yaw, 0);
+      }
+    }
+    if (opts.reduced) {
+      focus = piece ? 1 : 0;
+      if (!piece) focusOn = null;
+      for (const p of pieces) {
+        if (p.kind !== "plate") continue;
+        if (!piece || p === piece || p.section !== piece.section) {
+          if (p !== piece) settle(p);
+          p.dim = 0;
+        } else {
+          p.dim = 1;
+        }
+        applyDim(p);
+      }
+    }
+    dirty = true;
+    if (!running) requestRender();
+    if (tell) opts.onSelect(selectedId);
+  }
+
+  function applyDim(p: Piece) {
+    for (const t of p.tints) {
+      t.mat.color.copy(t.base).lerp(DIM_TO, p.dim * DIM_AMOUNT);
+    }
+  }
+
+  /** Siblings of the object being read fade back toward the tabletop. */
+  function tickDim(dt: number) {
+    const k = 1 - Math.exp(-dt / 0.15);
+    for (const p of pieces) {
+      if (p.kind !== "plate") continue;
+      const want = selected && p !== selected && p.section === selected.section ? 1 : 0;
+      if (Math.abs(p.dim - want) < 0.004) {
+        if (p.dim !== want) {
+          p.dim = want;
+          applyDim(p);
+          dirty = true;
+        }
+        continue;
+      }
+      p.dim += (want - p.dim) * k;
+      applyDim(p);
+      dirty = true;
+    }
+  }
+
+  const _wantQ = new THREE.Quaternion();
+  const _curQ = new THREE.Quaternion();
+  const _dQ = new THREE.Quaternion();
+  const _axis = new THREE.Vector3();
+  const _euler = new THREE.Euler();
+
+  /**
+   * A picked object is not frozen in place, it is held. A spring lifts it off
+   * the mat and turns its face toward you, and the moment you grab it the
+   * spring lets go, so it is still the same throwable object it always was.
+   */
+  function steerSelected() {
+    const p = selected;
+    if (!p || !p.body || (drag && drag.piece === p)) return;
+    const t = p.body.translation();
+    let vx = (p.home.x - t.x) * 8;
+    let vy = (p.home.y + LIFT - t.y) * 8;
+    let vz = (p.home.z - t.z) * 8;
+    const m = Math.hypot(vx, vy, vz);
+    if (m > 11) {
+      const s = 11 / m;
+      vx *= s;
+      vy *= s;
+      vz *= s;
+    }
+    p.body.setLinvel({ x: vx, y: vy, z: vz }, true);
+
+    const r = p.body.rotation();
+    _curQ.set(r.x, r.y, r.z, r.w);
+    _wantQ.setFromEuler(_euler.set(-0.32, p.yaw, 0));
+    _dQ.copy(_wantQ).multiply(_curQ.invert());
+    if (_dQ.w < 0) {
+      _dQ.set(-_dQ.x, -_dQ.y, -_dQ.z, -_dQ.w);
+    }
+    const sin = Math.sqrt(Math.max(1 - _dQ.w * _dQ.w, 0));
+    if (sin < 1e-4) {
+      p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
+    const angle = 2 * Math.acos(THREE.MathUtils.clamp(_dQ.w, -1, 1));
+    _axis.set(_dQ.x / sin, _dQ.y / sin, _dQ.z / sin).multiplyScalar(angle * 5.5);
+    if (_axis.length() > 9) _axis.setLength(9);
+    p.body.setAngvel({ x: _axis.x, y: _axis.y, z: _axis.z }, true);
+  }
+
+  /* ------------------------------------------------------------- the camera */
+
   /** Interpolated camera + light for a fractional stop index. */
   function applyCamera(p: number) {
     const i = Math.max(0, Math.min(stops.length - 1, Math.floor(p)));
     const j = Math.min(stops.length - 1, i + 1);
-    const stop = i === j ? stops[i] : mixStop(stops[i], stops[j], p - i);
+    const base = i === j ? stops[i] : mixStop(stops[i], stops[j], p - i);
+
+    let stop = base;
+    if (focus > 0.002 && focusOn) {
+      // A push-in, not a pan: the camera leans down the table toward the
+      // picked object's row and tightens a touch. It never slides sideways,
+      // because that would shove the other objects under the reading column.
+      stop = mixStop(
+        base,
+        {
+          off: base.off,
+          y: base.y + LIFT * 0.5,
+          z: focusOn.home.z,
+          bias: base.bias * 0.4,
+          pitch: base.pitch - 4,
+          yaw: base.yaw * 0.55,
+          fit: base.fit * 0.85,
+          sy: base.sy,
+        },
+        focus * FOCUS_PULL
+      );
+    }
 
     const aspect = width / height;
     const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
     const halfH = Math.atan(Math.tan(halfV) * aspect);
     const dist = THREE.MathUtils.clamp(stop.fit / Math.tan(halfH), 7, 46);
     const pitch = THREE.MathUtils.degToRad(stop.pitch);
+    const yaw = THREE.MathUtils.degToRad(stop.yaw);
+    const ground = Math.cos(pitch) * dist;
 
     camera.position.set(
-      stop.off,
+      stop.off + Math.sin(yaw) * ground,
       stop.y + Math.sin(pitch) * dist,
-      stop.z + Math.cos(pitch) * dist
+      stop.z + Math.cos(yaw) * ground
     );
-    camera.lookAt(stop.off, stop.y, stop.z + stop.bias);
+    // `bias` pushes the look-at point back toward the camera, which lifts the
+    // subject up the frame. With yaw it has to travel along the view line.
+    camera.lookAt(
+      stop.off + Math.sin(yaw) * stop.bias,
+      stop.y,
+      stop.z + Math.cos(yaw) * stop.bias
+    );
     camera.far = dist + 62;
     camera.updateProjectionMatrix();
     if (Math.abs(stop.sy) > 0.0005) {
@@ -554,9 +770,6 @@ export function createPlayground(
     while (timers.length) window.clearTimeout(timers.pop()!);
   }
 
-  const _q = new THREE.Quaternion();
-  const _e = new THREE.Euler();
-
   function placeBody(p: Piece) {
     if (!p.body) return;
     poise(p);
@@ -581,6 +794,7 @@ export function createPlayground(
       timers.push(
         window.setTimeout(() => {
           if (disposed) return;
+          if (p === selected) return;
           body.setGravityScale(1, true);
           if (p.kind === "ball") {
             body.setLinvel({ x: p.home.x > 0 ? -0.85 : 0.85, y: 0, z: -0.55 }, true);
@@ -709,7 +923,7 @@ export function createPlayground(
         world = buildWorld(R);
         for (const p of pieces) addBody(R, p);
         for (const sec of sections) {
-          if (sec.index === 0) {
+          if (sec.kind === "hero") {
             if (!tween) armSection(sec);
             continue;
           }
@@ -717,6 +931,10 @@ export function createPlayground(
             // Armed while we waited: hand it straight to gravity.
             for (const p of sec.pieces) p.body?.setGravityScale(1, true);
           }
+        }
+        if (selected) {
+          selected.body?.setGravityScale(0, true);
+          selected.body?.wakeUp();
         }
         dirty = true;
       })
@@ -745,12 +963,12 @@ export function createPlayground(
       // rapier never arrives they simply stay composed where they belong.
       for (const p of sec.pieces) {
         p.mesh.visible = true;
-        if (!RAPIER && sec.index > 0 && !world) settle(p);
+        if (!RAPIER && sec.kind !== "hero" && !world) settle(p);
       }
       dirty = true;
       return;
     }
-    choreograph(sec.pieces, sec.index === 0 ? 74 : 148, sec.index === 0 ? 320 : 90);
+    choreograph(sec.pieces, sec.kind === "hero" ? 74 : 148, sec.kind === "hero" ? 320 : 90);
     dirty = true;
   }
 
@@ -760,8 +978,10 @@ export function createPlayground(
       sec.pieces.forEach(settle);
       return;
     }
-    sec.pieces.forEach(placeBody);
-    choreograph(sec.pieces, sec.index === 0 ? 74 : 148, sec.index === 0 ? 260 : 90);
+    sec.pieces.forEach((p) => {
+      if (p !== selected) placeBody(p);
+    });
+    choreograph(sec.pieces, sec.kind === "hero" ? 74 : 148, sec.kind === "hero" ? 260 : 90);
   }
 
   /* ------------------------------------------------------------- dragging */
@@ -774,11 +994,14 @@ export function createPlayground(
   };
 
   let drag: Drag | null = null;
+  /** Where and when the pointer went down, to tell a pick from a throw. */
+  let press: { x: number; y: number; t: number; piece: Piece | null } | null = null;
   const ndc = new THREE.Vector2();
   const ray = new THREE.Raycaster();
   const hitPoint = new THREE.Vector3();
   const target = new THREE.Vector3();
   const normal = new THREE.Vector3();
+  const _screen = new THREE.Vector3();
 
   function setNdc(clientX: number, clientY: number) {
     const r = canvas.getBoundingClientRect();
@@ -799,10 +1022,16 @@ export function createPlayground(
   }
 
   function onDown(e: PointerEvent) {
-    if (opts.reduced || !world) return;
+    if (opts.reduced) return;
     setNdc(e.clientX, e.clientY);
     const found = pick();
-    if (!found || !found.piece.body) return;
+    press = {
+      x: e.clientX,
+      y: e.clientY,
+      t: performance.now(),
+      piece: found ? found.piece : null,
+    };
+    if (!world || !found || !found.piece.body) return;
 
     e.preventDefault();
     const piece = found.piece;
@@ -820,7 +1049,8 @@ export function createPlayground(
     };
     body.setGravityScale(0, true);
     body.wakeUp();
-    sections[piece.section].frozen = false;
+    const sec = sections.find((s) => s.stop === piece.section);
+    if (sec) sec.frozen = false;
     try {
       canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -834,31 +1064,54 @@ export function createPlayground(
     setNdc(e.clientX, e.clientY);
     if (drag) return;
     if (opts.reduced || !world || e.pointerType !== "mouse") return;
-    canvas.style.cursor = pick() ? "grab" : "";
+    const found = pick();
+    canvas.style.cursor = found ? (found.piece.pickable ? "pointer" : "grab") : "";
   }
 
   function onUp(e: PointerEvent) {
-    if (!drag || (e.pointerId !== undefined && e.pointerId !== drag.pointerId)) return;
-    const body = drag.piece.body!;
-    body.setGravityScale(1, true);
-    const v = body.linvel();
-    let vx = v.x * THROW_BOOST;
-    let vy = v.y * THROW_BOOST;
-    let vz = v.z * THROW_BOOST;
-    const m = Math.hypot(vx, vy, vz);
-    if (m > MAX_THROW) {
-      const s = MAX_THROW / m;
-      vx *= s;
-      vy *= s;
-      vz *= s;
+    const held = drag;
+    const pressed = press;
+    press = null;
+
+    if (held) {
+      if (e.pointerId !== undefined && e.pointerId !== held.pointerId) {
+        press = pressed;
+        return;
+      }
+      const body = held.piece.body!;
+      const v = body.linvel();
+      let vx = v.x * THROW_BOOST;
+      let vy = v.y * THROW_BOOST;
+      let vz = v.z * THROW_BOOST;
+      const m = Math.hypot(vx, vy, vz);
+      if (m > MAX_THROW) {
+        const s = MAX_THROW / m;
+        vx *= s;
+        vy *= s;
+        vz *= s;
+      }
+      const keep = held.piece === selected && m < THROW_AWAY;
+      body.setGravityScale(keep ? 0 : 1, true);
+      body.setLinvel({ x: vx, y: vy, z: vz }, true);
+      if (held.piece === selected && !keep) setSelected(null, null, true);
+      drag = null;
+      canvas.style.cursor = "";
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already gone */
+      }
     }
-    body.setLinvel({ x: vx, y: vy, z: vz }, true);
-    drag = null;
-    canvas.style.cursor = "";
-    try {
-      canvas.releasePointerCapture(e.pointerId);
-    } catch {
-      /* already gone */
+
+    if (!pressed) return;
+    const travelled = Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y);
+    if (travelled > CLICK_SLOP || performance.now() - pressed.t > CLICK_TIME) return;
+
+    // A press that did not go anywhere is a pick, not a throw.
+    if (pressed.piece && pressed.piece.pickable) {
+      setSelected(pressed.piece === selected ? null : pressed.piece, null, true);
+    } else if (!pressed.piece && selected) {
+      setSelected(null, null, true);
     }
   }
 
@@ -950,8 +1203,8 @@ export function createPlayground(
       const p = readScroll();
       shown = p;
       applyCamera(p);
-      for (let i = 1; i < sections.length; i += 1) {
-        if (p >= i - ARM_LEAD) armSection(sections[i]);
+      for (const sec of sections) {
+        if (sec.kind !== "hero" && p >= sec.stop - ARM_LEAD) armSection(sec);
       }
       render();
     });
@@ -966,12 +1219,13 @@ export function createPlayground(
   function policeSections(p: number) {
     for (const sec of sections) {
       if (!sec.armed || !sec.built) continue;
-      const far = Math.abs(p - sec.index) > SLEEP_RANGE;
+      const far = Math.abs(p - sec.stop) > SLEEP_RANGE;
       if (far === sec.frozen) continue;
       sec.frozen = far;
       if (!far) continue;
       for (const piece of sec.pieces) {
         if (drag && drag.piece === piece) continue;
+        if (piece === selected) continue;
         piece.body?.sleep();
       }
     }
@@ -987,8 +1241,8 @@ export function createPlayground(
     last = now;
 
     const p = readScroll();
-    for (let i = 1; i < sections.length; i += 1) {
-      if (p >= i - ARM_LEAD) armSection(sections[i]);
+    for (const sec of sections) {
+      if (sec.kind !== "hero" && p >= sec.stop - ARM_LEAD) armSection(sec);
     }
     // A touch of lag so a flicked scroll wheel does not snap the camera.
     const k = 1 - Math.exp(-dt / 0.085);
@@ -999,6 +1253,19 @@ export function createPlayground(
     } else if (Math.abs(p - shown) < 0.00012) {
       shown = p;
     }
+
+    // The lean toward a picked object rides the same clock as the camera.
+    const wantFocus = selected ? 1 : 0;
+    if (Math.abs(focus - wantFocus) > 0.0008) {
+      focus += (wantFocus - focus) * (1 - Math.exp(-dt / 0.28));
+      dirty = true;
+    } else if (focus !== wantFocus) {
+      focus = wantFocus;
+      if (!selected) focusOn = null;
+      dirty = true;
+    }
+    tickDim(dt);
+
     applyCamera(shown);
     policeSections(shown);
 
@@ -1007,11 +1274,12 @@ export function createPlayground(
       for (const piece of pieces) {
         if (piece.body && !piece.body.isSleeping()) awake += 1;
       }
-      if (awake > 0 || drag) {
+      if (awake > 0 || drag || selected) {
         acc += dt;
         let steps = 0;
         while (acc >= STEP && steps < 3) {
           steerHeldPiece();
+          steerSelected();
           world.step();
           acc -= STEP;
           steps += 1;
@@ -1079,10 +1347,33 @@ export function createPlayground(
       drag = null;
       canvas.style.cursor = "";
       clearTimers();
+      if (selected) setSelected(null, null, true);
       for (const sec of sections) redrop(sec);
       dirty = true;
     },
     measure,
+    select(id) {
+      if (id === null) {
+        if (selected || selectedId) setSelected(null, null, false);
+        return;
+      }
+      const piece = byId.get(id) ?? null;
+      if (piece) {
+        const sec = sections.find((s) => s.stop === piece.section);
+        if (sec && !sec.armed) armSection(sec);
+      }
+      setSelected(piece, id, false);
+    },
+    screenPos(id) {
+      const piece = byId.get(id);
+      if (!piece || !piece.mesh.visible) return null;
+      piece.mesh.getWorldPosition(_screen).project(camera);
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: r.left + ((_screen.x + 1) / 2) * r.width,
+        y: r.top + ((1 - _screen.y) / 2) * r.height,
+      };
+    },
     dispose() {
       disposed = true;
       running = false;

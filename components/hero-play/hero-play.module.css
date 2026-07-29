@@ -5,6 +5,7 @@
   --pg-ink: #17140f;
   --pg-cream: #fff6e4;
   --pg-red: #e4502e;
+  --pg-green: #12705a;
   --pg-quiet: color-mix(in srgb, var(--pg-ink) 74%, var(--pg-ground));
   --pg-gutter: clamp(1.25rem, 3.4vw, 3rem);
 
@@ -127,6 +128,7 @@
   font-weight: 500;
   line-height: 1.35;
   color: var(--pg-quiet);
+  max-width: 34ch;
 }
 
 .reset {
@@ -249,36 +251,29 @@
 /* -------------------------------------------------------------- panels --- */
 
 /*
- * Every panel is a plain block of document. It is deliberately taller than the
- * viewport so the camera has room to walk down the table between one stop and
- * the next. The copy sits in the middle of the panel, which is exactly where
- * it is when the camera has arrived.
- *
- * The panel itself is transparent to the pointer so the toy underneath stays
- * grabbable; only the copy block takes the pointer back.
+ * Every panel is a plain block of document, just tall enough that the camera
+ * has a beat of walk between one stop and the next. The panel itself is
+ * transparent to the pointer so the toy underneath stays grabbable; only the
+ * copy and the detail card take the pointer back.
  */
 .panel {
   position: relative;
   z-index: 2;
   display: grid;
   align-content: center;
-  min-height: 158svh;
-  padding: 12svh var(--pg-gutter);
+  min-height: 126svh;
+  padding: 10svh var(--pg-gutter);
   pointer-events: none;
 }
 
 .panel:last-of-type {
-  min-height: 120svh;
-  padding-bottom: 16svh;
+  min-height: 108svh;
+  padding-bottom: 14svh;
 }
 
 .copy {
   max-width: 28rem;
   pointer-events: auto;
-}
-
-.copyLeft {
-  margin-right: auto;
 }
 
 .copyRight {
@@ -290,30 +285,96 @@
   font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
   font-weight: 800;
   font-size: clamp(1.9rem, 3.1vw, 2.75rem);
-  line-height: 1.0;
+  line-height: 1;
   letter-spacing: -0.034em;
   text-wrap: balance;
   hyphens: none;
 }
 
 .lede {
-  margin: 0 0 2.1rem;
+  margin: 0 0 1.6rem;
   font-size: clamp(1rem, 1.2vw, 1.12rem);
   font-weight: 500;
   line-height: 1.45;
-  max-width: 36ch;
+  max-width: 40ch;
 }
 
-/* ----------------------------------------------------------------- work --- */
+/* ---------------------------------------------------------------- about --- */
 
-.roles {
+/*
+ * The one section that is nothing but him. It reads on bare marigold, no
+ * card, in a measure wide enough to breathe: the table is still there at the
+ * edge of the frame, but for this stretch the words are the object.
+ */
+.reader {
+  max-width: 33rem;
+  margin-right: auto;
+}
+
+.reader .lede {
+  margin-bottom: 1.1rem;
+  font-size: clamp(1.05rem, 1.35vw, 1.22rem);
+  line-height: 1.5;
+  max-width: 58ch;
+}
+
+.para {
+  margin: 0 0 1.1rem;
+  font-size: clamp(0.99rem, 1.2vw, 1.1rem);
+  line-height: 1.55;
+  max-width: 58ch;
+}
+
+.pull {
+  margin: 1.6rem 0 0;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  line-height: 1.15;
+  letter-spacing: -0.024em;
+  max-width: 24ch;
+  border-top: 3px solid var(--pg-ink);
+  padding-top: 1rem;
+}
+
+/* -------------------------------------------------- the two-sided panels --- */
+
+/*
+ * Work and projects are split: the list on one side, a slot on the other that
+ * the picked object's card opens into. The slot is always in the grid so the
+ * list never jumps when a card arrives.
+ */
+.split {
+  grid-template-columns: minmax(0, 26rem) minmax(0, 30rem);
+  justify-content: space-between;
+  align-items: center;
+  column-gap: clamp(1.5rem, 4vw, 4rem);
+}
+
+.splitFlip {
+  grid-template-columns: minmax(0, 30rem) minmax(0, 26rem);
+}
+
+.rail {
+  min-width: 0;
+}
+
+.detailSlot {
+  min-width: 0;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- lists --- */
+
+.roles,
+.gallery {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .role {
-  padding: 1.15rem 0 1.25rem;
+  padding: 1.05rem 0 1.1rem;
   border-top: 2px solid color-mix(in srgb, var(--pg-ink) 28%, transparent);
 }
 
@@ -330,15 +391,53 @@
   letter-spacing: -0.028em;
 }
 
-.roleName a {
+.itemName {
+  margin: 0;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.2rem, 1.6vw, 1.42rem);
+  line-height: 1.08;
+  letter-spacing: -0.024em;
+}
+
+/*
+ * A row is the same control as the object on the table: press it and the
+ * thing is picked up. Styled as the underlined name it always was, plus a
+ * state for while its card is open.
+ */
+.rowButton {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
   color: inherit;
+  text-align: left;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-thickness 120ms ease-out;
 }
 
-.roleName a:hover {
+.rowButton:hover {
   text-decoration-thickness: 4px;
+}
+
+.rowButton:focus-visible {
+  outline: 3px solid var(--pg-ink);
+  outline-offset: 3px;
+}
+
+.rowOpen {
+  border-top-color: var(--pg-ink);
+}
+
+.rowOpen .rowButton {
+  text-decoration-thickness: 4px;
+  text-decoration-color: var(--pg-red);
 }
 
 .roleMeta,
@@ -349,12 +448,147 @@
   color: var(--pg-quiet);
 }
 
+.itemMeta {
+  margin-bottom: 0;
+}
+
 .blurb {
   margin: 0;
   font-size: 1rem;
   line-height: 1.48;
   max-width: 42ch;
 }
+
+.item {
+  padding: 0.8rem 0 0.85rem;
+  border-top: 2px solid color-mix(in srgb, var(--pg-ink) 28%, transparent);
+}
+
+.item:first-child {
+  border-top-width: 3px;
+}
+
+/* --------------------------------------------------------- the open card --- */
+
+/*
+ * The card a picked object opens into. Cream on the marigold like one more
+ * thing laid on the table, hard border, hard shadow, no blur anywhere. It
+ * rises the way the objects land: quick, with a settle.
+ */
+.detail {
+  pointer-events: auto;
+  background: var(--pg-cream);
+  border: 2px solid var(--pg-ink);
+  border-radius: 4px 20px 4px 20px;
+  box-shadow: 7px 7px 0 var(--pg-ink);
+  padding: clamp(1.2rem, 2vw, 1.7rem) clamp(1.25rem, 2.2vw, 1.9rem) 1.25rem;
+  transform-origin: 20% 60%;
+  animation: pgCard 340ms cubic-bezier(0.24, 1.18, 0.36, 1) both;
+}
+
+@keyframes pgCard {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94) rotate(-0.6deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.detailHead {
+  outline: none;
+}
+
+.detailName {
+  margin: 0;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.5rem, 2.2vw, 1.95rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.detailMeta {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--pg-ink) 62%, var(--pg-cream));
+}
+
+.detailBody {
+  margin-top: 0.85rem;
+  max-height: min(46svh, 24rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.detailBody p {
+  margin: 0 0 0.85rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  max-width: 52ch;
+}
+
+.detailBody p:last-child {
+  margin-bottom: 0;
+}
+
+.detailFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.2rem;
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 2px solid color-mix(in srgb, var(--pg-ink) 20%, transparent);
+}
+
+.detailLink {
+  font-weight: 600;
+  font-size: 0.94rem;
+  color: var(--pg-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.detailLink:hover {
+  text-decoration-thickness: 3px;
+}
+
+.detailLink:focus-visible {
+  outline: 3px solid var(--pg-ink);
+  outline-offset: 3px;
+}
+
+.close {
+  margin-left: auto;
+  padding: 0.38rem 0.8rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--pg-ink);
+  background: none;
+  border: 2px solid var(--pg-ink);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.close:hover {
+  background: var(--pg-ink);
+  color: var(--pg-cream);
+}
+
+.close:focus-visible {
+  outline: 3px solid var(--pg-ink);
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------------------- the rest --- */
 
 .story {
   margin-top: 0.85rem;
@@ -390,48 +624,6 @@
 .story summary:focus-visible {
   outline: 3px solid var(--pg-ink);
   outline-offset: 3px;
-}
-
-.story p {
-  margin: 0.8rem 0 0;
-  max-width: 44ch;
-}
-
-/* ------------------------------------------------------------- projects --- */
-
-.gallery {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.item {
-  padding: 0.95rem 0 1.05rem;
-  border-top: 2px solid color-mix(in srgb, var(--pg-ink) 28%, transparent);
-}
-
-.item:first-child {
-  border-top-width: 3px;
-}
-
-.itemName {
-  margin: 0;
-  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
-  font-weight: 700;
-  font-size: clamp(1.2rem, 1.6vw, 1.42rem);
-  line-height: 1.08;
-  letter-spacing: -0.024em;
-}
-
-.itemName a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-}
-
-.itemName a:hover {
-  text-decoration-thickness: 4px;
 }
 
 .more {
@@ -529,7 +721,7 @@
   background: var(--pg-red);
 }
 .tileGreen {
-  background: #12705a;
+  background: var(--pg-green);
 }
 .tileGap {
   background: transparent;
@@ -539,20 +731,24 @@
 
 /*
  * A phone has no room for a reading column beside the table, so the copy
- * becomes a sheet of cream that lies on it. The camera stops for portrait push
- * the objects into the top of the frame, above the sheet, so the drop is still
- * the thing you see when a section arrives.
+ * becomes a sheet of cream that lies on it, and the picked object's card
+ * becomes a bottom sheet so it can open without shoving the list around.
  */
 @media (max-width: 860px) {
   .panel {
-    min-height: 148svh;
+    min-height: 122svh;
     align-content: end;
     padding-bottom: 6svh;
   }
 
   .panel:last-of-type {
-    min-height: 122svh;
+    min-height: 106svh;
     padding-bottom: 11svh;
+  }
+
+  .split,
+  .splitFlip {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .copy {
@@ -565,6 +761,11 @@
     box-shadow: 6px 6px 0 var(--pg-ink);
   }
 
+  .reader {
+    max-width: none;
+    margin-right: 0;
+  }
+
   .h2 {
     font-size: clamp(1.6rem, 7.2vw, 2rem);
   }
@@ -572,6 +773,16 @@
   .lede {
     font-size: 0.99rem;
     margin-bottom: 1.2rem;
+  }
+
+  .reader .lede,
+  .para {
+    font-size: 0.97rem;
+    line-height: 1.52;
+  }
+
+  .pull {
+    font-size: 1.25rem;
   }
 
   .blurb {
@@ -585,6 +796,43 @@
 
   .item {
     padding: 0.72rem 0 0.8rem;
+  }
+
+  .detailSlot {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+  }
+
+  .detail {
+    border-radius: 18px 18px 0 0;
+    border-bottom: 0;
+    box-shadow: 0 -4px 0 var(--pg-ink);
+    max-height: 72svh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: max(1.1rem, env(safe-area-inset-bottom));
+    animation-name: pgSheet;
+  }
+
+  .detailBody {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+@keyframes pgSheet {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -620,5 +868,9 @@
   .stage,
   .reset {
     transition: none;
+  }
+
+  .detail {
+    animation: none;
   }
 }

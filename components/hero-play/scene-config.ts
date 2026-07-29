@@ -1,8 +1,8 @@
 /**
  * Everything the /3 PLAYGROUND world is made of, in one place: palette, the
- * three placemats that run down the table, what lands on each of them, the
- * camera stop for each stop on the scroll, and the pre-settled arrangement
- * used when the visitor asks for reduced motion.
+ * three placemats that run down the table, what sits on each of them, the
+ * camera stop for each section, and the pre-settled arrangement used when the
+ * visitor asks for reduced motion.
  *
  * Palette note. The old site was tan on espresso and every AI hero is dark
  * with one accent, so this one is lit: a flat marigold ground, cream play
@@ -11,8 +11,9 @@
  *
  * Geometry note. The world is ONE table that runs away from the viewer along
  * -Z. The hero mat sits at z = 0 and is framed exactly as it always was. The
- * work mat and the projects mat sit further down the table, out of shot until
- * the scroll walks the camera to them.
+ * camera then drops to something close to sitting height and stays there for
+ * the rest of the page, because the plan view read like a diagram of a table
+ * instead of a table.
  */
 
 export const PALETTE = {
@@ -37,23 +38,26 @@ export const BLOCK_PITCH = BLOCK + BLOCK_GAP;
 export const MAT = { w: 7.9, d: 4.7, h: 0.16 };
 
 /**
- * The three placemats. The hero one is centred and unchanged; the other two
- * sit off-axis so the composition never reads as a machine-made row, and so
- * there is always bare marigold on one side for the reading column to sit on.
+ * The three placemats. The hero one is centred and unchanged. The other two
+ * sit off-axis and closer than they used to be, so the walk between them is a
+ * beat rather than a stretch of bare tabletop.
  */
 export type MatSpec = { w: number; d: number; x: number; z: number };
 
+export const MAT_WORK = { x: 1.2, z: -10.8, w: 5.8, d: 5.0 };
+export const MAT_PROJECTS = { x: -0.8, z: -19.8, w: 6.8, d: 6.4 };
+
 export const MATS: readonly MatSpec[] = [
   { w: MAT.w, d: MAT.d, x: 0, z: 0 },
-  { w: 5.6, d: 5.0, x: 1.3, z: -12.4 },
-  { w: 6.6, d: 6.4, x: -0.9, z: -22.4 },
+  { w: MAT_WORK.w, d: MAT_WORK.d, x: MAT_WORK.x, z: MAT_WORK.z },
+  { w: MAT_PROJECTS.w, d: MAT_PROJECTS.d, x: MAT_PROJECTS.x, z: MAT_PROJECTS.z },
 ];
 
 /** Invisible walls, well outside the mats, so nothing is ever lost. */
 export const ARENA = {
   minX: -8.4,
   maxX: 8.4,
-  minZ: -29,
+  minZ: -26.5,
   maxZ: 6.4,
   height: 11,
 };
@@ -117,7 +121,11 @@ export const WORD_HALF_W = (5 * BLOCK_PITCH + BLOCK) / 2;
 
 /* --------------------------------------------------------- work and toys --- */
 
-/** A labelled slab or tile. The label is printed on the top and bottom face. */
+/**
+ * A labelled slab or tile. `id` is the same string the DOM uses for that
+ * entry, so picking the object and pressing the row in the list are the same
+ * action arriving from two directions.
+ */
 export type PlateSpec = {
   id: string;
   label: string;
@@ -133,39 +141,57 @@ export const SLAB = { w: 2.9, h: 0.36, d: 1.16 };
 /** A project tile: half the mass, twice as many. */
 export const TILE = { w: 1.85, h: 0.3, d: 0.92 };
 
-/** Landscape: three slabs walking diagonally across the work mat. */
+/**
+ * Landscape and portrait have to carry the SAME ids in the SAME order: a
+ * rotation re-homes each piece by position in this list, and the selection
+ * plumbing looks pieces up by id.
+ */
 export const WORK_WIDE: readonly PlateSpec[] = [
-  { id: "w0", label: "Configure", color: "ink", x: 0.15, z: -14.0, yaw: 0.07 },
-  { id: "w1", label: "Paradigm", color: "vermilion", x: 2.0, z: -12.4, yaw: -0.05 },
-  { id: "w2", label: "Nouvo", color: "spruce", x: 0.6, z: -10.75, yaw: 0.11 },
+  { id: "configure", label: "Configure", color: "ink", x: 1.0, z: -12.2, yaw: 0.07 },
+  { id: "paradigm", label: "Paradigm", color: "vermilion", x: 1.78, z: -10.72, yaw: -0.05 },
+  { id: "nouvo", label: "Nouvo", color: "spruce", x: 0.85, z: -9.28, yaw: 0.11 },
 ];
 
-/** Portrait: the same three, stacked down the mat so a phone can read them. */
 export const WORK_TALL: readonly PlateSpec[] = [
-  { id: "w0", label: "Configure", color: "ink", x: 1.15, z: -13.8, yaw: 0.06 },
-  { id: "w1", label: "Paradigm", color: "vermilion", x: 1.55, z: -12.4, yaw: -0.05 },
-  { id: "w2", label: "Nouvo", color: "spruce", x: 1.0, z: -11.0, yaw: 0.09 },
+  { id: "configure", label: "Configure", color: "ink", x: 1.3, z: -12.15, yaw: 0.06 },
+  { id: "paradigm", label: "Paradigm", color: "vermilion", x: 1.55, z: -10.75, yaw: -0.05 },
+  { id: "nouvo", label: "Nouvo", color: "spruce", x: 1.05, z: -9.35, yaw: 0.09 },
 ];
 
 /**
- * Six of the thirty. Curated on purpose: the table stays readable and the DOM
- * underneath carries the rest with real links.
+ * Six of the thirty, and every one of them a thing he wrote rather than a
+ * thing he played. Two rows on the mat in landscape, three in portrait.
  */
 export const PROJECTS_WIDE: readonly PlateSpec[] = [
-  { id: "p0", label: "IDEX", color: "ink", x: -3.0, z: -23.9, yaw: -0.09 },
-  { id: "p1", label: "Ultron", color: "vermilion", x: -1.05, z: -23.95, yaw: 0.06 },
-  { id: "p2", label: "Gideon", color: "spruce", x: 0.9, z: -23.85, yaw: -0.04 },
-  { id: "p3", label: "Launch Control", color: "vermilion", x: -2.6, z: -21.3, yaw: 0.08 },
-  { id: "p4", label: "Claude Classroom", color: "ink", x: -0.65, z: -21.25, yaw: -0.07 },
-  { id: "p5", label: "SOVEREIGN", color: "spruce", x: 1.3, z: -21.35, yaw: 0.05 },
+  { id: "idex", label: "IDEX", color: "ink", x: -3.1, z: -21.3, yaw: -0.09 },
+  { id: "ultron", label: "Ultron", color: "vermilion", x: -1.1, z: -21.4, yaw: 0.06 },
+  { id: "gideon", label: "Gideon", color: "spruce", x: 0.9, z: -21.25, yaw: -0.04 },
+  { id: "launch-control", label: "Launch Control", color: "vermilion", x: -2.9, z: -18.6, yaw: 0.08 },
+  { id: "claude-classroom", label: "Claude Classroom", color: "ink", x: -0.9, z: -18.7, yaw: -0.07 },
+  {
+    id: "satisfying-video-generator",
+    label: "Satisfying Video Generator",
+    color: "spruce",
+    x: 1.1,
+    z: -18.55,
+    yaw: 0.05,
+  },
 ];
 
-/** Portrait keeps four, in two rows, so nothing is thumbnail-sized. */
 export const PROJECTS_TALL: readonly PlateSpec[] = [
-  { id: "p0", label: "IDEX", color: "ink", x: -2.15, z: -23.7, yaw: -0.08 },
-  { id: "p1", label: "Ultron", color: "vermilion", x: -0.25, z: -23.75, yaw: 0.06 },
-  { id: "p2", label: "Gideon", color: "spruce", x: -2.15, z: -21.6, yaw: 0.07 },
-  { id: "p5", label: "SOVEREIGN", color: "ink", x: -0.25, z: -21.55, yaw: -0.05 },
+  { id: "idex", label: "IDEX", color: "ink", x: -2.2, z: -21.6, yaw: -0.08 },
+  { id: "ultron", label: "Ultron", color: "vermilion", x: 0.6, z: -21.5, yaw: 0.06 },
+  { id: "gideon", label: "Gideon", color: "spruce", x: -2.2, z: -19.8, yaw: 0.07 },
+  { id: "launch-control", label: "Launch Control", color: "vermilion", x: 0.6, z: -19.7, yaw: -0.05 },
+  { id: "claude-classroom", label: "Claude Classroom", color: "ink", x: -2.2, z: -18.0, yaw: 0.05 },
+  {
+    id: "satisfying-video-generator",
+    label: "Satisfying Video Generator",
+    color: "spruce",
+    x: 0.6,
+    z: -17.95,
+    yaw: -0.06,
+  },
 ];
 
 /** How high above the mat a section's objects hang before gravity is on. */
@@ -175,8 +201,9 @@ export const PLATE_DROP = 3.4;
 
 /**
  * One stop per section. `off` slides the camera sideways along the table with
- * no shear; `sy` shifts the frustum vertically so the objects can be pushed
- * up or down the frame and leave a clean band of marigold for the copy.
+ * no shear; `yaw` swings it around the point it is looking at, which is what
+ * turns a plan view into a view from a chair; `sy` shifts the frustum
+ * vertically so the objects sit clear of the reading column.
  */
 export type CamStop = {
   /** Camera x and look-at x. A pure lateral pan. */
@@ -187,8 +214,10 @@ export type CamStop = {
   z: number;
   /** Look-at z offset from the anchor. Positive lifts the subject up-frame. */
   bias: number;
-  /** Degrees below horizontal. */
+  /** Degrees below horizontal. Small is human, large is a diagram. */
   pitch: number;
+  /** Degrees around the anchor. 0 is square to the table. */
+  yaw: number;
   /** Half-width of world that has to fit across the frame. */
   fit: number;
   /** Frustum shift as a fraction of viewport height. Positive lifts. */
@@ -196,26 +225,52 @@ export type CamStop = {
 };
 
 /**
- * Landscape. Stop 0 reproduces the original hero framing exactly. Stops 1 and
- * 2 keep the mat clear of the reading column on the opposite side. Stop 3 is
- * the only real move: the pitch drops to 41 degrees and the camera looks
- * straight down the length of the table, so the last thing you see is that all
- * of it was one surface.
+ * Landscape. Stop 0 reproduces the original hero framing exactly and is not to
+ * be touched. From stop 1 on, the camera drops to between 33 and 41 degrees
+ * and picks up a little yaw, so you are sitting at the table for the rest of
+ * the page instead of hovering over it.
  */
 export const STOPS_WIDE: readonly CamStop[] = [
-  { off: 0, y: 0.35, z: 0, bias: 0.42, pitch: 60, fit: MAT.w / 2 + 1.9, sy: 0 },
-  { off: 0, y: 0.35, z: -12.4, bias: 0.3, pitch: 58, fit: 5.0, sy: 0.03 },
-  { off: 1.15, y: 0.35, z: -22.4, bias: 0.3, pitch: 56, fit: 5.6, sy: 0.03 },
-  { off: 2.6, y: 0.35, z: -14.2, bias: 0, pitch: 41, fit: 7.6, sy: -0.04 },
+  { off: 0, y: 0.35, z: 0, bias: 0.42, pitch: 60, yaw: 0, fit: MAT.w / 2 + 1.9, sy: 0 },
+  { off: -2.15, y: 0.35, z: 0.2, bias: 0.2, pitch: 38, yaw: 15, fit: 6.1, sy: -0.05 },
+  { off: MAT_WORK.x, y: 0.35, z: MAT_WORK.z, bias: 0.1, pitch: 40, yaw: -13, fit: 6.0, sy: 0.02 },
+  {
+    off: 0.4,
+    y: 0.35,
+    z: MAT_PROJECTS.z,
+    bias: 0.15,
+    pitch: 38,
+    yaw: 11,
+    fit: 7.0,
+    sy: 0.02,
+  },
+  { off: 1.0, y: 0.35, z: -21.6, bias: 0.5, pitch: 32, yaw: 22, fit: 5.8, sy: 0.09 },
 ];
 
 /** Portrait. Stop 0 reproduces the original hero framing exactly. */
 export const STOPS_TALL: readonly CamStop[] = [
-  { off: 0, y: 0.35, z: 0, bias: 0.85, pitch: 72, fit: WORD_HALF_W + 0.34, sy: 0 },
-  { off: 1.3, y: 0.35, z: -12.4, bias: 1.4, pitch: 72, fit: 3.4, sy: 0.26 },
-  { off: -1.2, y: 0.35, z: -22.4, bias: 1.4, pitch: 72, fit: 3.2, sy: 0.26 },
-  { off: 1.0, y: 0.35, z: -17.0, bias: 1.0, pitch: 54, fit: 5.0, sy: 0.2 },
+  { off: 0, y: 0.35, z: 0, bias: 0.85, pitch: 72, yaw: 0, fit: WORD_HALF_W + 0.34, sy: 0 },
+  { off: 0.2, y: 0.35, z: 0.1, bias: 1.2, pitch: 57, yaw: 12, fit: 3.5, sy: 0.3 },
+  { off: MAT_WORK.x, y: 0.35, z: MAT_WORK.z, bias: 1.2, pitch: 57, yaw: -9, fit: 3.5, sy: 0.28 },
+  {
+    off: MAT_PROJECTS.x,
+    y: 0.35,
+    z: MAT_PROJECTS.z,
+    bias: 1.3,
+    pitch: 55,
+    yaw: 8,
+    fit: 3.8,
+    sy: 0.28,
+  },
+  { off: MAT_PROJECTS.x + 0.3, y: 0.35, z: -21.1, bias: 1.1, pitch: 45, yaw: 16, fit: 3.3, sy: 0.24 },
 ];
+
+/* ------------------------------------------------- selection, in the world */
+
+/** How far a chosen object lifts off its mat while its panel is open. */
+export const LIFT = 0.72;
+/** How far the camera leans toward a chosen object. 0 is not at all. */
+export const FOCUS_PULL = 0.62;
 
 /* ------------------------------------------------------------ deterministic */
 

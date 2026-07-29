@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { PlaygroundHero } from "@/components/hero-play/PlaygroundHero";
 
 export const metadata: Metadata = {
-  title: "Playground / Manuel David",
+  title: "Manuel David",
   description:
-    "Redesign experiment 3: one physical table you scroll down. His name lands as eleven blocks, then his work and his projects fall onto the mats after it, and all of it stays throwable.",
+    "Founding engineer at Configure. Dropped out, moved to San Francisco, and builds the context infrastructure AI agents will run on. Two companies of his own and thirty-plus things he built because he wanted them to exist.",
 };
 
 export default function Page() {

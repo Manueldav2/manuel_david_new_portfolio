@@ -83,12 +83,32 @@ export function createFaceTexture(
 }
 
 /**
+ * Break a label into at most two lines, choosing the split that makes the two
+ * halves as even as possible. One-word labels stay on one line. A long name
+ * like Satisfying Video Generator would otherwise shrink to nothing.
+ */
+function splitLabel(text: string, maxWidth: number, measure: (s: string) => number) {
+  if (measure(text) <= maxWidth) return [text];
+  const words = text.split(" ");
+  if (words.length < 2) return [text];
+  let best: string[] = [words.slice(0, 1).join(" "), words.slice(1).join(" ")];
+  let bestScore = Infinity;
+  for (let i = 1; i < words.length; i += 1) {
+    const a = words.slice(0, i).join(" ");
+    const b = words.slice(i).join(" ");
+    const score = Math.abs(measure(a) - measure(b));
+    if (score < bestScore) {
+      bestScore = score;
+      best = [a, b];
+    }
+  }
+  return best;
+}
+
+/**
  * The printed top of a work slab or a project tile. Same idea as a letter
  * face, one word wide: painted at runtime from the webfont already on the
  * page, so a labelled object still costs nothing to download.
- *
- * The word is shrunk to fit rather than wrapped, because these are objects
- * you may see edge-on and a single line survives foreshortening better.
  */
 export function createLabelTexture(
   text: string,
@@ -128,13 +148,23 @@ export function createLabelTexture(
     const room = w - 76;
     let size = Math.round(h * 0.44);
     ctx.font = `700 ${size}px ${fontFamily}`;
-    while (ctx.measureText(text).width > room && size > 16) {
-      size -= 2;
+    let lines = splitLabel(text, room, (s) => ctx.measureText(s).width);
+    // Shrink until the widest line fits, re-breaking as the size changes.
+    let guard = 0;
+    while (size > 16 && guard < 80) {
+      const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      if (widest <= room) break;
+      size -= 3;
       ctx.font = `700 ${size}px ${fontFamily}`;
+      lines = splitLabel(text, room, (s) => ctx.measureText(s).width);
+      guard += 1;
     }
+
     // Optical centring: the middle baseline sits a hair low for caps-heavy
     // words, so nudge back up by a fraction of the cap height.
-    ctx.fillText(text, w / 2, h / 2 + size * 0.03);
+    const leading = size * 1.02;
+    const top = h / 2 + size * 0.03 - ((lines.length - 1) * leading) / 2;
+    lines.forEach((line, i) => ctx.fillText(line, w / 2, top + i * leading));
 
     texture.needsUpdate = true;
   };
