@@ -25,7 +25,7 @@ export const hfSerif = Newsreader({
 
 export const hfSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["400", "500"],
   display: "swap",
   variable: "--hf-sans",
 });

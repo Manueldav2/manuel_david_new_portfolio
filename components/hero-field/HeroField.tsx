@@ -2,40 +2,24 @@
 
 import dynamic from "next/dynamic"
 import type { CSSProperties } from "react"
-import { useCallback, useRef } from "react"
+import { useState } from "react"
 
 import { profile, projects, work } from "@/lib/content"
+import { KIND_LABEL, neighbours, nodeById } from "./graph"
 import styles from "./hero-field.module.css"
 
 /**
- * The field is imported client-side only. The typography below is plain
- * DOM inside the first HTML response, so the page is readable and
- * selectable well before three.js has finished downloading.
+ * /1 — THE MIND
+ *
+ * His life as a connected graph, drawn as a two-lobed volume that reads as a
+ * head. The type is plain DOM in the first HTML response; the mind itself is
+ * client-only underneath it.
  */
-const ContextField = dynamic(() => import("./ContextField"), { ssr: false })
+const Mind = dynamic(() => import("./Mind"), { ssr: false })
 
-const links = [
-  { label: profile.email, href: `mailto:${profile.email}` },
-  { label: "github.com/Manueldav2", href: profile.github },
-  { label: profile.xHandle, href: profile.x },
-]
-
-const contact = [
-  { label: profile.email, href: `mailto:${profile.email}` },
-  { label: "Book a call", href: profile.calendar },
-  { label: "github.com/Manueldav2", href: profile.github },
-  { label: "LinkedIn", href: profile.linkedin },
-  { label: profile.xHandle, href: profile.x },
-]
-
-/** Stagger budget: 420ms total, well inside the 500ms ceiling. */
 const at = (ms: number) => ({ "--hf-delay": `${ms}ms` }) as CSSProperties
 
-/**
- * Straight apostrophes in the content file, curly ones on the page. Covers
- * possessives that end a word ("my agents' home base") as well as
- * contractions, which a letter-quote-letter rule misses.
- */
+/** Straight apostrophes in the content file, curly ones on the page. */
 const typo = (s: string) => s.replace(/'/g, "’")
 
 const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
@@ -43,10 +27,8 @@ const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 const byCompany = (name: string) => work.find((w) => w.company === name)
 
 /**
- * How much of each role's story the page tells. Configure is current and gets
- * the most room; Nouvo is the oldest and gets a paragraph. Deliberately not
- * uniform: an identical block per job is the shape of a template, not of
- * three things that mattered different amounts.
+ * Person first: the roles read as one continuous story, Configure fullest
+ * because it is current, Nouvo shortest because it is oldest.
  */
 const ROLES = [
   { company: "Configure", lead: true, paragraphs: [0, 1] },
@@ -54,7 +36,7 @@ const ROLES = [
   { company: "Nouvo", lead: false, paragraphs: [0] },
 ]
 
-const SELECTED = [
+const SELECTED_PROJECTS = [
   "idex",
   "ultron",
   "launch-control",
@@ -67,233 +49,303 @@ const SELECTED = [
   "nouvo-clients",
 ]
 
-const selectedProjects = SELECTED.map((slug) =>
+const selectedProjects = SELECTED_PROJECTS.map((slug) =>
   projects.find((p) => p.slug === slug),
 ).filter((p): p is (typeof projects)[number] => Boolean(p))
 
-export function HeroField({ className }: { className?: string }) {
-  const layerRef = useRef<HTMLDivElement | null>(null)
+const contact = [
+  { label: profile.email, href: `mailto:${profile.email}` },
+  { label: "Book a call", href: profile.calendar },
+  { label: "github.com/Manueldav2", href: profile.github },
+  { label: "LinkedIn", href: profile.linkedin },
+  { label: profile.xHandle, href: profile.x },
+]
 
-  // Deliberately not React state: flipping state here would re-render the
-  // component that owns the canvas.
-  const handleReady = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (layerRef.current) layerRef.current.dataset.ready = "true"
-    })
-  }, [])
+function StoryPanel({
+  selected,
+  onSelect,
+}: {
+  selected: string | null
+  onSelect: (id: string | null) => void
+}) {
+  const node = selected ? nodeById.get(selected) : undefined
+
+  return (
+    <div className={styles.panelSlot} aria-live="polite">
+      {node ? (
+        <aside key={node.id} className={styles.panel}>
+          <p className={styles.panelKind}>{KIND_LABEL[node.kind]}</p>
+          <p className={styles.panelTitle}>{node.label}</p>
+          <p className={styles.panelStory}>{node.story}</p>
+          {node.link ? (
+            <p className={styles.panelMeta}>
+              <a
+                className={styles.panelLink}
+                href={node.link.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {node.link.label}
+              </a>
+            </p>
+          ) : null}
+          <p className={styles.panelRelated}>
+            <span className={styles.panelRelatedWord}>connected to</span>
+            {(neighbours.get(node.id) ?? []).map((id) => {
+              const n = nodeById.get(id)
+              if (!n) return null
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={styles.panelChip}
+                  onClick={() => onSelect(id)}
+                >
+                  {n.label}
+                </button>
+              )
+            })}
+          </p>
+          <button
+            type="button"
+            className={styles.panelClose}
+            onClick={() => onSelect(null)}
+          >
+            close
+          </button>
+        </aside>
+      ) : (
+        <aside className={styles.panel} data-empty="true">
+          <p className={styles.panelHint}>
+            Every node on this map is a real piece of my life, and every line
+            is cause and effect. Select one and I’ll tell you the story behind
+            it.
+          </p>
+        </aside>
+      )}
+    </div>
+  )
+}
+
+export function HeroField({ className }: { className?: string }) {
+  const [selected, setSelected] = useState<string | null>(null)
 
   return (
     <div className={`${styles.root} ${className ?? ""}`}>
-      <div className={styles.backdrop}>
-        <div className={styles.vignette} />
-        <div ref={layerRef} className={styles.canvasLayer} data-ready="false">
-          <ContextField className={styles.canvasHost} onReady={handleReady} />
-        </div>
-        <div className={styles.grain} />
-      </div>
-
-      <div className={styles.content}>
-        <section className={styles.hero}>
-          <div className={styles.frame}>
-            <header className={styles.identity} data-hf-keepout>
-              <h1 className={`${styles.name} ${styles.reveal}`} style={at(0)}>
-                {profile.name}
-              </h1>
-              <p className={`${styles.role} ${styles.reveal}`} style={at(70)}>
-                Founding engineer at{" "}
-                <a
-                  className={styles.inlineLink}
-                  href={profile.companyUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Configure
-                </a>
-              </p>
-            </header>
-
-            <p
-              className={`${styles.place} ${styles.reveal}`}
-              style={at(140)}
-              data-hf-keepout
-            >
-              San Francisco
+      <section className={styles.hero}>
+        <div className={styles.intro}>
+          <header>
+            <h1 className={`${styles.name} ${styles.reveal}`} style={at(0)}>
+              {profile.name}
+            </h1>
+            <p className={`${styles.role} ${styles.reveal}`} style={at(70)}>
+              Founding engineer at{" "}
+              <a
+                className={styles.inlineLink}
+                href={profile.companyUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Configure
+              </a>
+              . San Francisco.
             </p>
+          </header>
 
-            <div className={styles.statement} data-hf-keepout>
-              <p className={`${styles.headline} ${styles.reveal}`} style={at(230)}>
-                The layer that lets any agent recognize you.
-              </p>
-              <p className={`${styles.deck} ${styles.reveal}`} style={at(330)}>
-                I build context infrastructure at Configure. One profile you own,
-                carried between every agent you use, so nothing you touch has to
-                start from zero. <em>Think Plaid, but for personal context.</em>
-              </p>
-            </div>
+          <p className={`${styles.headline} ${styles.reveal}`} style={at(160)}>
+            I could see where everything was heading, and I refused to miss
+            it.
+          </p>
 
-            <nav
-              className={`${styles.links} ${styles.reveal}`}
-              style={at(420)}
-              aria-label="Elsewhere"
-              data-hf-keepout
+          <p className={`${styles.deck} ${styles.reveal}`} style={at(260)}>
+            So I dropped out of college, moved to a city I had never set foot
+            in, and started building. First a studio, then a company, then the
+            problem I could not stop hitting. This map is my head: how one
+            decision led to the next.
+          </p>
+
+          <nav
+            className={`${styles.links} ${styles.reveal}`}
+            style={at(350)}
+            aria-label="Elsewhere"
+          >
+            <a className={styles.link} href={`mailto:${profile.email}`}>
+              {profile.email}
+            </a>
+            <a
+              className={styles.link}
+              href={profile.github}
+              target="_blank"
+              rel="noreferrer"
             >
-              {links.map((link) => (
-                <a
-                  key={link.href}
-                  className={styles.link}
-                  href={link.href}
-                  target={link.href.startsWith("mailto:") ? undefined : "_blank"}
-                  rel="noreferrer"
-                >
-                  {link.label}
-                </a>
-              ))}
-            </nav>
+              github.com/Manueldav2
+            </a>
+            <a
+              className={styles.link}
+              href={profile.x}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {profile.xHandle}
+            </a>
+          </nav>
 
-            <div className={styles.cue} aria-hidden="true" data-hf-keepout />
+          <div className={styles.reveal} style={at(430)}>
+            <StoryPanel selected={selected} onSelect={setSelected} />
+          </div>
+        </div>
+
+        <div className={styles.mindWrap}>
+          <Mind selected={selected} onSelect={setSelected} />
+        </div>
+      </section>
+
+      <main className={styles.reading}>
+        {/* ------------------------------------------------------------ */}
+        {/* Who he is                                                     */}
+        {/* ------------------------------------------------------------ */}
+        <section className={styles.chapter} aria-labelledby="mk-about">
+          <h2 id="mk-about" className={styles.chapterLead}>
+            Who I am, before what I do.
+          </h2>
+          <div className={styles.chapterBody}>
+            <div className={styles.prose}>
+              <p className={styles.lede}>{typo(profile.about[0])}</p>
+              <p>{typo(profile.about[1])}</p>
+              <p>{typo(profile.about[2])}</p>
+            </div>
           </div>
         </section>
 
-        <main className={styles.reading}>
-          {/* ---------------------------------------------------------- */}
-          {/* The work                                                    */}
-          {/* ---------------------------------------------------------- */}
-          <section className={styles.chapter} aria-labelledby="hf-work">
-            <h2 id="hf-work" className={styles.chapterLead}>
-              Three things running at once. One of them exists because of a
-              wall I kept hitting in the other two.
-            </h2>
+        {/* ------------------------------------------------------------ */}
+        {/* The work                                                      */}
+        {/* ------------------------------------------------------------ */}
+        <section className={styles.chapter} aria-labelledby="mk-work">
+          <h2 id="mk-work" className={styles.chapterLead}>
+            The work runs in one line: a studio, then a company, then the
+            wall that company kept hitting.
+          </h2>
 
-            {ROLES.map((role) => {
-              const entry = byCompany(role.company)
-              if (!entry) return null
-              return (
-                <article
-                  key={entry.company}
-                  className={styles.entry}
-                  data-lead={role.lead ? "true" : undefined}
-                >
-                  <div className={styles.rail}>
-                    <h3 className={styles.entryName}>{entry.company}</h3>
-                    <p className={styles.railMeta}>
-                      {typo(entry.role)}
-                      <br />
-                      {entry.dates}
-                    </p>
-                    {entry.url ? (
-                      <a
-                        className={styles.railLink}
-                        href={entry.url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {host(entry.url)}
-                      </a>
-                    ) : null}
-                  </div>
-
-                  <div className={styles.prose}>
-                    <p className={styles.lede}>{typo(entry.blurb)}</p>
-                    {role.paragraphs.map((n) => {
-                      const para = entry.story?.[n]
-                      return para ? <p key={n}>{typo(para)}</p> : null
-                    })}
-                  </div>
-                </article>
-              )
-            })}
-          </section>
-
-          {/* ---------------------------------------------------------- */}
-          {/* Selected work                                               */}
-          {/* ---------------------------------------------------------- */}
-          <section className={styles.chapter} aria-labelledby="hf-projects">
-            <h2 id="hf-projects" className={styles.chapterLead}>
-              The rest of it is public. {profile.projectsTotalLabel} builds so
-              far, and these are the ones worth your time.
-            </h2>
-
-            <ul className={styles.list}>
-              {selectedProjects.map((p) => {
-                const href = p.url ?? p.github
-                return (
-                  <li key={p.slug} className={styles.row}>
-                    <span className={styles.rowYear}>{p.year}</span>
-                    <h3 className={styles.rowName}>
-                      {href ? (
-                        <a href={href} target="_blank" rel="noreferrer">
-                          {p.name}
-                        </a>
-                      ) : (
-                        p.name
-                      )}
-                    </h3>
-                    <p className={styles.rowBlurb}>
-                      {typo(p.blurb)}
-                      {p.clients ? (
-                        <span className={styles.rowNote}>
-                          {" "}
-                          {p.clients.length} of them are live right now.
-                        </span>
-                      ) : null}
-                    </p>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-
-          {/* ---------------------------------------------------------- */}
-          {/* Close                                                       */}
-          {/* ---------------------------------------------------------- */}
-          <section className={styles.chapter} aria-labelledby="hf-close">
-            <h2 id="hf-close" className={styles.chapterLead}>
-              Why I care about this one thing more than anything else I have
-              built.
-            </h2>
-
-            <div className={styles.close}>
-              <div className={styles.prose}>
-                <p className={styles.lede}>{typo(profile.about[4])}</p>
-                <p>
-                  Everything drifting behind this page is read out of the same
-                  file the page is written from. Sweep your cursor through it
-                  and scattered pieces of a person link up, hold for a second,
-                  then get forgotten. That is the problem in one gesture. Right
-                  now every agent you touch starts from nothing, every single
-                  time. It should not have to.
-                </p>
-              </div>
-
-              <aside className={styles.closeAside}>
-                <p style={{ margin: 0 }}>
-                  Open to the interesting version of this conversation.
-                </p>
-                <div className={styles.closeLinks}>
-                  {contact.map((link) => (
+          {ROLES.map((role) => {
+            const entry = byCompany(role.company)
+            if (!entry) return null
+            return (
+              <article
+                key={entry.company}
+                className={styles.entry}
+                data-lead={role.lead ? "true" : undefined}
+              >
+                <div className={styles.rail}>
+                  <h3 className={styles.entryName}>{entry.company}</h3>
+                  <p className={styles.railMeta}>
+                    {typo(entry.role)}
+                    <br />
+                    {entry.dates}
+                  </p>
+                  {entry.url ? (
                     <a
-                      key={link.href}
-                      className={styles.link}
-                      href={link.href}
-                      target={
-                        link.href.startsWith("mailto:") ? undefined : "_blank"
-                      }
+                      className={styles.railLink}
+                      href={entry.url}
+                      target="_blank"
                       rel="noreferrer"
                     >
-                      {link.label}
+                      {host(entry.url)}
                     </a>
-                  ))}
+                  ) : null}
                 </div>
-              </aside>
+
+                <div className={styles.prose}>
+                  <p className={styles.lede}>{typo(entry.blurb)}</p>
+                  {role.paragraphs.map((n) => {
+                    const para = entry.story?.[n]
+                    return para ? <p key={n}>{typo(para)}</p> : null
+                  })}
+                </div>
+              </article>
+            )
+          })}
+        </section>
+
+        {/* ------------------------------------------------------------ */}
+        {/* Selected projects                                             */}
+        {/* ------------------------------------------------------------ */}
+        <section className={styles.chapter} aria-labelledby="mk-projects">
+          <h2 id="mk-projects" className={styles.chapterLead}>
+            The rest is public. {profile.projectsTotalLabel} builds so far,
+            and these are the ones worth your time.
+          </h2>
+
+          <ul className={styles.list}>
+            {selectedProjects.map((p) => {
+              const href = p.url ?? p.github
+              return (
+                <li key={p.slug} className={styles.row}>
+                  <span className={styles.rowYear}>{p.year}</span>
+                  <h3 className={styles.rowName}>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        {p.name}
+                      </a>
+                    ) : (
+                      p.name
+                    )}
+                  </h3>
+                  <p className={styles.rowBlurb}>
+                    {typo(p.blurb)}
+                    {p.clients ? (
+                      <span className={styles.rowNote}>
+                        {" "}
+                        {p.clients.length} of them are live right now.
+                      </span>
+                    ) : null}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+
+        {/* ------------------------------------------------------------ */}
+        {/* Close                                                         */}
+        {/* ------------------------------------------------------------ */}
+        <section className={styles.chapter} aria-labelledby="mk-close">
+          <h2 id="mk-close" className={styles.chapterLead}>
+            Where I think all of it is going.
+          </h2>
+
+          <div className={styles.close}>
+            <div className={styles.prose}>
+              <p className={styles.lede}>{typo(profile.about[4])}</p>
             </div>
 
-            <p className={styles.colophon}>
-              <span>{profile.name}, San Francisco</span>
-              <span>Set in Newsreader and IBM Plex Sans</span>
-            </p>
-          </section>
-        </main>
-      </div>
+            <aside className={styles.closeAside}>
+              <p className={styles.closeNote}>
+                Open to the interesting version of this conversation.
+              </p>
+              <div className={styles.closeLinks}>
+                {contact.map((link) => (
+                  <a
+                    key={link.href}
+                    className={styles.link}
+                    href={link.href}
+                    target={
+                      link.href.startsWith("mailto:") ? undefined : "_blank"
+                    }
+                    rel="noreferrer"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </aside>
+          </div>
+
+          <p className={styles.colophon}>
+            <span>{profile.name}, San Francisco</span>
+            <span>Set in Newsreader and IBM Plex Sans</span>
+          </p>
+        </section>
+      </main>
     </div>
   )
 }
