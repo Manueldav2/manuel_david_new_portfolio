@@ -1,12 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
-import { Chatbot } from "@/components/ui/chatbot"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Nav } from "@/components/site/Nav"
-import { Footer } from "@/components/site/Footer"
-import { ChatProvider } from "@/components/chat/ChatProvider"
-import { ChatShell } from "@/components/chat/ChatShell"
-import { ChatDrawer } from "@/components/chat/ChatDrawer"
+import { SiteChrome } from "@/components/site/SiteChrome"
 import { display, body, mono, future } from "@/lib/fonts"
 
 const SITE_URL = "https://manueldavid.dev"
@@ -78,18 +73,7 @@ export default function RootLayout({
           </filter>
         </svg>
         <ThemeProvider attribute="class" forcedTheme="dark" enableSystem={false} disableTransitionOnChange>
-          <ChatProvider>
-            {/* ChatShell pushes the whole site chrome LEFT when the drawer opens. */}
-            <ChatShell>
-              <Nav />
-              {/* pt clears the fixed nav pill so page content never sits under it. */}
-              <main className="pt-24">{children}</main>
-              <Footer />
-              <Chatbot />
-            </ChatShell>
-            {/* Right-side drawer — fixed, outside the pushed shell. */}
-            <ChatDrawer />
-          </ChatProvider>
+          <SiteChrome>{children}</SiteChrome>
         </ThemeProvider>
       </body>
     </html>
