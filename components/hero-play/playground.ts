@@ -6,54 +6,81 @@ import {
   BALL_R,
   BLOCK,
   BLOCKS,
-  BLOCK_PITCH,
   MAT,
+  MATS,
   PALETTE,
+  PLATE_DROP,
+  PROJECTS_TALL,
+  PROJECTS_WIDE,
   SETTLED_OFFSET,
   SETTLED_ROTATION,
   SETTLED_TIPPED,
+  SLAB,
+  STOPS_TALL,
+  STOPS_WIDE,
+  TILE,
+  WORK_TALL,
+  WORK_WIDE,
   dropHeight,
   jitter,
+  type CamStop,
+  type PlateSpec,
 } from "./scene-config";
-import { createFaceTexture, type FaceTexture } from "./letter-texture";
+import { createFaceTexture, createLabelTexture, type FaceTexture } from "./letter-texture";
 
 /**
- * The /3 PLAYGROUND toy, driven imperatively.
+ * The /3 PLAYGROUND world, driven imperatively.
  *
  * Why no react-three-fiber: Next 15 aliases client `react` to its own React 19
  * build, and fiber v8 sits on react-reconciler 0.27, which reads the React 18
  * shared internals and throws on import. Vanilla three plus rapier costs less
  * anyway (no reconciler, no drei) and gives exact control over the drag, which
- * is the entire point of this hero.
+ * is the entire point of this page.
  *
- * Everything here is procedural. One rounded-box geometry, one sphere, eleven
- * canvas-drawn letter textures. No model, no HDRI, no texture request.
+ * The world is ONE table. Scroll walks the camera down it. Crossing a section
+ * hands that section's objects to gravity for the first time, and they fall
+ * into the same rapier world the name blocks live in, so everything that lands
+ * is throwable for the rest of the visit.
+ *
+ * Everything here is procedural. Two rounded-box geometries, one sphere,
+ * canvas-drawn labels. No model, no HDRI, no texture request.
  */
 
-type RapierNS = typeof import("@dimforge/rapier3d-compat");
-type RWorld = import("@dimforge/rapier3d-compat").World;
-type RBody = import("@dimforge/rapier3d-compat").RigidBody;
+type RapierNS = typeof import("@dimforge/rapier3d");
+type RWorld = import("@dimforge/rapier3d").World;
+type RBody = import("@dimforge/rapier3d").RigidBody;
 
 export type PlaygroundOptions = {
   reduced: boolean;
+  /** Display face, used for the block letters and the object labels. */
   fontFamily: string;
   onGrab: () => void;
   onReady: () => void;
   /** Physics could not be loaded, so nothing is throwable. */
   onNoPhysics: () => void;
+  /** Scroll offsets (px) at which each camera stop is composed. */
+  stops: () => number[];
 };
 
 export type PlaygroundHandle = {
+  /** Re-drop everything that has landed so far. */
   reset: () => void;
+  /** Re-read the scroll stops after the document height changed. */
+  measure: () => void;
   dispose: () => void;
 };
+
+type PieceKind = "block" | "ball" | "plate";
 
 type Piece = {
   id: string;
   mesh: THREE.Mesh;
-  kind: "block" | "ball";
+  kind: PieceKind;
+  section: number;
   beat: number;
-  home: { x: number; z: number };
+  home: { x: number; y: number; z: number };
+  yaw: number;
+  half: { x: number; y: number; z: number };
   body?: RBody;
 };
 
@@ -69,9 +96,38 @@ const GRAB_STIFFNESS = 19;
 const MAX_DRAG_SPEED = 27;
 const THROW_BOOST = 1.16;
 const MAX_THROW = 23;
+const STEP = 1 / 60;
 const REST_Y = MAT.h + BLOCK / 2;
-/** Half the width of the longer word, which is what portrait has to fit. */
-const WORD_HALF_W = (5 * BLOCK_PITCH + BLOCK) / 2;
+/** Sections this far behind the camera are frozen and stop being simulated. */
+const SLEEP_RANGE = 1.35;
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+/**
+ * Quintic, so the camera sits still at each stop for most of the section and
+ * crosses the bare stretch of table between mats quickly. A gentler curve
+ * spends the middle of every section staring at an empty tabletop.
+ */
+function easeInOut(t: number) {
+  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
+}
+
+/** How far ahead of a stop a section hands its objects to gravity. */
+const ARM_LEAD = 0.62;
+
+function mixStop(a: CamStop, b: CamStop, t: number): CamStop {
+  return {
+    off: lerp(a.off, b.off, t),
+    y: lerp(a.y, b.y, t),
+    z: lerp(a.z, b.z, t),
+    bias: lerp(a.bias, b.bias, t),
+    pitch: lerp(a.pitch, b.pitch, t),
+    fit: lerp(a.fit, b.fit, t),
+    sy: lerp(a.sy, b.sy, t),
+  };
+}
 
 export function createPlayground(
   host: HTMLElement,
@@ -93,61 +149,86 @@ export function createPlayground(
   canvas.style.display = "block";
   canvas.style.width = "100%";
   canvas.style.height = "100%";
-  canvas.style.touchAction = "none";
+  // NOT `none`: this canvas is fixed behind a scrolling document, so the
+  // browser has to keep owning the page scroll. A touch that actually lands on
+  // an object cancels the gesture itself, in the touchstart handler below.
+  canvas.style.touchAction = "manipulation";
   host.appendChild(canvas);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(34, 1, 1, 80);
+  const camera = new THREE.PerspectiveCamera(34, 1, 1, 90);
+
+  /** Set whenever something on screen actually changed. See the loop. */
+  let dirty = true;
 
   /* ----------------------------------------------------------------- light */
 
   scene.add(new THREE.AmbientLight(new THREE.Color("#FFEDC6"), 1.18));
 
+  const shadowSize = window.innerWidth < 720 ? 1024 : 2048;
   const key = new THREE.DirectionalLight(new THREE.Color("#FFFBF2"), 2.35);
-  key.position.set(-5.5, 10.5, 6);
   key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = -7.5;
-  key.shadow.camera.right = 7.5;
-  key.shadow.camera.top = 7.5;
-  key.shadow.camera.bottom = -7.5;
+  key.shadow.mapSize.set(shadowSize, shadowSize);
   key.shadow.camera.near = 1;
-  key.shadow.camera.far = 32;
+  key.shadow.camera.far = 44;
   key.shadow.bias = -0.0007;
   key.shadow.normalBias = 0.028;
   scene.add(key);
+  scene.add(key.target);
 
   const fill = new THREE.DirectionalLight(new THREE.Color("#FFE4AE"), 0.48);
   fill.position.set(7, 4.5, -5);
   scene.add(fill);
+
+  /** The shadow frustum walks down the table with the camera. */
+  let shadowSpan = 0;
+  function aimLight(fx: number, fz: number, fit: number) {
+    key.position.set(fx - 5.5, 10.5, fz + 6);
+    key.target.position.set(fx, 0, fz);
+    key.target.updateMatrixWorld();
+    const want = THREE.MathUtils.clamp(fit * 1.75, 7.5, 21);
+    if (Math.abs(want - shadowSpan) > 0.3) {
+      shadowSpan = want;
+      const c = key.shadow.camera;
+      c.left = -want;
+      c.right = want;
+      c.top = want;
+      c.bottom = -want;
+      c.updateProjectionMatrix();
+    }
+  }
 
   /* ------------------------------------------------------------------ set */
 
   const disposables: { dispose: () => void }[] = [];
   const faces: FaceTexture[] = [];
 
-  const floorGeo = new THREE.PlaneGeometry(70, 70);
+  const floorGeo = new THREE.PlaneGeometry(140, 140);
   const floorMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(PALETTE.floor),
     roughness: 0.98,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
+  floor.position.z = -11;
   floor.receiveShadow = true;
   scene.add(floor);
   disposables.push(floorGeo, floorMat);
 
-  const matGeo = new RoundedBoxGeometry(MAT.w, MAT.h, MAT.d, 2, 0.07);
   const matMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(PALETTE.cream),
     roughness: 0.85,
   });
-  const mat = new THREE.Mesh(matGeo, matMat);
-  mat.position.y = MAT.h / 2;
-  mat.castShadow = true;
-  mat.receiveShadow = true;
-  scene.add(mat);
-  disposables.push(matGeo, matMat);
+  disposables.push(matMat);
+  for (const m of MATS) {
+    const geo = new RoundedBoxGeometry(m.w, MAT.h, m.d, 2, 0.07);
+    const mesh = new THREE.Mesh(geo, matMat);
+    mesh.position.set(m.x, MAT.h / 2, m.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    disposables.push(geo);
+  }
 
   /* --------------------------------------------------------------- pieces */
 
@@ -157,6 +238,13 @@ export function createPlayground(
 
   const pieces: Piece[] = [];
   const grabbables: THREE.Mesh[] = [];
+  const byMesh = new Map<string, Piece>();
+
+  function register(p: Piece) {
+    pieces.push(p);
+    grabbables.push(p.mesh);
+    byMesh.set(p.mesh.uuid, p);
+  }
 
   for (const b of BLOCKS) {
     const face = createFaceTexture(
@@ -176,8 +264,16 @@ export function createPlayground(
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     scene.add(mesh);
-    grabbables.push(mesh);
-    pieces.push({ id: b.id, mesh, kind: "block", beat: b.beat, home: { x: b.x, z: b.z } });
+    register({
+      id: b.id,
+      mesh,
+      kind: "block",
+      section: 0,
+      beat: b.beat,
+      home: { x: b.x, y: REST_Y, z: b.z },
+      yaw: 0,
+      half: { x: BLOCK / 2, y: BLOCK / 2, z: BLOCK / 2 },
+    });
   }
 
   for (const s of BALLS) {
@@ -191,15 +287,144 @@ export function createPlayground(
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     scene.add(mesh);
-    grabbables.push(mesh);
-    pieces.push({ id: s.id, mesh, kind: "ball", beat: s.beat, home: { x: s.x, z: s.z } });
+    register({
+      id: s.id,
+      mesh,
+      kind: "ball",
+      section: 0,
+      beat: s.beat,
+      home: { x: s.x, y: MAT.h + BALL_R, z: s.z },
+      yaw: 0,
+      half: { x: BALL_R, y: BALL_R, z: BALL_R },
+    });
   }
 
-  const byId = new Map(pieces.map((p) => [p.mesh.uuid, p]));
+  /* ---------------------------------------------------------- the sections */
+
+  type Section = {
+    index: number;
+    size: { w: number; h: number; d: number };
+    specs: readonly PlateSpec[];
+    pieces: Piece[];
+    built: boolean;
+    armed: boolean;
+    frozen: boolean;
+  };
+
+  let portrait = false;
+
+  const sections: Section[] = [
+    { index: 0, size: SLAB, specs: [], pieces, built: true, armed: false, frozen: false },
+    { index: 1, size: SLAB, specs: WORK_WIDE, pieces: [], built: false, armed: false, frozen: false },
+    { index: 2, size: TILE, specs: PROJECTS_WIDE, pieces: [], built: false, armed: false, frozen: false },
+  ];
+  // Section 0 owns the name blocks and balls; the array above aliases `pieces`
+  // before the plates exist, so give it its own list.
+  sections[0].pieces = pieces.slice();
+
+  const plateGeo = new Map<number, THREE.BufferGeometry>();
+  const labelGeo = new Map<number, THREE.BufferGeometry>();
+
+  function specsFor(index: number): readonly PlateSpec[] {
+    if (index === 1) return portrait ? WORK_TALL : WORK_WIDE;
+    return portrait ? PROJECTS_TALL : PROJECTS_WIDE;
+  }
+
+  function buildSection(sec: Section) {
+    if (sec.built) return;
+    sec.built = true;
+    sec.specs = specsFor(sec.index);
+    const { w, h, d } = sec.size;
+
+    let body = plateGeo.get(sec.index);
+    if (!body) {
+      body = new RoundedBoxGeometry(w, h, d, 2, Math.min(0.07, h / 2.2));
+      plateGeo.set(sec.index, body);
+      disposables.push(body);
+    }
+    let plate = labelGeo.get(sec.index);
+    if (!plate) {
+      plate = new THREE.PlaneGeometry(w * 0.9, d * 0.86);
+      labelGeo.set(sec.index, plate);
+      disposables.push(plate);
+    }
+    const aspect = (w * 0.9) / (d * 0.86);
+
+    sec.specs.forEach((spec, i) => {
+      const tone = OBJECT_COLOR[spec.color];
+      const material = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(tone),
+        roughness: 0.58,
+        metalness: 0,
+      });
+      disposables.push(material);
+      const mesh = new THREE.Mesh(body!, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const face = createLabelTexture(
+        spec.label,
+        tone,
+        PALETTE.cream,
+        opts.fontFamily,
+        aspect
+      );
+      faces.push(face);
+      const labelMat = new THREE.MeshStandardMaterial({
+        map: face.texture,
+        roughness: 0.55,
+        metalness: 0,
+      });
+      disposables.push(labelMat, face.texture);
+
+      // Printed on the top AND the underside, so a slab that gets flipped over
+      // still says what it is.
+      const top = new THREE.Mesh(plate!, labelMat);
+      top.rotation.x = -Math.PI / 2;
+      top.position.y = h / 2 + 0.004;
+      top.receiveShadow = true;
+      const under = new THREE.Mesh(plate!, labelMat);
+      under.rotation.x = Math.PI / 2;
+      under.position.y = -h / 2 - 0.004;
+      mesh.add(top, under);
+
+      scene.add(mesh);
+      const piece: Piece = {
+        id: spec.id,
+        mesh,
+        kind: "plate",
+        section: sec.index,
+        beat: i,
+        home: { x: spec.x, y: MAT.h + h / 2, z: spec.z },
+        yaw: spec.yaw,
+        half: { x: w / 2, y: h / 2, z: d / 2 },
+      };
+      sec.pieces.push(piece);
+      register(piece);
+
+      if (opts.reduced) {
+        settle(piece);
+      } else {
+        poise(piece);
+        mesh.visible = false;
+      }
+    });
+
+    if (world && RAPIER) for (const p of sec.pieces) addBody(RAPIER, p);
+  }
 
   /** Where a piece hangs before gravity is switched on. */
   function poise(p: Piece) {
-    const j = jitter(p.beat);
+    const j = jitter(p.beat + p.section * 7);
+    if (p.kind === "plate") {
+      p.mesh.position.set(
+        p.home.x + j.dx * 3,
+        MAT.h + PLATE_DROP + p.beat * 0.34,
+        p.home.z + j.dz * 3
+      );
+      p.mesh.rotation.set(j.tilt * 1.6, p.yaw + j.spin * 0.5, j.tilt);
+      return;
+    }
     if (p.kind === "block") {
       p.mesh.position.set(p.home.x + j.dx, dropHeight(p.beat), p.home.z + j.dz);
       p.mesh.rotation.set(j.tilt, j.spin, j.tilt * 0.6);
@@ -211,8 +436,14 @@ export function createPlayground(
 
   /** The composed, already-landed arrangement used for reduced motion. */
   function settle(p: Piece) {
+    p.mesh.visible = true;
+    if (p.kind === "plate") {
+      p.mesh.position.set(p.home.x, p.home.y, p.home.z);
+      p.mesh.rotation.set(0, p.yaw, 0);
+      return;
+    }
     if (p.kind === "ball") {
-      p.mesh.position.set(p.home.x, MAT.h + BALL_R, p.home.z);
+      p.mesh.position.set(p.home.x, p.home.y, p.home.z);
       p.mesh.rotation.set(0, 0, 0);
       return;
     }
@@ -228,43 +459,93 @@ export function createPlayground(
 
   let width = 1;
   let height = 1;
+  let stops: readonly CamStop[] = STOPS_WIDE;
+  let scrollStops: number[] = [0];
 
-  function frame() {
+  function measure() {
+    const raw = opts.stops();
+    if (raw.length < 2) {
+      scrollStops = [0, 1];
+      return;
+    }
+    // Has to be strictly increasing or the piecewise read below misbehaves.
+    const out = [Math.max(0, raw[0])];
+    for (let i = 1; i < raw.length; i += 1) out.push(Math.max(raw[i], out[i - 1] + 1));
+    scrollStops = out;
+  }
+
+  function layout() {
     width = Math.max(host.clientWidth, 1);
     height = Math.max(host.clientHeight, 1);
     renderer.setSize(width, height, false);
 
-    const aspect = width / height;
-    const portrait = aspect < 1.05;
-    camera.aspect = aspect;
+    const wasPortrait = portrait;
+    portrait = width / height < 1.05;
+    stops = portrait ? STOPS_TALL : STOPS_WIDE;
     camera.fov = portrait ? 40 : 34;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 72 : 60);
-    const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
-    const halfH = Math.atan(Math.tan(halfV) * aspect);
-    // Portrait crops the mat a little so the letters stay big; landscape keeps
-    // marigold margin all round so the corner type never sits on the cream.
-    const needed = portrait ? WORD_HALF_W + 0.34 : MAT.w / 2 + 1.9;
-    const dist = THREE.MathUtils.clamp(needed / Math.tan(halfH), 7, 30);
-    const focus = 0.35;
-    // Aim a touch nearer than centre so the toy sits above the mid-line and
-    // the copy at the foot of the page has clear ground under it.
-    const bias = portrait ? 0.85 : 0.42;
-    camera.position.set(0, focus + Math.sin(pitch) * dist, Math.cos(pitch) * dist);
-    camera.lookAt(0, focus, bias);
-    camera.far = dist + 45;
-    camera.updateProjectionMatrix();
+    camera.aspect = width / height;
+
+    // A rotation swaps the composed layout of the plates, so anything already
+    // on the table is picked up and re-dropped into the new arrangement.
+    if (wasPortrait !== portrait) {
+      for (const sec of sections) {
+        if (sec.index === 0 || !sec.built) continue;
+        const next = specsFor(sec.index);
+        sec.pieces.forEach((p, i) => {
+          const spec = next[i] ?? next[next.length - 1];
+          p.home.x = spec.x;
+          p.home.z = spec.z;
+          p.yaw = spec.yaw;
+        });
+        sec.specs = next;
+        if (sec.armed) redrop(sec);
+      }
+    }
+    measure();
   }
 
-  frame();
+  /** Interpolated camera + light for a fractional stop index. */
+  function applyCamera(p: number) {
+    const i = Math.max(0, Math.min(stops.length - 1, Math.floor(p)));
+    const j = Math.min(stops.length - 1, i + 1);
+    const stop = i === j ? stops[i] : mixStop(stops[i], stops[j], p - i);
+
+    const aspect = width / height;
+    const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
+    const halfH = Math.atan(Math.tan(halfV) * aspect);
+    const dist = THREE.MathUtils.clamp(stop.fit / Math.tan(halfH), 7, 46);
+    const pitch = THREE.MathUtils.degToRad(stop.pitch);
+
+    camera.position.set(
+      stop.off,
+      stop.y + Math.sin(pitch) * dist,
+      stop.z + Math.cos(pitch) * dist
+    );
+    camera.lookAt(stop.off, stop.y, stop.z + stop.bias);
+    camera.far = dist + 62;
+    camera.updateProjectionMatrix();
+    if (Math.abs(stop.sy) > 0.0005) {
+      camera.setViewOffset(width, height, 0, stop.sy * height, width, height);
+    } else if (camera.view) {
+      camera.clearViewOffset();
+    }
+
+    aimLight(stop.off, stop.z, stop.fit);
+  }
+
+  layout();
+  applyCamera(0);
 
   const ro = new ResizeObserver(() => {
-    frame();
-    if (!running) renderer.render(scene, camera);
+    layout();
+    dirty = true;
+    if (!running) requestRender();
   });
   ro.observe(host);
 
   /* --------------------------------------------------------------- physics */
 
+  let RAPIER: RapierNS | null = null;
   let world: RWorld | null = null;
   const timers: number[] = [];
   let disposed = false;
@@ -278,49 +559,70 @@ export function createPlayground(
 
   function placeBody(p: Piece) {
     if (!p.body) return;
-    const j = jitter(p.beat);
-    const x = p.kind === "block" ? p.home.x + j.dx : p.home.x;
-    const z = p.kind === "block" ? p.home.z + j.dz : p.home.z;
-    p.body.setTranslation({ x, y: dropHeight(p.beat), z }, true);
-    _e.set(
-      p.kind === "block" ? j.tilt : 0,
-      p.kind === "block" ? j.spin : 0,
-      p.kind === "block" ? j.tilt * 0.6 : 0
-    );
-    _q.setFromEuler(_e);
-    p.body.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+    poise(p);
+    const m = p.mesh;
+    p.body.setTranslation({ x: m.position.x, y: m.position.y, z: m.position.z }, true);
+    const q = m.quaternion;
+    p.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     p.body.setGravityScale(0, false);
   }
 
   /**
-   * The drop. Pieces hang for a beat, then release one at a time from the M
-   * outward, so the name assembles itself instead of dumping all at once.
+   * The drop. Objects hang for a beat, then release one at a time, so a
+   * section assembles itself instead of dumping all at once.
    */
-  function choreograph() {
-    clearTimers();
-    for (const p of pieces) {
-      if (!p.body) continue;
+  function choreograph(list: Piece[], gap: number, lead: number) {
+    for (const p of list) {
       const body = p.body;
+      p.mesh.visible = true;
+      if (!body) continue;
       timers.push(
         window.setTimeout(() => {
+          if (disposed) return;
           body.setGravityScale(1, true);
           if (p.kind === "ball") {
-            body.setLinvel(
-              { x: p.home.x > 0 ? -0.85 : 0.85, y: 0, z: -0.55 },
-              true
-            );
+            body.setLinvel({ x: p.home.x > 0 ? -0.85 : 0.85, y: 0, z: -0.55 }, true);
+          }
+          if (p.kind === "plate") {
+            const j = jitter(p.beat + p.section * 5);
+            body.setAngvel({ x: j.tilt * 2.4, y: j.spin * 1.2, z: j.dz * 6 }, true);
           }
           body.wakeUp();
-        }, 320 + p.beat * 74)
+          dirty = true;
+        }, lead + p.beat * gap)
       );
     }
   }
 
+  function addBody(R: RapierNS, p: Piece) {
+    if (!world || p.body) return;
+    const heavy = p.kind === "plate";
+    const desc = R.RigidBodyDesc.dynamic()
+      .setTranslation(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z)
+      .setLinearDamping(p.kind === "ball" ? 0.55 : heavy ? 0.2 : 0.14)
+      .setAngularDamping(p.kind === "ball" ? 0.22 : heavy ? 0.85 : 0.62)
+      // If the tween already started the fall, physics picks the pieces up in
+      // flight rather than freezing them back in the air.
+      .setGravityScale(p.section === 0 && tween ? 1 : 0);
+    const q = p.mesh.quaternion;
+    desc.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+    const rb = world.createRigidBody(desc);
+    const col =
+      p.kind === "ball"
+        ? R.ColliderDesc.ball(BALL_R).setRestitution(0.55).setFriction(0.4)
+        : R.ColliderDesc.cuboid(p.half.x, p.half.y, p.half.z)
+            .setRestitution(heavy ? 0.06 : 0.13)
+            .setFriction(heavy ? 1.05 : 0.9)
+            .setDensity(heavy ? 2.4 : 1);
+    world.createCollider(col, rb);
+    p.body = rb;
+  }
+
   function buildWorld(R: RapierNS) {
     const w = new R.World({ x: 0, y: GRAVITY, z: 0 });
-    w.timestep = 1 / 60;
+    w.timestep = STEP;
 
     const statics = w.createRigidBody(R.RigidBodyDesc.fixed());
     const addBox = (
@@ -339,35 +641,20 @@ export function createPlayground(
         statics
       );
     };
-    // table, then the mat sitting proud of it
-    addBox(40, 1, 40, 0, -1, 0);
-    addBox(MAT.w / 2, MAT.h / 2, MAT.d / 2, 0, MAT.h / 2, 0);
-    // invisible walls, far enough out that you never see a piece hit one
-    addBox(0.5, ARENA.height, ARENA.halfZ + 1, -ARENA.halfX - 0.5, ARENA.height, 0);
-    addBox(0.5, ARENA.height, ARENA.halfZ + 1, ARENA.halfX + 0.5, ARENA.height, 0);
-    addBox(ARENA.halfX + 1, ARENA.height, 0.5, 0, ARENA.height, -ARENA.halfZ - 0.5);
-    addBox(ARENA.halfX + 1, ARENA.height, 0.5, 0, ARENA.height, ARENA.halfZ + 0.5);
 
-    for (const p of pieces) {
-      const desc = R.RigidBodyDesc.dynamic()
-        .setTranslation(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z)
-        .setLinearDamping(p.kind === "block" ? 0.14 : 0.55)
-        .setAngularDamping(p.kind === "block" ? 0.62 : 0.22)
-        // If the tween already started the fall, physics picks the pieces up
-        // in flight rather than freezing them back in the air.
-        .setGravityScale(tween ? 1 : 0);
-      const q = p.mesh.quaternion;
-      desc.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
-      const body = w.createRigidBody(desc);
-      const col =
-        p.kind === "block"
-          ? R.ColliderDesc.cuboid(BLOCK / 2, BLOCK / 2, BLOCK / 2)
-              .setRestitution(0.13)
-              .setFriction(0.9)
-          : R.ColliderDesc.ball(BALL_R).setRestitution(0.55).setFriction(0.4);
-      w.createCollider(col, body);
-      p.body = body;
-    }
+    // the table, then each mat sitting proud of it
+    addBox(60, 1, 60, 0, -1, -11);
+    for (const m of MATS) addBox(m.w / 2, MAT.h / 2, m.d / 2, m.x, MAT.h / 2, m.z);
+
+    // invisible walls, far enough out that you never see a piece hit one
+    const cx = (ARENA.minX + ARENA.maxX) / 2;
+    const cz = (ARENA.minZ + ARENA.maxZ) / 2;
+    const hx = (ARENA.maxX - ARENA.minX) / 2;
+    const hz = (ARENA.maxZ - ARENA.minZ) / 2;
+    addBox(0.5, ARENA.height, hz + 1, ARENA.minX - 0.5, ARENA.height, cz);
+    addBox(0.5, ARENA.height, hz + 1, ARENA.maxX + 0.5, ARENA.height, cz);
+    addBox(hx + 1, ARENA.height, 0.5, cx, ARENA.height, ARENA.minZ - 0.5);
+    addBox(hx + 1, ARENA.height, 0.5, cx, ARENA.height, ARENA.maxZ + 0.5);
 
     return w;
   }
@@ -375,16 +662,17 @@ export function createPlayground(
   /**
    * Rapier is the one heavy thing on this page, so it is never allowed to be
    * the reason nothing happens. If it has not landed shortly after the scene
-   * is up, a plain tween drops the pieces into the composed arrangement, and
-   * physics takes over from wherever they are the moment it arrives. Slow
-   * connection, blocked chunk, ancient device: the name still falls.
+   * is up, a plain tween drops the name into the composed arrangement, and
+   * physics takes over from wherever the blocks are the moment it arrives.
+   * Slow connection, blocked chunk, ancient device: the name still falls.
    */
   const TWEEN_AFTER = 900;
   const TWEEN_FALL = 560;
   let tween = false;
   const started = performance.now();
-  const poisedQ = pieces.map((p) => p.mesh.quaternion.clone());
-  const landedQ = pieces.map((p) => {
+  const heroPieces = pieces.slice();
+  const poisedQ = heroPieces.map((p) => p.mesh.quaternion.clone());
+  const landedQ = heroPieces.map((p) => {
     const rot = SETTLED_TIPPED[p.id] ?? SETTLED_ROTATION[p.id] ?? [0, 0, 0];
     return new THREE.Quaternion().setFromEuler(
       new THREE.Euler(rot[0], rot[1], rot[2])
@@ -399,12 +687,8 @@ export function createPlayground(
 
   function tweenFall(now: number) {
     const elapsed = now - started - TWEEN_AFTER;
-    pieces.forEach((p, i) => {
-      const t = THREE.MathUtils.clamp(
-        (elapsed - p.beat * 74) / TWEEN_FALL,
-        0,
-        1
-      );
+    heroPieces.forEach((p, i) => {
+      const t = THREE.MathUtils.clamp((elapsed - p.beat * 74) / TWEEN_FALL, 0, 1);
       if (t <= 0) return;
       const e = bounceOut(t);
       const restY = p.kind === "ball" ? MAT.h + BALL_R : REST_Y;
@@ -414,18 +698,70 @@ export function createPlayground(
   }
 
   if (!opts.reduced) {
-    import("@dimforge/rapier3d-compat")
+    import("@dimforge/rapier3d")
       .then(async (R) => {
-        await R.init();
+        // The streaming build is ready as soon as its wasm import resolves;
+        // the base64 `-compat` build needs an explicit init() first.
+        const boot = (R as unknown as { init?: () => Promise<void> }).init;
+        if (typeof boot === "function") await boot();
         if (disposed) return;
+        RAPIER = R;
         world = buildWorld(R);
-        if (!tween) choreograph();
+        for (const p of pieces) addBody(R, p);
+        for (const sec of sections) {
+          if (sec.index === 0) {
+            if (!tween) armSection(sec);
+            continue;
+          }
+          if (sec.armed) {
+            // Armed while we waited: hand it straight to gravity.
+            for (const p of sec.pieces) p.body?.setGravityScale(1, true);
+          }
+        }
+        dirty = true;
       })
       .catch(() => {
-        // Physics never arrives. The tween has already landed the pieces, and
+        // Physics never arrives. The tween has already landed the name, and
         // the page is told so it can stop inviting a throw it cannot honour.
         if (!disposed) opts.onNoPhysics();
       });
+  }
+
+  /* ----------------------------------------------------------- the release */
+
+  function armSection(sec: Section) {
+    if (sec.armed) return;
+    sec.armed = true;
+    sec.frozen = false;
+    if (!sec.built) buildSection(sec);
+
+    if (opts.reduced) {
+      sec.pieces.forEach(settle);
+      dirty = true;
+      return;
+    }
+    if (!world) {
+      // No physics yet. Show them; gravity is handed over on arrival, and if
+      // rapier never arrives they simply stay composed where they belong.
+      for (const p of sec.pieces) {
+        p.mesh.visible = true;
+        if (!RAPIER && sec.index > 0 && !world) settle(p);
+      }
+      dirty = true;
+      return;
+    }
+    choreograph(sec.pieces, sec.index === 0 ? 74 : 148, sec.index === 0 ? 320 : 90);
+    dirty = true;
+  }
+
+  function redrop(sec: Section) {
+    if (!sec.armed || opts.reduced) return;
+    if (!world) {
+      sec.pieces.forEach(settle);
+      return;
+    }
+    sec.pieces.forEach(placeBody);
+    choreograph(sec.pieces, sec.index === 0 ? 74 : 148, sec.index === 0 ? 260 : 90);
   }
 
   /* ------------------------------------------------------------- dragging */
@@ -444,29 +780,33 @@ export function createPlayground(
   const target = new THREE.Vector3();
   const normal = new THREE.Vector3();
 
-  function toNdc(e: PointerEvent) {
+  function setNdc(clientX: number, clientY: number) {
     const r = canvas.getBoundingClientRect();
     ndc.set(
-      ((e.clientX - r.left) / r.width) * 2 - 1,
-      -((e.clientY - r.top) / r.height) * 2 + 1
+      ((clientX - r.left) / r.width) * 2 - 1,
+      -((clientY - r.top) / r.height) * 2 + 1
     );
   }
 
   function pick() {
     ray.setFromCamera(ndc, camera);
     const hits = ray.intersectObjects(grabbables, false);
-    return hits.length ? hits[0] : null;
+    for (const hit of hits) {
+      const piece = byMesh.get(hit.object.uuid);
+      if (piece && piece.mesh.visible) return { hit, piece };
+    }
+    return null;
   }
 
   function onDown(e: PointerEvent) {
     if (opts.reduced || !world) return;
-    toNdc(e);
-    const hit = pick();
-    if (!hit) return;
-    const piece = byId.get(hit.object.uuid);
-    if (!piece || !piece.body) return;
+    setNdc(e.clientX, e.clientY);
+    const found = pick();
+    if (!found || !found.piece.body) return;
 
     e.preventDefault();
+    const piece = found.piece;
+    const body = found.piece.body;
     camera.getWorldDirection(normal).negate();
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
       normal,
@@ -475,11 +815,12 @@ export function createPlayground(
     drag = {
       piece,
       plane,
-      offset: piece.mesh.position.clone().sub(hit.point),
+      offset: piece.mesh.position.clone().sub(found.hit.point),
       pointerId: e.pointerId,
     };
-    piece.body.setGravityScale(0, true);
-    piece.body.wakeUp();
+    body.setGravityScale(0, true);
+    body.wakeUp();
+    sections[piece.section].frozen = false;
     try {
       canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -490,9 +831,9 @@ export function createPlayground(
   }
 
   function onMove(e: PointerEvent) {
-    toNdc(e);
+    setNdc(e.clientX, e.clientY);
     if (drag) return;
-    if (opts.reduced || !world) return;
+    if (opts.reduced || !world || e.pointerType !== "mouse") return;
     canvas.style.cursor = pick() ? "grab" : "";
   }
 
@@ -521,10 +862,24 @@ export function createPlayground(
     }
   }
 
+  /**
+   * Touch has to share this canvas with the page scroll. The gesture is only
+   * stolen when a finger actually lands on an object; anywhere else it falls
+   * through and the document scrolls exactly as it would with no canvas here.
+   */
+  function onTouchStart(e: TouchEvent) {
+    if (opts.reduced || !world || !e.cancelable) return;
+    const t = e.touches[0];
+    if (!t) return;
+    setNdc(t.clientX, t.clientY);
+    if (pick()) e.preventDefault();
+  }
+
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerup", onUp);
   canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("touchstart", onTouchStart, { passive: false });
   window.addEventListener("blur", onUp as unknown as EventListener);
 
   function steerHeldPiece() {
@@ -534,7 +889,7 @@ export function createPlayground(
     if (!ray.ray.intersectPlane(drag.plane, hitPoint)) return;
     target.copy(hitPoint).add(drag.offset);
     // never let a held piece be dragged down through the table
-    target.y = Math.max(target.y, MAT.h + BLOCK * 0.55);
+    target.y = Math.max(target.y, MAT.h + drag.piece.half.y * 1.1);
 
     const t = body.translation();
     let vx = (target.x - t.x) * GRAB_STIFFNESS;
@@ -552,13 +907,33 @@ export function createPlayground(
     body.setAngvel({ x: a.x * 0.85, y: a.y * 0.85, z: a.z * 0.85 }, true);
   }
 
+  /* ---------------------------------------------------------- scroll drive */
+
+  /** Fractional stop index, eased so the camera lingers at each stop. */
+  function readScroll() {
+    const y = window.scrollY || window.pageYOffset || 0;
+    const s = scrollStops;
+    if (s.length < 2) return 0;
+    if (y <= s[0]) return 0;
+    for (let i = 0; i < s.length - 1; i += 1) {
+      if (y < s[i + 1]) {
+        const span = Math.max(s[i + 1] - s[i], 1);
+        return i + easeInOut(THREE.MathUtils.clamp((y - s[i]) / span, 0, 1));
+      }
+    }
+    return s.length - 1;
+  }
+
   /* ------------------------------------------------------------------ loop */
 
   let running = !opts.reduced;
   let raf = 0;
+  let pending = 0;
   let last = 0;
   let acc = 0;
   let announced = false;
+  let shown = 0;
+  let awake = 0;
 
   function render() {
     renderer.render(scene, camera);
@@ -568,46 +943,123 @@ export function createPlayground(
     }
   }
 
+  function requestRender() {
+    if (pending || running || disposed) return;
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      const p = readScroll();
+      shown = p;
+      applyCamera(p);
+      for (let i = 1; i < sections.length; i += 1) {
+        if (p >= i - ARM_LEAD) armSection(sections[i]);
+      }
+      render();
+    });
+  }
+
+  /**
+   * Body discipline. Sections behind the camera are put to sleep outright and
+   * skipped when meshes are synced, so the cost of the page does not grow as
+   * more objects land. Rapier already sleeps settled islands on its own; this
+   * catches the ones that are technically still jittering off screen.
+   */
+  function policeSections(p: number) {
+    for (const sec of sections) {
+      if (!sec.armed || !sec.built) continue;
+      const far = Math.abs(p - sec.index) > SLEEP_RANGE;
+      if (far === sec.frozen) continue;
+      sec.frozen = far;
+      if (!far) continue;
+      for (const piece of sec.pieces) {
+        if (drag && drag.piece === piece) continue;
+        piece.body?.sleep();
+      }
+    }
+  }
+
   function tick(now: number) {
     raf = requestAnimationFrame(tick);
+    if (document.hidden) {
+      last = now;
+      return;
+    }
     const dt = Math.min((now - last) / 1000 || 0, 0.05);
     last = now;
 
+    const p = readScroll();
+    for (let i = 1; i < sections.length; i += 1) {
+      if (p >= i - ARM_LEAD) armSection(sections[i]);
+    }
+    // A touch of lag so a flicked scroll wheel does not snap the camera.
+    const k = 1 - Math.exp(-dt / 0.085);
+    const next = shown + (p - shown) * k;
+    if (Math.abs(next - shown) > 0.00012) {
+      shown = next;
+      dirty = true;
+    } else if (Math.abs(p - shown) < 0.00012) {
+      shown = p;
+    }
+    applyCamera(shown);
+    policeSections(shown);
+
     if (world) {
-      acc += dt;
-      let steps = 0;
-      while (acc >= 1 / 60 && steps < 3) {
-        steerHeldPiece();
-        world.step();
-        acc -= 1 / 60;
-        steps += 1;
+      awake = 0;
+      for (const piece of pieces) {
+        if (piece.body && !piece.body.isSleeping()) awake += 1;
       }
-      for (const p of pieces) {
-        if (!p.body) continue;
-        const t = p.body.translation();
-        const r = p.body.rotation();
-        p.mesh.position.set(t.x, t.y, t.z);
-        p.mesh.quaternion.set(r.x, r.y, r.z, r.w);
+      if (awake > 0 || drag) {
+        acc += dt;
+        let steps = 0;
+        while (acc >= STEP && steps < 3) {
+          steerHeldPiece();
+          world.step();
+          acc -= STEP;
+          steps += 1;
+        }
+        for (const piece of pieces) {
+          const b = piece.body;
+          if (!b || b.isSleeping()) continue;
+          const t = b.translation();
+          const r = b.rotation();
+          piece.mesh.position.set(t.x, t.y, t.z);
+          piece.mesh.quaternion.set(r.x, r.y, r.z, r.w);
+        }
+        dirty = true;
+      } else {
+        acc = 0;
       }
     } else if (!opts.reduced && now - started > TWEEN_AFTER) {
       tween = true;
       tweenFall(now);
+      dirty = true;
     }
 
+    if (!dirty && announced) return;
+    dirty = false;
     render();
   }
+
+  const onScroll = () => {
+    if (!running) requestRender();
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
 
   if (running) {
     last = performance.now();
     raf = requestAnimationFrame(tick);
   } else {
+    // Reduced motion: nothing simulates and nothing animates on its own. The
+    // camera framing is a direct function of scroll position, the same way a
+    // background image would be, and a frame is drawn only when it changes.
+    for (const sec of sections) armSection(sec);
+    applyCamera(readScroll());
     render();
   }
 
   /* ---------------------------------------------------------------- handle */
 
-  // Repaint the glyphs once the webfont is actually resident, so no block
-  // ships a fallback letter on a cold load.
+  // Repaint the glyphs once the webfont is actually resident, so nothing ships
+  // a fallback letter on a cold load.
   (async () => {
     try {
       await document.fonts.load(`800 152px ${opts.fontFamily}`, "MANUELDAVID");
@@ -617,7 +1069,8 @@ export function createPlayground(
     }
     if (disposed) return;
     faces.forEach((f) => f.paint());
-    if (!running) render();
+    dirty = true;
+    if (!running) requestRender();
   })();
 
   return {
@@ -625,19 +1078,24 @@ export function createPlayground(
       if (!world || opts.reduced) return;
       drag = null;
       canvas.style.cursor = "";
-      pieces.forEach(placeBody);
-      choreograph();
+      clearTimers();
+      for (const sec of sections) redrop(sec);
+      dirty = true;
     },
+    measure,
     dispose() {
       disposed = true;
       running = false;
       clearTimers();
       cancelAnimationFrame(raf);
+      if (pending) cancelAnimationFrame(pending);
       ro.disconnect();
+      window.removeEventListener("scroll", onScroll);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("blur", onUp as unknown as EventListener);
       disposables.forEach((d) => d.dispose());
       renderer.dispose();

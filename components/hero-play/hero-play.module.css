@@ -1,15 +1,16 @@
-/* /3 PLAYGROUND — hero styles. Scoped to this folder; shares nothing. */
+/* /3 PLAYGROUND — page styles. Scoped to this folder; shares nothing. */
 
 .root {
   --pg-ground: #e5a523;
   --pg-ink: #17140f;
   --pg-cream: #fff6e4;
   --pg-red: #e4502e;
+  --pg-quiet: color-mix(in srgb, var(--pg-ink) 74%, var(--pg-ground));
+  --pg-gutter: clamp(1.25rem, 3.4vw, 3rem);
 
   position: relative;
   width: 100%;
-  min-height: 100svh;
-  overflow: hidden;
+  overflow-x: clip;
   background: var(--pg-ground);
   color: var(--pg-ink);
   font-family: var(--font-pg-body), ui-sans-serif, sans-serif;
@@ -18,8 +19,10 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* One canvas, fixed behind the whole document. It is never remounted and it
+   never changes size with the scroll: the camera moves instead. */
 .stage {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 0;
   opacity: 0;
@@ -30,20 +33,25 @@
   opacity: 1;
 }
 
-/* ---------------------------------------------------------------- copy --- */
+/* ---------------------------------------------------------------- hero --- */
+
+.hero {
+  position: relative;
+  z-index: 2;
+  min-height: 100svh;
+  pointer-events: none;
+}
 
 .head,
 .foot,
 .hint {
   position: absolute;
-  z-index: 2;
 }
 
 .head {
   top: clamp(1.4rem, 3.4vw, 2.6rem);
-  left: clamp(1.25rem, 3.4vw, 3rem);
+  left: var(--pg-gutter);
   max-width: min(30rem, calc(100% - 2.5rem));
-  pointer-events: none;
 }
 
 .name {
@@ -60,7 +68,7 @@
   font-size: clamp(0.9rem, 1.1vw, 1rem);
   font-weight: 500;
   line-height: 1.4;
-  color: color-mix(in srgb, var(--pg-ink) 76%, var(--pg-ground));
+  color: var(--pg-quiet);
   pointer-events: auto;
 }
 
@@ -82,8 +90,8 @@
 }
 
 .foot {
-  left: clamp(1.25rem, 3.4vw, 3rem);
-  right: clamp(1.25rem, 3.4vw, 3rem);
+  left: var(--pg-gutter);
+  right: var(--pg-gutter);
   bottom: clamp(1.25rem, 3vw, 2.4rem);
   display: flex;
   align-items: flex-end;
@@ -93,6 +101,7 @@
 
 .say {
   max-width: 34ch;
+  pointer-events: auto;
 }
 
 .invite {
@@ -112,6 +121,14 @@
   max-width: 28ch;
 }
 
+.cue {
+  margin: 0.5rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--pg-quiet);
+}
+
 .reset {
   margin-top: 1.1rem;
   display: inline-block;
@@ -125,6 +142,7 @@
   border-radius: 7px;
   box-shadow: 3px 3px 0 var(--pg-ink);
   cursor: pointer;
+  pointer-events: auto;
   transition: transform 110ms cubic-bezier(0.2, 0.9, 0.3, 1),
     box-shadow 110ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
@@ -151,6 +169,7 @@
   justify-content: flex-end;
   font-size: 0.98rem;
   font-weight: 600;
+  pointer-events: auto;
 }
 
 .links a {
@@ -180,8 +199,7 @@
   font-size: 0.92rem;
   font-style: italic;
   letter-spacing: 0.01em;
-  color: color-mix(in srgb, var(--pg-ink) 76%, var(--pg-ground));
-  pointer-events: none;
+  color: var(--pg-quiet);
   opacity: 0;
   animation: pgHint 900ms cubic-bezier(0.2, 0.9, 0.3, 1) 1700ms forwards;
 }
@@ -216,9 +234,6 @@
 .d2 {
   animation-delay: 150ms;
 }
-.d3 {
-  animation-delay: 230ms;
-}
 
 @keyframes pgRise {
   from {
@@ -229,6 +244,253 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* -------------------------------------------------------------- panels --- */
+
+/*
+ * Every panel is a plain block of document. It is deliberately taller than the
+ * viewport so the camera has room to walk down the table between one stop and
+ * the next. The copy sits in the middle of the panel, which is exactly where
+ * it is when the camera has arrived.
+ *
+ * The panel itself is transparent to the pointer so the toy underneath stays
+ * grabbable; only the copy block takes the pointer back.
+ */
+.panel {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  min-height: 158svh;
+  padding: 12svh var(--pg-gutter);
+  pointer-events: none;
+}
+
+.panel:last-of-type {
+  min-height: 120svh;
+  padding-bottom: 16svh;
+}
+
+.copy {
+  max-width: 28rem;
+  pointer-events: auto;
+}
+
+.copyLeft {
+  margin-right: auto;
+}
+
+.copyRight {
+  margin-left: auto;
+}
+
+.h2 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.9rem, 3.1vw, 2.75rem);
+  line-height: 1.0;
+  letter-spacing: -0.034em;
+  text-wrap: balance;
+  hyphens: none;
+}
+
+.lede {
+  margin: 0 0 2.1rem;
+  font-size: clamp(1rem, 1.2vw, 1.12rem);
+  font-weight: 500;
+  line-height: 1.45;
+  max-width: 36ch;
+}
+
+/* ----------------------------------------------------------------- work --- */
+
+.roles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.role {
+  padding: 1.15rem 0 1.25rem;
+  border-top: 2px solid color-mix(in srgb, var(--pg-ink) 28%, transparent);
+}
+
+.role:first-child {
+  border-top-width: 3px;
+}
+
+.roleName {
+  margin: 0;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.4rem, 2vw, 1.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.028em;
+}
+
+.roleName a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.roleName a:hover {
+  text-decoration-thickness: 4px;
+}
+
+.roleMeta,
+.itemMeta {
+  margin: 0.28rem 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--pg-quiet);
+}
+
+.blurb {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.48;
+  max-width: 42ch;
+}
+
+.story {
+  margin-top: 0.85rem;
+  font-size: 0.97rem;
+  line-height: 1.55;
+}
+
+.story summary {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--pg-quiet);
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.story summary::-webkit-details-marker {
+  display: none;
+}
+
+.story summary::before {
+  content: "+ ";
+  font-weight: 700;
+}
+
+.story[open] summary::before {
+  content: "\2212\00a0";
+}
+
+.story summary:focus-visible {
+  outline: 3px solid var(--pg-ink);
+  outline-offset: 3px;
+}
+
+.story p {
+  margin: 0.8rem 0 0;
+  max-width: 44ch;
+}
+
+/* ------------------------------------------------------------- projects --- */
+
+.gallery {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding: 0.95rem 0 1.05rem;
+  border-top: 2px solid color-mix(in srgb, var(--pg-ink) 28%, transparent);
+}
+
+.item:first-child {
+  border-top-width: 3px;
+}
+
+.itemName {
+  margin: 0;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.2rem, 1.6vw, 1.42rem);
+  line-height: 1.08;
+  letter-spacing: -0.024em;
+}
+
+.itemName a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.itemName a:hover {
+  text-decoration-thickness: 4px;
+}
+
+.more {
+  margin-top: 1.5rem;
+}
+
+.rest {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.rest li {
+  padding: 0.5rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--pg-ink) 22%, transparent);
+}
+
+.rest a {
+  font-weight: 600;
+  color: var(--pg-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.rest a:hover {
+  text-decoration-thickness: 3px;
+}
+
+.restNote {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--pg-quiet);
+  max-width: 46ch;
+}
+
+/* -------------------------------------------------------------- contact --- */
+
+.big {
+  margin: 0 0 1.4rem;
+  font-family: var(--font-pg-display), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  word-break: break-word;
+}
+
+.big a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2.5px;
+  text-underline-offset: 6px;
+}
+
+.copy .links {
+  justify-content: flex-start;
 }
 
 /* ------------------------------------------------------------- fallback --- */
@@ -275,6 +537,57 @@
 
 /* --------------------------------------------------------------- small --- */
 
+/*
+ * A phone has no room for a reading column beside the table, so the copy
+ * becomes a sheet of cream that lies on it. The camera stops for portrait push
+ * the objects into the top of the frame, above the sheet, so the drop is still
+ * the thing you see when a section arrives.
+ */
+@media (max-width: 860px) {
+  .panel {
+    min-height: 148svh;
+    align-content: end;
+    padding-bottom: 6svh;
+  }
+
+  .panel:last-of-type {
+    min-height: 122svh;
+    padding-bottom: 11svh;
+  }
+
+  .copy {
+    max-width: none;
+    margin: 0;
+    padding: 1.35rem 1.2rem 1.5rem;
+    background: var(--pg-cream);
+    border: 2px solid var(--pg-ink);
+    border-radius: 3px 18px 3px 18px;
+    box-shadow: 6px 6px 0 var(--pg-ink);
+  }
+
+  .h2 {
+    font-size: clamp(1.6rem, 7.2vw, 2rem);
+  }
+
+  .lede {
+    font-size: 0.99rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .blurb {
+    font-size: 0.96rem;
+    line-height: 1.42;
+  }
+
+  .role {
+    padding: 0.9rem 0 0.95rem;
+  }
+
+  .item {
+    padding: 0.72rem 0 0.8rem;
+  }
+}
+
 @media (max-width: 720px) {
   .foot {
     flex-direction: column;
@@ -304,10 +617,7 @@
     transform: translateX(-50%);
   }
 
-  .stage {
-    transition: none;
-  }
-
+  .stage,
   .reset {
     transition: none;
   }

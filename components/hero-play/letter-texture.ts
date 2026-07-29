@@ -81,3 +81,64 @@ export function createFaceTexture(
   paint();
   return { texture, paint };
 }
+
+/**
+ * The printed top of a work slab or a project tile. Same idea as a letter
+ * face, one word wide: painted at runtime from the webfont already on the
+ * page, so a labelled object still costs nothing to download.
+ *
+ * The word is shrunk to fit rather than wrapped, because these are objects
+ * you may see edge-on and a single line survives foreshortening better.
+ */
+export function createLabelTexture(
+  text: string,
+  bg: string,
+  fg: string,
+  fontFamily: string,
+  aspect: number
+): FaceTexture {
+  const h = 208;
+  const w = Math.round(h * aspect);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+
+  const paint = () => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = 5;
+    roundedRect(ctx, 16, 16, w - 32, h - 32, 18);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = fg;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const room = w - 76;
+    let size = Math.round(h * 0.44);
+    ctx.font = `700 ${size}px ${fontFamily}`;
+    while (ctx.measureText(text).width > room && size > 16) {
+      size -= 2;
+      ctx.font = `700 ${size}px ${fontFamily}`;
+    }
+    // Optical centring: the middle baseline sits a hair low for caps-heavy
+    // words, so nudge back up by a fraction of the cap height.
+    ctx.fillText(text, w / 2, h / 2 + size * 0.03);
+
+    texture.needsUpdate = true;
+  };
+
+  paint();
+  return { texture, paint };
+}
