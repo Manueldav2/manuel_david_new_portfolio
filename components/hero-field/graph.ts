@@ -193,6 +193,7 @@ export const nodes: readonly MindNode[] = [
     z: -0.1,
     story:
       "I sat down on the 18VC podcast and told the whole arc out loud: rejected everywhere, building for classmates, the studio, the company, the move. Hearing it back was the first time it sounded like a plan instead of a scramble.",
+    link: { label: "watch the episode", href: "https://youtu.be/sbacIYWPbSM" },
   },
 
   /* ---------------------------------------------------------------- */
