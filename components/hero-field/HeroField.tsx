@@ -140,13 +140,11 @@ export function HeroField({ className }: { className?: string }) {
               </header>
 
               <p className={`${styles.headline} ${styles.reveal}`} style={at(90)}>
-                Most people wait for the future. <em>I moved in early.</em>
+                I build things <em>because I want them to exist.</em>
               </p>
 
               <p className={`${styles.deck} ${styles.reveal}`} style={at(210)}>
-                Behind this text my life drifts in pieces: companies I
-                started, bets that went sideways, things that only exist
-                because something broke first.
+                Behind this is the context of my life.
               </p>
 
               <p className={`${styles.invite} ${styles.reveal}`} style={at(290)}>

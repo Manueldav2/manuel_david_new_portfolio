@@ -42,7 +42,6 @@ const key: Fragment[] = [
   storied("paradigm", "key"),
   storied("nouvo", "key"),
   storied("context", "key"),
-  storied("reach", "key"),
 ];
 
 /** The turns, the beliefs, and the work that mattered. */
@@ -57,10 +56,14 @@ const mid: Fragment[] = [
   storied("break-fast", "mid"),
   storied("gideon", "mid"),
   storied("idex", "mid"),
-  storied("18vc", "mid"),
+  storied("shipping", "mid"),
+  storied("college", "mid"),
+  storied("attention", "mid"),
+  storied("agent-to-agent", "mid"),
+  storied("voice-agents", "mid"),
 ];
 
-/** The long tail: the after-hours builds and the quieter turns. */
+/** The long tail: the after-hours builds, the eras, the quieter turns. */
 const low: Fragment[] = [
   storied("ultron", "low"),
   storied("launch-control", "low"),
@@ -71,6 +74,15 @@ const low: Fragment[] = [
   storied("ats", "low"),
   storied("open-source", "low"),
   storied("thirty-builds", "low"),
+  storied("first-client", "low"),
+  storied("classmates", "low"),
+  storied("dancers", "low"),
+  storied("athletes", "low"),
+  storied("tripfund", "low"),
+  storied("zantana", "low"),
+  storied("skills-sync", "low"),
+  storied("satisfying-videos", "low"),
+  storied("lead-gen", "low"),
 ];
 
 /**

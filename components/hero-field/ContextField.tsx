@@ -17,7 +17,7 @@ import {
 } from "three"
 
 import { pickFragments } from "./fragments"
-import { KIND_LABEL, nodeById } from "./graph"
+import { KIND_LABEL, edges, nodeById } from "./graph"
 import styles from "./hero-field.module.css"
 
 /**
@@ -74,7 +74,7 @@ const LINE_FRAG = /* glsl */ `
   }
 `
 
-const MAX_SEGMENTS = 180
+const MAX_SEGMENTS = 240
 const MAX_AWAKE = 24
 const CURSOR_LINKS = 4
 /** Gap left between the edge of a word and the hairline that reaches for it. */
@@ -97,9 +97,9 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t
  * for the cursor to reveal, and it collapses back into wallpaper.
  */
 const TIER = {
-  key: { alpha: [0.26, 0.17], size: [15.5, 13.5], depth: [0, 0.32] },
-  mid: { alpha: [0.17, 0.1], size: [13, 11], depth: [0.22, 0.68] },
-  low: { alpha: [0.125, 0.075], size: [11.5, 10], depth: [0.5, 1] },
+  key: { alpha: [0.29, 0.17], size: [16.5, 13.5], depth: [0, 0.34] },
+  mid: { alpha: [0.18, 0.09], size: [13.5, 10.5], depth: [0.2, 0.7] },
+  low: { alpha: [0.13, 0.062], size: [12, 9.5], depth: [0.48, 1] },
 } as const
 
 /** Padding kept around each word, and around the page's own type. */
@@ -206,7 +206,7 @@ export default function ContextField({
   // count can be decided before a single node is created.
   const fragments = useMemo(() => {
     const w = typeof window === "undefined" ? 1440 : window.innerWidth
-    return pickFragments(w < 720 ? 14 : w < 1100 ? 22 : 28)
+    return pickFragments(w < 720 ? 18 : w < 1100 ? 30 : 40)
   }, [])
 
   useEffect(() => {
@@ -224,6 +224,23 @@ export default function ContextField({
     fragments.forEach((f, i) => {
       if (f.node) idxOfNode.set(f.node.id, i)
     })
+
+    // The resting constellation: the REAL relationships from the graph,
+    // resolved to fragment indices once. At rest these draw as hairlines a
+    // shade above invisible, so the field reads as one connected thing even
+    // before the cursor arrives; under the cursor the same pairs brighten,
+    // and the true structure is what lights up.
+    const restA: number[] = []
+    const restB: number[] = []
+    for (const [a, b] of edges) {
+      const ia = idxOfNode.get(a)
+      const ib = idxOfNode.get(b)
+      if (ia !== undefined && ib !== undefined) {
+        restA.push(ia)
+        restB.push(ib)
+      }
+    }
+    const restCount = restA.length
 
     const reduced =
       typeof window.matchMedia === "function" &&
@@ -244,6 +261,8 @@ export default function ContextField({
     const halfH = new Float32Array(COUNT)
     const baseA = new Float32Array(COUNT)
     const chan = new Float32Array(COUNT)
+    // 1 when placement failed and the word sits out this layout entirely.
+    const parked = new Uint8Array(COUNT)
 
     for (let i = 0; i < COUNT; i++) {
       phase[i] = Math.random()
@@ -330,6 +349,8 @@ export default function ContextField({
     let linkRadius = 220
     let bandInner = 340
     let bandOuter = 580
+    let restNear = 260
+    let restFar = 860
 
     const measure = () => {
       for (let i = 0; i < COUNT; i++) {
@@ -434,13 +455,16 @@ export default function ContextField({
         }
 
         if (bestClear === -Infinity) {
-          // Nothing fitted. Park it off frame rather than stack it on the
-          // headline; a missing fragment costs less than an unreadable page.
-          bx[i] = 2.4
+          // Nothing fitted. Park it out of the layout rather than stack it on
+          // the headline; a missing fragment costs less than an unreadable
+          // page. Parked words render at zero opacity and join no lines.
+          parked[i] = 1
+          bx[i] = 0
           by[i] = 0
           continue
         }
 
+        parked[i] = 0
         bx[i] = bestX
         by[i] = bestY
         placed.push([
@@ -470,6 +494,10 @@ export default function ContextField({
       // the same relative size on a phone as on a display.
       radius = Math.min(vw, vh) * (coarse ? 0.44 : 0.33)
       linkRadius = radius * 0.8
+      // Resting hairlines fade with span: nearby relations whisper, a
+      // relation stretched across the whole frame all but disappears.
+      restNear = Math.min(vw, vh) * 0.24
+      restFar = Math.min(vw, vh) * 0.95
       // The channel the reading column carves through the field once you
       // scroll past the hero.
       bandInner = Math.min(360, vw * 0.34)
@@ -509,6 +537,13 @@ export default function ContextField({
       targetY = e.clientY
       hasPointer = true
     }
+
+    // Ambient wake: every so often one word far from the cursor stirs on its
+    // own for a couple of seconds, the field thinking to itself. Never the
+    // ember, never a constellation, just one word surfacing and sinking.
+    let ambientIdx = -1
+    let ambientAge = 0
+    let ambientWait = 4.5
 
     let raf = 0
     let last = performance.now()
@@ -570,6 +605,16 @@ export default function ContextField({
       const riseK = reduced ? 1 : 1 - Math.exp(-dt * 8.5)
       const fallK = reduced ? 1 : 1 - Math.exp(-dt * 2.9)
 
+      if (!reduced) {
+        ambientAge += dt
+        ambientWait -= dt
+        if (ambientWait <= 0) {
+          ambientIdx = Math.floor(Math.random() * COUNT)
+          ambientAge = 0
+          ambientWait = 7 + Math.random() * 8
+        }
+      }
+
       let awakeCount = 0
       for (let n = 0; n < CURSOR_LINKS; n++) {
         nearIdx[n] = -1
@@ -580,6 +625,14 @@ export default function ContextField({
       let bestLitD = Infinity
 
       for (let i = 0; i < COUNT; i++) {
+        if (parked[i] && i !== actIdx) {
+          // Out of the layout this pass: invisible, and part of nothing.
+          els[i].style.opacity = "0"
+          wake[i] = 0
+          chan[i] = 0
+          continue
+        }
+
         const ph = phase[i]
         const nx = bx[i] + Math.sin(clock * 0.107 + ph * 6.2832) * 0.03
         const ny = by[i] + Math.cos(clock * 0.089 + ph * 5.1) * 0.034
@@ -587,6 +640,12 @@ export default function ContextField({
         let x = vw * 0.5 + nx * spread * (vw * 0.5 - 26)
         let y =
           vh * 0.5 + ny * (vh * 0.5 - 24) + driftY * (0.4 + depth[i] * 0.8)
+        // Depth parallax: the whole field leans away from the cursor a few
+        // pixels, near words more than far ones, so the scatter reads as a
+        // volume rather than a plane.
+        const par = (0.32 - depth[i]) * 0.02
+        x += (cx - vw * 0.5) * par
+        y += (cy - vh * 0.5) * par * 0.7
         x = Math.min(vw - halfW[i] - 8, Math.max(halfW[i] + 8, x))
         y = Math.min(vh - halfH[i] - 6, Math.max(halfH[i] + 6, y))
 
@@ -603,6 +662,11 @@ export default function ContextField({
         // The word whose card is open is held fully awake regardless of
         // where the cursor has drifted (keyboard focus, touch, the card).
         let target = smoothstep(radius, radius * 0.45, d)
+        if (i === ambientIdx && ambientAge < 2.8) {
+          // A soft half-wake, well under the ember threshold.
+          const pulse = Math.sin((ambientAge / 2.8) * Math.PI) * 0.55
+          if (pulse > target) target = pulse
+        }
         if (i === actIdx) target = 1
         const w = wake[i]
         wake[i] = w + (target - w) * (target > w ? riseK : fallK)
@@ -749,6 +813,29 @@ export default function ContextField({
         lineTint[t] = tintA
         lineTint[t + 1] = tintB
         seg++
+      }
+
+      /**
+       * The resting web: the graph's real relationships, drawn a shade above
+       * invisible all the time. This is what keeps the field from reading as
+       * empty space with words scattered in it; even before the cursor
+       * arrives, the space is visibly one connected thing. When the cursor
+       * wakes both ends of a relation, the same hairline brightens, so the
+       * structure the spider-crawl reveals is the structure that was always
+       * faintly there.
+       */
+      for (let e = 0; e < restCount && seg < MAX_SEGMENTS; e++) {
+        const i = restA[e]
+        const j = restB[e]
+        if (parked[i] || parked[j]) continue
+        const dx = px[i] - px[j]
+        const dy = py[i] - py[j]
+        const d = Math.sqrt(dx * dx + dy * dy)
+        const restAlpha = 0.05 * smoothstep(restFar, restNear, d)
+        const glow = wake[i] * wake[j] * 0.3
+        const alpha = (restAlpha + glow) * Math.min(chan[i], chan[j]) * dim
+        if (alpha < 0.006) continue
+        push(px[i], py[i], halfW[i], halfH[i], px[j], py[j], halfW[j], halfH[j], alpha, 0, 0)
       }
 
       /**

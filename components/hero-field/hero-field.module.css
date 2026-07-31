@@ -330,8 +330,8 @@
 }
 
 /* Measured to break in a few ragged lines that lean into the field
-   rather than squaring off against it. The second sentence turns
-   italic: the claim, then the person making it. */
+   rather than squaring off against it. The second half turns italic:
+   the plain claim, then the reason, said the way he would say it. */
 .headline {
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
   font-weight: 300;
@@ -345,7 +345,7 @@
   color: var(--hf-bone);
 }
 
-/* The answer gets its own line: the claim above, the person below. */
+/* The reason gets its own line under the claim. */
 .headline em {
   display: block;
   font-style: italic;

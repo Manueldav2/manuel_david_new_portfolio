@@ -27,7 +27,14 @@
  *   z  -1 (back) .. +1 (front)
  */
 
-export type NodeKind = "belief" | "decision" | "turn" | "company" | "build" | "door";
+export type NodeKind =
+  | "belief"
+  | "decision"
+  | "turn"
+  | "company"
+  | "build"
+  | "era"
+  | "door";
 
 export type MindNode = {
   id: string;
@@ -48,6 +55,7 @@ export const KIND_LABEL: Record<NodeKind, string> = {
   turn: "a turn",
   company: "a company",
   build: "something I built",
+  era: "an era",
   door: "an open door",
 };
 
@@ -76,6 +84,7 @@ export const nodes: readonly MindNode[] = [
     z: 0.18,
     story:
       "The real trade was four more semesters against four more shipped products, and I picked the products. School was the only thing in my life moving slower than I was.",
+    link: { label: "the full story, on 18VC", href: "https://youtu.be/sbacIYWPbSM" },
   },
   {
     id: "san-francisco",
@@ -184,16 +193,37 @@ export const nodes: readonly MindNode[] = [
     link: { label: "ultron-omega.vercel.app", href: "https://ultron-omega.vercel.app" },
   },
   {
-    id: "18vc",
-    label: "the podcast",
-    kind: "turn",
+    id: "voice-agents",
+    label: "voice agents",
+    kind: "build",
     rank: 2,
     x: -0.62,
     y: 0.4,
     z: -0.1,
     story:
-      "I sat down on the 18VC podcast and told the whole arc out loud: rejected everywhere, building for classmates, the studio, the company, the move. Hearing it back was the first time it sounded like a plan instead of a scramble.",
-    link: { label: "watch the episode", href: "https://youtu.be/sbacIYWPbSM" },
+      "The demo that sold Paradigm was never slides. I would play back a call, let people hear the agent handle a real objection, and watch the room go quiet.",
+  },
+  {
+    id: "agent-to-agent",
+    label: "agent to agent",
+    kind: "belief",
+    rank: 2,
+    x: 0.6,
+    y: 0.6,
+    z: -0.2,
+    story:
+      "I think outreach ends with my agent talking to yours: pitching, vetting, scheduling, all before a human reads a word. Paradigm was my bet on getting there before it was obvious.",
+  },
+  {
+    id: "attention",
+    label: "attention",
+    kind: "belief",
+    rank: 2,
+    x: 0.15,
+    y: 0.75,
+    z: 0.1,
+    story:
+      "Inbound is getting loud enough that soon an agent will read everything before you do. Whoever writes that filter decides what you see, and I would rather be one of the people writing it.",
   },
 
   /* ---------------------------------------------------------------- */
@@ -269,6 +299,83 @@ export const nodes: readonly MindNode[] = [
     story:
       "A strategy game where you command the whole army from above, or drop down and fight as one soldier inside it. No business model, no roadmap, just me finding out how much a browser tab can take.",
     link: { label: "github.com/Manueldav2/sovereign", href: "https://github.com/Manueldav2/sovereign" },
+  },
+  {
+    id: "tripfund",
+    label: "tripfund",
+    kind: "build",
+    rank: 2,
+    x: 0.62,
+    y: -0.26,
+    z: -0.14,
+    story:
+      "Group trips die in the group chat. This one wires the plan to actual money: a shared pot, live flight prices, and a bot that politely bullies everyone into funding it.",
+    link: { label: "tripfund-mocha.vercel.app", href: "https://tripfund-mocha.vercel.app" },
+  },
+  {
+    id: "zantana",
+    label: "zantana",
+    kind: "build",
+    rank: 2,
+    x: 0.42,
+    y: -0.86,
+    z: 0.1,
+    story:
+      "A whole party game living in one HTML file you can text to a friend. The constraint was the point: if it needs a server, it is not a party trick anymore.",
+    link: { label: "github.com/Manueldav2/zantana", href: "https://github.com/Manueldav2/zantana" },
+  },
+  {
+    id: "skills-sync",
+    label: "skills sync",
+    kind: "build",
+    rank: 2,
+    x: 0.68,
+    y: -0.9,
+    z: -0.18,
+    story:
+      "One npx command and every machine I sit down at knows my whole Claude setup. Tiny tool, published to npm, and I probably run it more than anything else I have made.",
+    link: {
+      label: "npmjs.com/package/claude-skills-sync",
+      href: "https://www.npmjs.com/package/claude-skills-sync",
+    },
+  },
+  {
+    id: "satisfying-videos",
+    label: "satisfying videos",
+    kind: "build",
+    rank: 2,
+    x: 0.94,
+    y: -0.74,
+    z: 0.06,
+    story:
+      "A pipeline that invents oddly satisfying clips, renders them with a video model, and posts them to TikTok without me. I built it mostly to learn where hands-off stops working.",
+    link: { label: "satisfying-video-gen.web.app", href: "https://satisfying-video-gen.web.app" },
+  },
+  {
+    id: "lead-gen",
+    label: "lead gen",
+    kind: "build",
+    rank: 2,
+    x: 0.18,
+    y: -0.24,
+    z: 0.3,
+    story:
+      "Give it a market and it hands back a list of qualified businesses worth a call. I keep it small and open; boring tools are the ones people actually reuse.",
+    link: {
+      label: "github.com/Manueldav2/AI_generated_leads",
+      href: "https://github.com/Manueldav2/AI_generated_leads",
+    },
+  },
+  {
+    id: "shipping",
+    label: "shipping",
+    kind: "belief",
+    rank: 2,
+    x: -0.06,
+    y: -0.14,
+    z: -0.08,
+    story:
+      "An unshipped build and an imaginary one look identical from the outside. Everything on this page is public or live because that is the only version of done I trust.",
   },
   {
     id: "open-source",
@@ -383,21 +490,60 @@ export const nodes: readonly MindNode[] = [
     story:
       "The internship answers came in two flavors: no, and silence. The people getting yeses were not smarter, they had better proof, and proof turned out to be something you can build.",
   },
-
-  /* ---------------------------------------------------------------- */
-  /* The door                                                          */
-  /* ---------------------------------------------------------------- */
   {
-    id: "reach",
-    label: "say hi",
-    kind: "door",
-    rank: 1,
+    id: "college",
+    label: "college",
+    kind: "era",
+    rank: 2,
     x: -0.7,
-    y: -0.2,
-    z: 0.15,
+    y: -0.55,
+    z: 0.1,
     story:
-      "If you drifted far enough into this field to find this word, we would probably get along. The email goes straight to me, and I answer it myself.",
-    link: { label: "manuel@configure.dev", href: "mailto:manuel@configure.dev" },
+      "By my last semesters the laptop in the lecture hall was open to client work, not notes. I was not skipping the education, I was swapping it for one with deadlines.",
+  },
+  {
+    id: "classmates",
+    label: "classmates",
+    kind: "era",
+    rank: 2,
+    x: -0.44,
+    y: -0.62,
+    z: -0.16,
+    story:
+      "My first users sat next to me in class, which is unforgiving QA: ship something broken and you hear about it at lunch, in person, every day until you fix it.",
+  },
+  {
+    id: "first-client",
+    label: "first client",
+    kind: "era",
+    rank: 2,
+    x: -0.28,
+    y: -0.44,
+    z: 0.22,
+    story:
+      "Friends ask you to build things as a favor. The first stranger who paid me changed the job: now it had to work for someone with no reason to forgive me.",
+  },
+  {
+    id: "dancers",
+    label: "dancers",
+    kind: "era",
+    rank: 2,
+    x: -0.5,
+    y: -0.3,
+    z: -0.05,
+    story:
+      "Audition season runs on portfolios, and dancers talk to each other. One site that helped someone get seen turned into a referral chain I never had to ask for.",
+  },
+  {
+    id: "athletes",
+    label: "athletes",
+    kind: "era",
+    rank: 2,
+    x: -0.76,
+    y: -0.36,
+    z: 0.18,
+    story:
+      "A recruiter gives each athlete a few seconds. A page that puts the film, the stats and the name in one clean place is sometimes the difference between skipped and seen.",
   },
 ];
 
@@ -412,14 +558,21 @@ export const edges: readonly (readonly [string, string])[] = [
   ["future-focused", "dropped-out"],
   ["dropped-out", "san-francisco"],
   ["dropped-out", "gideon"],
-  ["dropped-out", "18vc"],
+  ["dropped-out", "college"],
 
   // The rejection, and the studio it turned into
   ["rejection", "nouvo"],
   ["rejection", "resume-sites"],
-  ["rejection", "18vc"],
+  ["rejection", "college"],
   ["resume-sites", "nouvo"],
   ["resume-sites", "ats"],
+  ["college", "classmates"],
+  ["classmates", "resume-sites"],
+  ["dancers", "resume-sites"],
+  ["dancers", "nouvo"],
+  ["athletes", "nouvo"],
+  ["first-client", "nouvo"],
+  ["first-client", "client-sites"],
   ["nouvo", "client-sites"],
   ["nouvo", "mistakes"],
   ["nouvo", "paradigm"],
@@ -432,16 +585,23 @@ export const edges: readonly (readonly [string, string])[] = [
   ["paradigm", "agents"],
   ["paradigm", "customer-first"],
   ["paradigm", "launch-control"],
+  ["paradigm", "voice-agents"],
+  ["paradigm", "agent-to-agent"],
+  ["paradigm", "lead-gen"],
+  ["voice-agents", "agents"],
+  ["agent-to-agent", "future-focused"],
+  ["attention", "agents"],
+  ["attention", "future-focused"],
   ["mistakes", "self-doubt"],
   ["mistakes", "break-fast"],
   ["break-fast", "paradigm"],
+  ["break-fast", "shipping"],
 
   // The wall, and what he did about it
   ["context", "configure"],
   ["context", "ultron"],
   ["customer-first", "configure"],
   ["configure", "agents"],
-  ["configure", "reach"],
   ["future-focused", "configure"],
   ["future-focused", "agents"],
 
@@ -451,9 +611,15 @@ export const edges: readonly (readonly [string, string])[] = [
   ["late-nights", "classroom"],
   ["late-nights", "sovereign"],
   ["late-nights", "thirty-builds"],
+  ["late-nights", "tripfund"],
+  ["late-nights", "satisfying-videos"],
   ["open-source", "idex"],
   ["open-source", "classroom"],
+  ["open-source", "skills-sync"],
   ["thirty-builds", "open-source"],
+  ["thirty-builds", "zantana"],
+  ["thirty-builds", "lead-gen"],
+  ["shipping", "open-source"],
   ["mistakes", "idex"],
   ["mistakes", "classroom"],
 ];
