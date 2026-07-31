@@ -140,7 +140,7 @@ export function HeroField({ className }: { className?: string }) {
               </header>
 
               <p className={`${styles.headline} ${styles.reveal}`} style={at(90)}>
-                I build things <em>because I want them to exist.</em>
+                Welcome to my <em>context page.</em>
               </p>
 
               <p className={`${styles.deck} ${styles.reveal}`} style={at(210)}>
