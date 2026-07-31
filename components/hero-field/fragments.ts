@@ -1,21 +1,13 @@
-import { profile } from "@/lib/content";
-
 import { nodes, type MindNode } from "./graph";
 
 /**
  * The field is made of context, not decoration.
  *
- * Two kinds of fragment drift behind the page:
- *
- *  - STORIED fragments carry a `node` from graph.ts: a real decision, belief,
- *    company or build from Manuel's life. Resting the pointer on one (or
- *    focusing it, or tapping it) opens its story card. These are the words
- *    that matter, and every one of them is drawn from lib/content.ts.
- *
- *  - TEXTURE fragments are the quiet padding a real profile accumulates:
- *    identity lines in his voice, one to three words, lowercase. They are
- *    not interactive and never focusable; they exist so the field reads as
- *    a field and not a scatter of 23 buttons.
+ * EVERY fragment carries a node from graph.ts: a real decision, belief,
+ * company or build from Manuel's life. Resting the pointer on one (or
+ * focusing it, or tapping it) opens its story card. There is no inert
+ * texture class: the hero promises that any word will tell its story, so
+ * every word in the field has one. Fewer, truer words beat padding.
  *
  * No tech-stack keywords, no narrative sentences. The label names the word;
  * the story card carries the weight.
@@ -27,19 +19,18 @@ import { nodes, type MindNode } from "./graph";
 export type FragmentTier = "key" | "mid" | "low";
 
 export type Fragment = {
-  /** Optional field name, set in italic serif ahead of the value. */
-  label?: string;
   text: string;
   tier: FragmentTier;
-  /** The graph node behind this word. Present = hoverable, has a story. */
-  node?: MindNode;
+  /** The graph node behind this word. Always present: every word has a story. */
+  node: MindNode;
 };
 
 const byId = new Map(nodes.map((n) => [n.id, n]));
 
 const storied = (id: string, tier: FragmentTier): Fragment => {
   const node = byId.get(id);
-  return { text: node?.label ?? id, tier, node };
+  if (!node) throw new Error(`fragments: unknown node id "${id}"`);
+  return { text: node.label, tier, node };
 };
 
 /** The spine of the life: the words that would identify him to anything. */
@@ -51,13 +42,11 @@ const key: Fragment[] = [
   storied("paradigm", "key"),
   storied("nouvo", "key"),
   storied("context", "key"),
-  { label: "name", text: profile.name.toLowerCase(), tier: "key" },
-  { label: "role", text: "founding engineer", tier: "key" },
-  { label: "reach", text: profile.email, tier: "key" },
+  storied("reach", "key"),
 ];
 
-/** The turns and the work that mattered. */
-const midStoried: Fragment[] = [
+/** The turns, the beliefs, and the work that mattered. */
+const mid: Fragment[] = [
   storied("future-focused", "mid"),
   storied("agents", "mid"),
   storied("customer-first", "mid"),
@@ -65,11 +54,14 @@ const midStoried: Fragment[] = [
   storied("resume-sites", "mid"),
   storied("mistakes", "mid"),
   storied("late-nights", "mid"),
+  storied("break-fast", "mid"),
   storied("gideon", "mid"),
   storied("idex", "mid"),
+  storied("18vc", "mid"),
 ];
 
-const lowStoried: Fragment[] = [
+/** The long tail: the after-hours builds and the quieter turns. */
+const low: Fragment[] = [
   storied("ultron", "low"),
   storied("launch-control", "low"),
   storied("classroom", "low"),
@@ -77,43 +69,18 @@ const lowStoried: Fragment[] = [
   storied("self-doubt", "low"),
   storied("client-sites", "low"),
   storied("ats", "low"),
-];
-
-/** Identity texture, in his voice. Quiet, not interactive. */
-const midTexture: Fragment[] = [
-  { text: "believer", tier: "mid" },
-  { text: "founder", tier: "mid" },
-  { text: "one profile, every agent", tier: "mid" },
-  { text: "context infrastructure", tier: "mid" },
-  { text: "web studio", tier: "mid" },
-  { text: "nights and weekends", tier: "mid" },
-];
-
-const lowTexture: Fragment[] = [
-  { text: "just getting started", tier: "low" },
-  { text: "break fast, fix fast", tier: "low" },
-  { text: "ship it", tier: "low" },
-  { text: "learn fast", tier: "low" },
-  { text: "no safe route", tier: "low" },
-  { text: "real clients", tier: "low" },
-  { text: "the missing piece", tier: "low" },
-  { text: "my own hands", tier: "low" },
-  { text: "from zero", tier: "low" },
-  { text: "the wall", tier: "low" },
-  { text: "open source", tier: "low" },
-  { text: "cause and effect", tier: "low" },
+  storied("open-source", "low"),
+  storied("thirty-builds", "low"),
 ];
 
 /**
- * Slices the field down to a count. Storied fragments survive first (the key
- * spine, then the turns, then the long tail), texture pads out whatever room
- * is left, so a 390px phone still shows the words that carry stories rather
- * than a random handful of padding.
+ * Slices the field down to a count. The key spine survives first, then the
+ * turns, then the long tail, so a 390px phone still shows the words that
+ * carry the most weight rather than a random handful.
  */
 export function pickFragments(count: number): Fragment[] {
-  const ordered = [...key, ...midStoried, ...lowStoried, ...midTexture, ...lowTexture];
+  const ordered = [...key, ...mid, ...low];
   return ordered.slice(0, Math.min(count, ordered.length));
 }
 
-export const fragmentTotal =
-  key.length + midStoried.length + lowStoried.length + midTexture.length + lowTexture.length;
+export const fragmentTotal = key.length + mid.length + low.length;

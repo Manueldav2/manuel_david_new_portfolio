@@ -97,9 +97,9 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t
  * for the cursor to reveal, and it collapses back into wallpaper.
  */
 const TIER = {
-  key: { alpha: [0.26, 0.17], size: [14.5, 12.5], depth: [0, 0.32] },
-  mid: { alpha: [0.17, 0.1], size: [12.5, 10.5], depth: [0.22, 0.68] },
-  low: { alpha: [0.125, 0.075], size: [11, 9.5], depth: [0.5, 1] },
+  key: { alpha: [0.26, 0.17], size: [15.5, 13.5], depth: [0, 0.32] },
+  mid: { alpha: [0.17, 0.1], size: [13, 11], depth: [0.22, 0.68] },
+  low: { alpha: [0.125, 0.075], size: [11.5, 10], depth: [0.5, 1] },
 } as const
 
 /** Padding kept around each word, and around the page's own type. */
@@ -116,13 +116,10 @@ const hits = (a: Box, b: Box) =>
 export default function ContextField({
   className,
   onReady,
-  onOpen,
   cardMount,
 }: {
   className?: string
   onReady?: () => void
-  /** Fired whenever a story card opens; the parent retires its hint. */
-  onOpen?: () => void
   /**
    * Where the story card portals to. The field lives inside the fixed
    * backdrop (z-index 0), which is its own stacking context, so a card
@@ -138,8 +135,6 @@ export default function ContextField({
   const cardRef = useRef<HTMLDivElement | null>(null)
   const readyRef = useRef(onReady)
   readyRef.current = onReady
-  const onOpenRef = useRef(onOpen)
-  onOpenRef.current = onOpen
 
   // The storied word whose card is open. Hover, focus and tap all funnel
   // here; the frame loop reads it through a ref and never re-runs the effect.
@@ -184,7 +179,6 @@ export default function ContextField({
   useLayoutEffect(() => {
     activeRef.current = active
     placeRef.current.decided = false
-    if (active) onOpenRef.current?.()
     redrawRef.current?.()
   }, [active])
 
@@ -212,7 +206,7 @@ export default function ContextField({
   // count can be decided before a single node is created.
   const fragments = useMemo(() => {
     const w = typeof window === "undefined" ? 1440 : window.innerWidth
-    return pickFragments(w < 720 ? 14 : w < 1100 ? 30 : 44)
+    return pickFragments(w < 720 ? 14 : w < 1100 ? 22 : 28)
   }, [])
 
   useEffect(() => {
@@ -922,44 +916,33 @@ export default function ContextField({
         ref={wordsRef}
         className={styles.fieldWords}
         role="group"
-        aria-label="Manuel's context field. Each brighter word is a real piece of his life; rest on one to read its story."
+        aria-label="Manuel's context field. Every word is a real piece of his life; rest on one to read its story."
       >
-        {fragments.map((f, i) =>
-          f.node ? (
-            <button
-              key={f.node.id}
-              type="button"
-              className={`${styles.frag} ${styles.fragBtn}`}
-              data-active={active === f.node.id ? "true" : undefined}
-              aria-expanded={active === f.node.id}
-              aria-describedby={active === f.node.id ? "hf-card" : undefined}
-              aria-label={`${f.text}. ${KIND_LABEL[f.node.kind]}.`}
-              onClick={(e) => {
-                e.stopPropagation()
-                open(f.node!.id)
-              }}
-              onPointerEnter={(e) => {
-                if (e.pointerType !== "touch") open(f.node!.id)
-              }}
-              onPointerLeave={(e) => {
-                if (e.pointerType !== "touch") scheduleHide()
-              }}
-              onFocus={() => open(f.node!.id)}
-              onBlur={blurAway}
-            >
-              {f.text}
-            </button>
-          ) : (
-            <span
-              key={`${f.text}-${i}`}
-              className={styles.frag}
-              aria-hidden="true"
-            >
-              {f.label ? <i className={styles.fragLabel}>{f.label}</i> : null}
-              {f.text}
-            </span>
-          ),
-        )}
+        {fragments.map((f) => (
+          <button
+            key={f.node.id}
+            type="button"
+            className={`${styles.frag} ${styles.fragBtn}`}
+            data-active={active === f.node.id ? "true" : undefined}
+            aria-expanded={active === f.node.id}
+            aria-describedby={active === f.node.id ? "hf-card" : undefined}
+            aria-label={`${f.text}. ${KIND_LABEL[f.node.kind]}.`}
+            onClick={(e) => {
+              e.stopPropagation()
+              open(f.node.id)
+            }}
+            onPointerEnter={(e) => {
+              if (e.pointerType !== "touch") open(f.node.id)
+            }}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== "touch") scheduleHide()
+            }}
+            onFocus={() => open(f.node.id)}
+            onBlur={blurAway}
+          >
+            {f.text}
+          </button>
+        ))}
       </div>
 
       {/* The story card. One per open word, anchored beside it by the

@@ -145,14 +145,6 @@
   color: var(--hf-ember);
 }
 
-.fragLabel {
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-style: italic;
-  letter-spacing: 0;
-  opacity: 0.62;
-  margin-right: 0.4em;
-}
-
 /* Fine grain. Kills gradient banding on the ground and gives the ink a
    surface. Inline SVG, so nothing is fetched. */
 .grain {
@@ -270,10 +262,11 @@
 /* ------------------------------------------------------------------ */
 /* Hero composition                                                    */
 /*                                                                     */
-/* Four corners of quiet type framing a living centre. Weight is        */
-/* deliberately lopsided: identity is small top-left, the statement is   */
-/* heavy bottom-left, place is hairline top-right, the map tag and      */
-/* links sit bottom-right. The middle is left entirely to the field.    */
+/* One typographic unit, set left of centre, vertically centred: the   */
+/* gravitational mass the field orbits. Identity leads, the claim      */
+/* carries, the caption explains the field, the links close it. The    */
+/* rhythm inside the block is tight on purpose; the room around it     */
+/* belongs to the drifting words, and to nothing else.                 */
 /* ------------------------------------------------------------------ */
 .hero {
   position: relative;
@@ -283,15 +276,9 @@
 
 .frame {
   position: relative;
-  display: grid;
+  display: flex;
+  align-items: center;
   flex: 1;
-  grid-template-areas:
-    "id    place"
-    "void  void"
-    "say   links";
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(3rem, 1fr) auto;
-  gap: 1.5rem 2rem;
   padding: var(--hf-pad);
   pointer-events: none;
 }
@@ -300,62 +287,74 @@
   pointer-events: auto;
 }
 
-.identity {
-  grid-area: id;
+.block {
+  max-width: 33rem;
+  margin-left: clamp(0rem, 4.5vw, 4.75rem);
 }
 
-.name {
+/* Identity, one line: serif name, then the role in the metadata voice.
+   The ember dot is the page's single fixed accent, and it marks him. */
+.kicker {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.85rem;
+}
+
+.kickerName {
+  margin: 0;
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
   font-weight: 400;
-  font-size: clamp(1.0625rem, 1.35vw, 1.3125rem);
+  font-size: 1.125rem;
   letter-spacing: -0.012em;
-  line-height: 1.1;
-  margin: 0;
+  line-height: 1.2;
 }
 
-.role {
-  margin: 0.5rem 0 0;
+.kickerName::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--hf-ember);
+  margin-right: 0.55rem;
+  vertical-align: 0.16em;
+}
+
+.kickerRole {
+  margin: 0;
   font-size: 0.8125rem;
   line-height: 1.45;
   letter-spacing: 0.008em;
   color: var(--hf-mute);
-  max-width: 26ch;
-}
-
-.place {
-  grid-area: place;
-  justify-self: end;
-  text-align: right;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  letter-spacing: 0.008em;
-  color: var(--hf-mute);
-  margin: 0;
-}
-
-.statement {
-  grid-area: say;
-  align-self: end;
 }
 
 /* Measured to break in a few ragged lines that lean into the field
-   rather than squaring off against it. */
+   rather than squaring off against it. The second sentence turns
+   italic: the claim, then the person making it. */
 .headline {
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
   font-weight: 300;
-  font-size: clamp(1.875rem, 3.6vw, 3rem);
-  line-height: 1.09;
+  font-size: clamp(2rem, 3.8vw, 3.125rem);
+  line-height: 1.08;
   letter-spacing: -0.026em;
-  margin: 0;
-  max-width: clamp(16rem, 36vw, 30rem);
-  text-wrap: pretty;
+  margin: 1.3rem 0 0;
+  max-width: 17ch;
+  text-wrap: balance;
   hyphens: none;
   color: var(--hf-bone);
 }
 
+/* The answer gets its own line: the claim above, the person below. */
+.headline em {
+  display: block;
+  font-style: italic;
+  font-weight: 300;
+}
+
 .deck {
-  margin: 1.5rem 0 0;
-  max-width: 40ch;
+  margin: 1.35rem 0 0;
+  max-width: 46ch;
   font-size: 0.9375rem;
   line-height: 1.6;
   letter-spacing: 0.004em;
@@ -363,68 +362,27 @@
   color: var(--hf-mute);
 }
 
-/* The concept, said out loud. Italic serif, brighter than the deck:
-   this line is the door into the whole page. */
-.mapNote {
-  margin: 1.1rem 0 0;
+/* The field's caption, said out loud. Italic serif, brighter than the
+   deck: this sentence is the door into the whole page, and it is true
+   of every word out there. */
+.invite {
+  margin: 0.85rem 0 0;
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
   font-style: italic;
   font-weight: 300;
-  font-size: 1rem;
-  line-height: 1.55;
+  font-size: 1.0625rem;
+  line-height: 1.5;
   color: var(--hf-read);
-  max-width: 38ch;
+  max-width: 40ch;
   text-wrap: pretty;
 }
 
-/* The lower right corner: the layer's name, then the ways out. */
-.corner {
-  grid-area: links;
-  align-self: end;
-  justify-self: end;
+/* The ways out, one quiet row closing the block. */
+.heroLinks {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1.1rem;
-  text-align: right;
-}
-
-.mapTag {
-  pointer-events: none;
-}
-
-.mapTagName {
-  display: block;
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-style: italic;
-  font-size: 0.95rem;
-  color: var(--hf-bone);
-  opacity: 0.85;
-}
-
-.mapTagName::before {
-  content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--hf-ember);
-  margin-right: 0.5rem;
-  vertical-align: 0.14em;
-}
-
-.mapTagHint {
-  display: block;
-  margin-top: 0.3rem;
-  font-size: 0.75rem;
-  color: var(--hf-mute);
-}
-
-.links {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.4375rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.9rem;
   font-size: 0.8125rem;
   line-height: 1.3;
   letter-spacing: 0.01em;
@@ -813,54 +771,38 @@
 
 @media (max-width: 40rem) {
   .frame {
-    grid-template-areas:
-      "id"
-      "place"
-      "void"
-      "say"
-      "links";
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(2rem, 1fr) auto auto;
-    gap: 0.75rem 0;
     padding-bottom: calc(var(--hf-pad) + 2.5rem);
   }
 
-  .place {
-    justify-self: start;
-    text-align: left;
-    margin-top: -0.25rem;
+  .block {
+    margin-left: 0;
   }
 
-  .statement {
-    margin-top: 0.5rem;
+  .kicker {
+    gap: 0.2rem 0.75rem;
   }
 
   .headline {
     font-size: clamp(1.75rem, 8.4vw, 2.375rem);
-    max-width: 14ch;
+    max-width: 15ch;
     letter-spacing: -0.022em;
+    margin-top: 1.05rem;
   }
 
   .deck {
-    max-width: 34ch;
+    max-width: 36ch;
     margin-top: 1rem;
     font-size: 0.875rem;
   }
 
-  .mapNote {
+  .invite {
     max-width: 34ch;
-    font-size: 0.95rem;
+    font-size: 1rem;
   }
 
-  .corner {
-    justify-self: start;
-    align-items: flex-start;
-    text-align: left;
-    margin-top: 1.625rem;
-  }
-
-  .links {
-    align-items: flex-start;
+  .heroLinks {
+    margin-top: 1.5rem;
+    gap: 0.5rem 1.25rem;
   }
 
   .cue {
@@ -874,8 +816,8 @@
   }
 }
 
-/* Short landscape viewports: pull the statement in so it never collides
-   with the identity block. */
+/* Short landscape viewports: pull the block in so it never crowds the
+   frame. */
 @media (max-height: 34rem) and (min-width: 40rem) {
   .headline {
     font-size: clamp(1.5rem, 3vw, 2rem);
@@ -883,6 +825,10 @@
 
   .deck {
     margin-top: 0.875rem;
+  }
+
+  .heroLinks {
+    margin-top: 1.25rem;
   }
 
   .cue {

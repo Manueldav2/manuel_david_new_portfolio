@@ -16,10 +16,14 @@ import styles from "./hero-field.module.css"
  * before three.js has finished downloading; the field is imported
  * client-side only underneath it.
  *
- * Resting on a storied word (hover, focus, or a tap on touch) opens a
- * compact story card anchored right beside it; the card, its timers, and
- * its placement all live inside ContextField. This component carries the
- * page, the hero frame, and the hint.
+ * The hero is ONE typographic unit, not corner furniture: name and role,
+ * the claim, what the field is, and the ways to reach him, stacked in a
+ * tight column that sits left of centre as the gravitational mass the
+ * field orbits. Everything else on screen is the field itself.
+ *
+ * Resting on any word (hover, focus, or a tap on touch) opens a compact
+ * story card anchored right beside it; the card, its timers, and its
+ * placement all live inside ContextField.
  */
 const ContextField = dynamic(() => import("./ContextField"), { ssr: false })
 
@@ -49,12 +53,14 @@ const byCompany = (name: string) => work.find((w) => w.company === name)
 
 /**
  * Person first: the roles read as one continuous story. Configure and Nouvo
- * run their full arcs; Paradigm keeps the two paragraphs that are not
- * already retold elsewhere on the page.
+ * run their full arcs. Paradigm renders only its vision paragraph: paragraph
+ * 0 (the 200-dollar email batch, the break-fast loop) is told in the field's
+ * hover cards instead, and paragraph 2 retells the leap and the context wall
+ * that About and Configure already carry. Nothing on the page twice.
  */
 const ROLES: { company: string; lead: boolean; paragraphs: number[] | "all" }[] = [
   { company: "Configure", lead: true, paragraphs: [0, 1] },
-  { company: "Paradigm", lead: false, paragraphs: [0, 2] },
+  { company: "Paradigm", lead: false, paragraphs: [1] },
   { company: "Nouvo", lead: false, paragraphs: "all" },
 ]
 
@@ -75,8 +81,6 @@ const selectedProjects = SELECTED_PROJECTS.map((slug) =>
   projects.find((p) => p.slug === slug),
 ).filter((p): p is (typeof projects)[number] => Boolean(p))
 
-const HINT_KEY = "hf-map-hint-done"
-
 export function HeroField({ className }: { className?: string }) {
   const layerRef = useRef<HTMLDivElement | null>(null)
   // The story card portals here: a mount above the page content, still
@@ -84,17 +88,9 @@ export function HeroField({ className }: { className?: string }) {
   // itself lives in the fixed backdrop, whose stacking context could never
   // lift a card over the hero type.
   const cardMountRef = useRef<HTMLDivElement | null>(null)
-  // null = not yet known (avoids a server/client flash); the hint renders
-  // only once we know this visitor has never opened a card.
-  const [hintDone, setHintDone] = useState<boolean | null>(null)
   const [verb, setVerb] = useState<"hover" | "tap">("hover")
 
   useEffect(() => {
-    try {
-      setHintDone(window.localStorage.getItem(HINT_KEY) === "1")
-    } catch {
-      setHintDone(false)
-    }
     if (window.matchMedia("(hover: none)").matches) setVerb("tap")
   }, [])
 
@@ -106,16 +102,6 @@ export function HeroField({ className }: { className?: string }) {
     })
   }, [])
 
-  /** A card opened; the hint has done its job, forever. */
-  const markOpened = useCallback(() => {
-    setHintDone(true)
-    try {
-      window.localStorage.setItem(HINT_KEY, "1")
-    } catch {
-      /* private mode; the hint just returns next visit */
-    }
-  }, [])
-
   return (
     <div className={`${styles.root} ${className ?? ""}`}>
       <div className={styles.backdrop}>
@@ -124,7 +110,6 @@ export function HeroField({ className }: { className?: string }) {
           <ContextField
             className={styles.canvasHost}
             onReady={handleReady}
-            onOpen={markOpened}
             cardMount={cardMountRef}
           />
         </div>
@@ -134,67 +119,47 @@ export function HeroField({ className }: { className?: string }) {
       <div className={styles.content}>
         <section className={styles.hero}>
           <div className={styles.frame}>
-            <header className={styles.identity} data-hf-keepout>
-              <h1 className={`${styles.name} ${styles.reveal}`} style={at(0)}>
-                {profile.name}
-              </h1>
-              <p className={`${styles.role} ${styles.reveal}`} style={at(70)}>
-                Founding engineer at{" "}
-                <a
-                  className={styles.inlineLink}
-                  href={profile.companyUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Configure
-                </a>
-              </p>
-            </header>
+            {/* One block, one keep-out. Identity, claim, the field's own
+                caption, and the ways out, set as a single column the field
+                drifts around. */}
+            <div className={styles.block} data-hf-keepout>
+              <header className={`${styles.kicker} ${styles.reveal}`} style={at(0)}>
+                <h1 className={styles.kickerName}>{profile.name}</h1>
+                <p className={styles.kickerRole}>
+                  Founding engineer at{" "}
+                  <a
+                    className={styles.inlineLink}
+                    href={profile.companyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Configure
+                  </a>
+                  , San Francisco
+                </p>
+              </header>
 
-            <p
-              className={`${styles.place} ${styles.reveal}`}
-              style={at(140)}
-              data-hf-keepout
-            >
-              San Francisco
-            </p>
+              <p className={`${styles.headline} ${styles.reveal}`} style={at(90)}>
+                Most people wait for the future. <em>I moved in early.</em>
+              </p>
 
-            <div className={styles.statement} data-hf-keepout>
-              <p className={`${styles.headline} ${styles.reveal}`} style={at(230)}>
-                I could see where everything was heading, and I refused to
-                miss it.
+              <p className={`${styles.deck} ${styles.reveal}`} style={at(210)}>
+                Behind this text my life drifts in pieces: companies I
+                started, bets that went sideways, things that only exist
+                because something broke first.
               </p>
-              <p className={`${styles.deck} ${styles.reveal}`} style={at(330)}>
-                So I dropped out of college, moved to a city I had never set
-                foot in, and started building. First a studio, then a company,
-                then the problem I could not stop hitting.
-              </p>
-              <p className={`${styles.mapNote} ${styles.reveal}`} style={at(400)}>
-                The words behind this page are my context map, real pieces of
-                my life set adrift.{" "}
+
+              <p className={`${styles.invite} ${styles.reveal}`} style={at(290)}>
                 {verb === "tap"
-                  ? "Tap one and I’ll tell you the story."
-                  : "Hover one and I’ll tell you the story."}
+                  ? "Tap any word and it will tell you its story."
+                  : "Hover any word and it will tell you its story."}
               </p>
-            </div>
 
-            <div
-              className={`${styles.corner} ${styles.reveal}`}
-              style={at(420)}
-              data-hf-keepout
-            >
-              {/* Names the layer, and invites the first hover (tap on
-                  touch). The hint retires after the first card opens. */}
-              <div className={styles.mapTag} aria-hidden="true">
-                <span className={styles.mapTagName}>my context map</span>
-                {hintDone === false ? (
-                  <span className={styles.mapTagHint}>
-                    {verb} a word for its story
-                  </span>
-                ) : null}
-              </div>
-
-              <nav className={styles.links} aria-label="Elsewhere">
+              <nav
+                className={`${styles.heroLinks} ${styles.reveal}`}
+                style={at(370)}
+                aria-label="Elsewhere"
+              >
                 {links.map((link) => (
                   <a
                     key={link.href}
