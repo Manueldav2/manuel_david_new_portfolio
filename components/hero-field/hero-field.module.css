@@ -1,29 +1,25 @@
 /* ------------------------------------------------------------------ */
-/* /1 — THE CONTEXT MAP                                                */
+/* /1 — CONTEXT FIELD                                                  */
 /*                                                                     */
-/* Palette: warm ink ground, bone type, one ember accent that only     */
-/* appears on the selected node and the pulses that leave it.          */
-/*                                                                     */
-/* Layering: the web (canvas + label buttons) is FIXED behind the      */
-/* whole page. The hero floats its type over it (pointer-events pass   */
-/* through to the map everywhere except the type itself), and the      */
-/* reading channel below carries its own near-opaque band so the web   */
-/* keeps breathing at the page edges while the prose stays solid.      */
+/* Palette: a cold ink ground, bone type, a cool pale field, and one   */
+/* ember accent that only ever appears at the moment of recognition:   */
+/* the word under the cursor, the word whose story card is open.       */
 /*                                                                     */
 /* Type has two jobs and two faces. Newsreader carries the voice:      */
-/* headline, prose, panel titles. IBM Plex Sans carries the data:      */
-/* dates, links, node labels, panel metadata. Nothing is set in caps.  */
+/* headline, prose, card titles. IBM Plex Sans carries the data:       */
+/* dates, links, the drifting fragments. Nothing is ever set in caps.  */
 /* ------------------------------------------------------------------ */
 
 .root {
-  --hf-ink: #07090b;
-  --hf-lift: #0d1114;
+  --hf-ink: #06080a;
+  --hf-ink-lift: #0c1113;
   --hf-bone: #ece9e2;
-  --hf-read: #b9beba;
-  --hf-mute: #8f9793;
+  --hf-read: #b7bdb9;
+  --hf-mute: #939c98;
+  --hf-field: #c9dcd6;
   --hf-ember: #e2552c;
   --hf-ember-soft: #e4764f;
-  --hf-rule: rgba(236, 233, 226, 0.14);
+  --hf-rule: rgba(236, 233, 226, 0.13);
   --hf-rule-soft: rgba(236, 233, 226, 0.07);
   --hf-pad: clamp(1.375rem, 3.4vw, 3.25rem);
   --hf-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -35,206 +31,225 @@
   font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "kern" 1, "liga" 1;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
   overflow-x: clip;
 }
 
 .root ::selection {
-  background: rgba(226, 85, 44, 0.32);
+  background: rgba(236, 233, 226, 0.22);
   color: var(--hf-bone);
 }
 
 /* ------------------------------------------------------------------ */
-/* The web: fixed behind the whole page                                */
+/* Ground                                                              */
+/*                                                                     */
+/* Fixed, so the field is continuous under the whole document rather   */
+/* than a hero graphic the reader scrolls off. The layer itself takes  */
+/* no pointer; only the storied words re-enable it for themselves.     */
 /* ------------------------------------------------------------------ */
-
-.stage {
+.backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
-  overflow: hidden;
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
   background: radial-gradient(
-    120% 90% at 66% 40%,
-    var(--hf-lift) 0%,
-    #090c0e 46%,
-    var(--hf-ink) 78%
+    118% 88% at 46% 40%,
+    var(--hf-ink-lift) 0%,
+    #080b0d 42%,
+    var(--hf-ink) 76%
   );
 }
 
-.stageCanvas {
+.canvasLayer {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  opacity: 0;
+  transition: opacity 1500ms cubic-bezier(0.33, 0, 0.2, 1);
 }
 
-.node {
+.canvasLayer[data-ready="true"] {
+  opacity: 1;
+}
+
+.canvasHost {
+  position: absolute;
+  inset: 0;
+}
+
+/* The hairline layer sits under the type, so a link that reaches between two
+   fragments passes behind the glyphs it connects. */
+.fieldCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.fieldWords {
+  position: absolute;
+  inset: 0;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* A fragment of context. Lowercase, tight, set in the metadata face, sized
+   and dimmed per depth from JS. At rest it is texture; woken it is a fact. */
+.frag {
   position: absolute;
   top: 0;
   left: 0;
+  white-space: nowrap;
+  line-height: 1.25;
+  letter-spacing: 0.028em;
+  color: var(--hf-field);
+  opacity: 0;
+  will-change: transform, opacity;
+  /* Forgetting is slower than recognising, here too. */
+  transition: color 460ms var(--hf-ease);
+}
+
+.frag[data-lit="true"] {
+  color: var(--hf-ember);
+  transition-duration: 170ms;
+}
+
+/* A storied word: same drifting fragment, but it is a real button. It takes
+   the pointer back from the inert layer, grows a quiet hit area, and holds
+   the ember while its card is open. */
+.fragBtn {
   appearance: none;
   background: none;
   border: none;
   margin: 0;
-  padding: 1px 2px;
+  padding: 4px 6px;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: 1.25;
+  color: inherit;
   cursor: pointer;
-  white-space: nowrap;
-  color: var(--hf-bone);
-  opacity: 0;
-  will-change: transform, opacity;
-  /* Knocks back any hairline passing behind the word. */
-  text-shadow:
-    0 0 8px var(--hf-ink),
-    0 0 3px var(--hf-ink),
-    0 0 1px var(--hf-ink);
-  transition: color 220ms var(--hf-ease);
+  pointer-events: auto;
 }
 
-.node[data-side="l"] {
-  transform-origin: right center;
+.fragBtn:hover,
+.fragBtn[data-active="true"] {
+  color: var(--hf-ember);
+  transition-duration: 170ms;
 }
 
-.node[data-side="r"] {
-  transform-origin: left center;
+.fragBtn:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 2px;
+  color: var(--hf-ember);
 }
 
-/* The word itself grows a touch on hover and focus: the label is a
-   button and should feel like one the moment the cursor arrives. The
-   outer button's transform belongs to the projection loop, so the
-   growth lives on an inner span. */
-.nodeText {
-  display: inline-block;
-  transition: transform 200ms var(--hf-ease);
-}
-
-.node[data-side="l"] .nodeText {
-  transform-origin: right center;
-}
-
-.node[data-side="r"] .nodeText {
-  transform-origin: left center;
-}
-
-.node:hover .nodeText,
-.node:focus-visible .nodeText,
-.node[data-on="true"] .nodeText {
-  transform: scale(1.07);
-}
-
-.node[data-rank="0"] {
+.fragLabel {
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 17px;
+  font-style: italic;
+  letter-spacing: 0;
+  opacity: 0.62;
+  margin-right: 0.4em;
+}
+
+/* Fine grain. Kills gradient banding on the ground and gives the ink a
+   surface. Inline SVG, so nothing is fetched. */
+.grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The content sits above the field but must not swallow its pointer:
+   the hero is a transparent window onto the words (only its links take
+   the pointer back), while the reading column below is fully solid and
+   fully interactive again. */
+.content {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.reading {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* The story card: the hover reveal, anchored beside its word          */
+/*                                                                     */
+/* The layer is fixed and sits above the page content so a card is     */
+/* never read through the hero type. The frame loop owns the outer     */
+/* transform, so the 160ms entrance lives on an inner wrapper. Solid   */
+/* ink, hairline border, no blur.                                      */
+/* ------------------------------------------------------------------ */
+
+.cardLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(21rem, calc(100vw - 24px));
+  pointer-events: auto;
+  will-change: transform;
+  /* Unrevealed until the loop has placed it (one frame at most). */
+  visibility: hidden;
+}
+
+.cardIn {
+  background: #090d0f;
+  border: 1px solid var(--hf-rule);
+  padding: 0.95rem 1.1rem 0.9rem;
+  animation: hfCard 160ms var(--hf-ease) both;
+}
+
+@keyframes hfCard {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cardKind {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  color: var(--hf-ember-soft);
+}
+
+.cardTitle {
+  margin: 0.25rem 0 0;
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-size: 1.3rem;
   font-weight: 500;
-  letter-spacing: 0.002em;
+  line-height: 1.2;
 }
 
-.node[data-rank="1"] {
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 14px;
-  font-weight: 400;
-}
-
-.node[data-rank="2"] {
-  font-size: 11.5px;
+.cardStory {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
   color: var(--hf-read);
 }
 
-.node:hover {
-  color: var(--hf-ember-soft);
+.cardMeta {
+  margin: 0.5rem 0 0;
 }
 
-.node[data-on="true"] {
-  color: var(--hf-ember-soft);
-}
-
-.node:focus-visible {
-  outline: 1px solid var(--hf-rule);
-  outline-offset: 2px;
-}
-
-@media (max-width: 1100px) {
-  .node[data-rank="0"] {
-    font-size: 14.5px;
-  }
-  .node[data-rank="1"] {
-    font-size: 12px;
-  }
-  .node[data-rank="2"] {
-    font-size: 10px;
-  }
-}
-
-@media (max-width: 719px) {
-  .node[data-rank="0"] {
-    font-size: 13px;
-  }
-  /* Anchors only on phones; the rest stay as points in the web and are
-     still reachable through the story panel's connected-to links. */
-  .node[data-rank="1"],
-  .node[data-rank="2"] {
-    display: none;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Hero: type floating over the map                                    */
-/* ------------------------------------------------------------------ */
-
-.hero {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  min-height: 100svh;
-  padding: var(--hf-pad);
-  /* The section is a transparent window onto the map; only the type
-     itself takes the pointer, so the web stays clickable everywhere. */
-  pointer-events: none;
-}
-
-/* A soft pool of ink under the intro so strings can pass behind the
-   words without ever fighting them. Not a card, not a blur: a shadow
-   the type casts on the web. */
-.heroScrim {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    46rem 32rem at 16% 52%,
-    rgba(7, 9, 11, 0.82) 0%,
-    rgba(7, 9, 11, 0.44) 52%,
-    rgba(7, 9, 11, 0) 74%
-  );
-}
-
-.intro {
-  position: relative;
-  z-index: 1;
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  max-width: 33rem;
-}
-
-.name {
-  margin: 0;
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 1.375rem;
-  font-weight: 500;
-  letter-spacing: 0.005em;
-}
-
-.role {
-  margin: 0.3rem 0 0;
-  font-size: 0.845rem;
-  line-height: 1.5;
+.cardLink {
+  font-size: 0.8rem;
   color: var(--hf-mute);
-}
-
-.inlineLink {
-  color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--hf-rule);
   text-decoration-thickness: 1px;
@@ -242,78 +257,140 @@
   transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
 }
 
-.inlineLink:hover {
+.cardLink:hover {
   color: var(--hf-bone);
   text-decoration-color: var(--hf-ember);
 }
 
-.headline {
-  margin: 0.9rem 0 0;
+.cardLink:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero composition                                                    */
+/*                                                                     */
+/* Four corners of quiet type framing a living centre. Weight is        */
+/* deliberately lopsided: identity is small top-left, the statement is   */
+/* heavy bottom-left, place is hairline top-right, the map tag and      */
+/* links sit bottom-right. The middle is left entirely to the field.    */
+/* ------------------------------------------------------------------ */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+}
+
+.frame {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-areas:
+    "id    place"
+    "void  void"
+    "say   links";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(3rem, 1fr) auto;
+  gap: 1.5rem 2rem;
+  padding: var(--hf-pad);
+  pointer-events: none;
+}
+
+.frame a {
+  pointer-events: auto;
+}
+
+.identity {
+  grid-area: id;
+}
+
+.name {
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: clamp(1.9rem, 3.1vw, 2.7rem);
-  font-weight: 500;
-  line-height: 1.16;
-  letter-spacing: -0.008em;
-  max-width: 17ch;
-  text-wrap: balance;
+  font-weight: 400;
+  font-size: clamp(1.0625rem, 1.35vw, 1.3125rem);
+  letter-spacing: -0.012em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.role {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.008em;
+  color: var(--hf-mute);
+  max-width: 26ch;
+}
+
+.place {
+  grid-area: place;
+  justify-self: end;
+  text-align: right;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  letter-spacing: 0.008em;
+  color: var(--hf-mute);
+  margin: 0;
+}
+
+.statement {
+  grid-area: say;
+  align-self: end;
+}
+
+/* Measured to break in a few ragged lines that lean into the field
+   rather than squaring off against it. */
+.headline {
+  font-family: var(--hf-serif), ui-serif, Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(1.875rem, 3.6vw, 3rem);
+  line-height: 1.09;
+  letter-spacing: -0.026em;
+  margin: 0;
+  max-width: clamp(16rem, 36vw, 30rem);
+  text-wrap: pretty;
+  hyphens: none;
+  color: var(--hf-bone);
 }
 
 .deck {
-  margin: 0;
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 1.03rem;
-  line-height: 1.55;
-  color: var(--hf-read);
-  max-width: 44ch;
+  margin: 1.5rem 0 0;
+  max-width: 40ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  letter-spacing: 0.004em;
+  text-wrap: pretty;
+  color: var(--hf-mute);
 }
 
 /* The concept, said out loud. Italic serif, brighter than the deck:
    this line is the door into the whole page. */
 .mapNote {
-  margin: 0;
+  margin: 1.1rem 0 0;
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
   font-style: italic;
-  font-size: 1.06rem;
+  font-weight: 300;
+  font-size: 1rem;
   line-height: 1.55;
-  color: var(--hf-bone);
-  max-width: 40ch;
+  color: var(--hf-read);
+  max-width: 38ch;
+  text-wrap: pretty;
 }
 
-.links {
+/* The lower right corner: the layer's name, then the ways out. */
+.corner {
+  grid-area: links;
+  align-self: end;
+  justify-self: end;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 1.35rem;
-  margin-top: 0.2rem;
-}
-
-.link {
-  font-size: 0.82rem;
-  color: var(--hf-mute);
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
-}
-
-.link:hover {
-  color: var(--hf-bone);
-  text-decoration-color: var(--hf-ember);
-}
-
-.link:focus-visible {
-  outline: 1px solid var(--hf-rule);
-  outline-offset: 3px;
-}
-
-/* Names the layer, anchored to the web's lower corner. */
-.mapTag {
-  position: absolute;
-  right: calc(var(--hf-pad) + 0.15rem);
-  bottom: calc(var(--hf-pad) - 0.35rem);
-  z-index: 1;
-  pointer-events: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1.1rem;
   text-align: right;
+}
+
+.mapTag {
+  pointer-events: none;
 }
 
 .mapTagName {
@@ -343,159 +420,114 @@
   color: var(--hf-mute);
 }
 
-/* Hero entrance: one composed stagger, 600ms of budget, nothing else. */
-.reveal {
-  opacity: 0;
-  transform: translateY(10px);
-  animation: hfRise 560ms var(--hf-ease) forwards;
-  animation-delay: var(--hf-delay, 0ms);
-}
-
-@keyframes hfRise {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Floating story panel                                                */
-/* ------------------------------------------------------------------ */
-
-.panelWrap {
-  position: fixed;
-  right: clamp(1rem, 2.6vw, 2.4rem);
-  bottom: clamp(1rem, 2.6vw, 2.4rem);
-  z-index: 40;
-  width: min(23.5rem, calc(100vw - 2rem));
-  pointer-events: none;
-}
-
-.panel {
-  pointer-events: auto;
-  background: #0a0d10;
-  border: 1px solid var(--hf-rule);
-  padding: 1.15rem 1.3rem 1.05rem;
-  max-height: min(26rem, 62svh);
-  overflow-y: auto;
-  animation: hfPanel 280ms var(--hf-ease) both;
-}
-
-@keyframes hfPanel {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.panelKind {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--hf-ember-soft);
-}
-
-.panelTitle {
-  margin: 0.3rem 0 0;
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 1.45rem;
-  font-weight: 500;
-  line-height: 1.2;
-}
-
-.panelStory {
-  margin: 0.65rem 0 0;
-  font-size: 0.92rem;
-  line-height: 1.6;
-  color: var(--hf-read);
-  max-width: 46ch;
-}
-
-.panelMeta {
-  margin: 0.55rem 0 0;
-}
-
-.panelLink {
-  font-size: 0.82rem;
-  color: var(--hf-mute);
-  text-decoration: underline;
-  text-decoration-color: var(--hf-rule);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
-}
-
-.panelLink:hover {
-  color: var(--hf-bone);
-  text-decoration-color: var(--hf-ember);
-}
-
-.panelRelated {
+.links {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3rem 0.55rem;
-  margin: 0.85rem 0 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
-.panelRelatedWord {
-  font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-style: italic;
-  font-size: 0.82rem;
-  color: var(--hf-mute);
-  margin-right: 0.2rem;
-}
-
-.panelChip {
-  appearance: none;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.8rem;
-  color: var(--hf-read);
-  text-decoration: underline;
-  text-decoration-color: var(--hf-rule);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color 160ms var(--hf-ease), text-decoration-color 160ms var(--hf-ease);
-}
-
-.panelChip:hover {
-  color: var(--hf-bone);
-  text-decoration-color: var(--hf-ember);
-}
-
-.panelChip:focus-visible,
-.panelClose:focus-visible {
-  outline: 1px solid var(--hf-rule);
-  outline-offset: 3px;
-}
-
-.panelClose {
-  appearance: none;
-  background: none;
-  border: none;
-  padding: 0;
-  margin-top: 0.9rem;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.75rem;
+.link {
   color: var(--hf-mute);
   text-decoration: underline;
   text-decoration-color: transparent;
   text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color 160ms var(--hf-ease), text-decoration-color 160ms var(--hf-ease);
+  text-underline-offset: 0.3em;
+  width: fit-content;
+  transition: color 180ms cubic-bezier(0.2, 0, 0, 1),
+    text-decoration-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.panelClose:hover {
+.link:hover,
+.link:focus-visible {
   color: var(--hf-bone);
   text-decoration-color: var(--hf-ember);
+}
+
+.link:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 4px;
+  border-radius: 1px;
+}
+
+.inlineLink {
+  color: #bcc3bf;
+  text-decoration: underline;
+  text-decoration-color: var(--hf-rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.28em;
+  transition: color 180ms cubic-bezier(0.2, 0, 0, 1),
+    text-decoration-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.inlineLink:hover,
+.inlineLink:focus-visible {
+  color: var(--hf-bone);
+  text-decoration-color: var(--hf-ember);
+}
+
+.inlineLink:focus-visible {
+  outline: 1px solid var(--hf-rule);
+  outline-offset: 4px;
+  border-radius: 1px;
+}
+
+/* The only affordance that there is a page below: a hairline that fills and
+   empties like something breathing. No icon, no word, no bouncing chevron. */
+.cue {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--hf-pad) * 0.75);
+  width: 1px;
+  height: 2.25rem;
+  transform: translateX(-50%);
+  background: var(--hf-rule-soft);
+  overflow: hidden;
+}
+
+.cue::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(236, 233, 226, 0.5) 45%,
+    transparent
+  );
+  animation: hfCue 3400ms var(--hf-ease) infinite;
+}
+
+@keyframes hfCue {
+  0% {
+    transform: translateY(-100%);
+  }
+  55%,
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Hero entrance: one composed stagger, 420ms of delay, nothing else. */
+@keyframes hfRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: hfRise 780ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-delay: var(--hf-delay, 0ms);
+  will-change: opacity, transform;
 }
 
 /* ------------------------------------------------------------------ */
@@ -504,14 +536,13 @@
 
 .reading {
   position: relative;
-  z-index: 1;
   max-width: 72rem;
   margin: 0 auto;
   padding: 0 var(--hf-pad) clamp(4rem, 9vw, 8rem);
 }
 
 /* The reading channel: a near-opaque band under the prose, fading at
-   its outer edges so the dimmed web still breathes in the gutters. */
+   its outer edges so the dimmed field still breathes in the gutters. */
 .reading::before {
   content: "";
   position: absolute;
@@ -519,10 +550,10 @@
   z-index: -1;
   background: linear-gradient(
     90deg,
-    rgba(7, 9, 11, 0) 0%,
-    rgba(7, 9, 11, 0.94) 6rem,
-    rgba(7, 9, 11, 0.94) calc(100% - 6rem),
-    rgba(7, 9, 11, 0) 100%
+    rgba(6, 8, 10, 0) 0%,
+    rgba(6, 8, 10, 0.94) 6rem,
+    rgba(6, 8, 10, 0.94) calc(100% - 6rem),
+    rgba(6, 8, 10, 0) 100%
   );
 }
 
@@ -732,6 +763,10 @@
   margin-top: 1rem;
 }
 
+.closeLinks .link {
+  text-align: left;
+}
+
 .colophon {
   display: flex;
   justify-content: space-between;
@@ -749,24 +784,6 @@
 /* ------------------------------------------------------------------ */
 
 @media (max-width: 980px) {
-  .hero {
-    align-items: flex-start;
-    padding-top: clamp(4rem, 12vw, 6rem);
-  }
-
-  .heroScrim {
-    background: radial-gradient(
-      34rem 26rem at 40% 22%,
-      rgba(7, 9, 11, 0.84) 0%,
-      rgba(7, 9, 11, 0.46) 54%,
-      rgba(7, 9, 11, 0) 76%
-    );
-  }
-
-  .intro {
-    max-width: 40rem;
-  }
-
   .chapterBody,
   .entry {
     grid-template-columns: 1fr;
@@ -790,29 +807,94 @@
   }
 }
 
-@media (max-width: 719px) {
-  .panelWrap {
-    right: 0;
-    bottom: 0;
-    width: 100%;
+/* ------------------------------------------------------------------ */
+/* 390px                                                               */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 40rem) {
+  .frame {
+    grid-template-areas:
+      "id"
+      "place"
+      "void"
+      "say"
+      "links";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(2rem, 1fr) auto auto;
+    gap: 0.75rem 0;
+    padding-bottom: calc(var(--hf-pad) + 2.5rem);
   }
 
-  .panel {
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    max-height: 58svh;
-    padding: 1.05rem 1.25rem calc(1rem + env(safe-area-inset-bottom));
+  .place {
+    justify-self: start;
+    text-align: left;
+    margin-top: -0.25rem;
   }
 
-  .mapTag {
-    right: var(--hf-pad);
-    bottom: calc(var(--hf-pad) + 0.4rem);
+  .statement {
+    margin-top: 0.5rem;
+  }
+
+  .headline {
+    font-size: clamp(1.75rem, 8.4vw, 2.375rem);
+    max-width: 14ch;
+    letter-spacing: -0.022em;
+  }
+
+  .deck {
+    max-width: 34ch;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .mapNote {
+    max-width: 34ch;
+    font-size: 0.95rem;
+  }
+
+  .corner {
+    justify-self: start;
+    align-items: flex-start;
+    text-align: left;
+    margin-top: 1.625rem;
+  }
+
+  .links {
+    align-items: flex-start;
+  }
+
+  .cue {
+    left: var(--hf-pad);
+    transform: none;
+    height: 1.75rem;
+  }
+
+  .colophon {
+    flex-direction: column;
+  }
+}
+
+/* Short landscape viewports: pull the statement in so it never collides
+   with the identity block. */
+@media (max-height: 34rem) and (min-width: 40rem) {
+  .headline {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .deck {
+    margin-top: 0.875rem;
+  }
+
+  .cue {
+    display: none;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Reduced motion                                                      */
+/* Reduced motion: the composition still arrives whole, it just         */
+/* arrives instead of animating. The field renders one static frame     */
+/* with a legible, connected constellation already formed, and cards    */
+/* still open on focus and tap.                                         */
 /* ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -822,17 +904,25 @@
     transform: none;
   }
 
-  .panel {
+  .canvasLayer {
+    transition: none;
+  }
+
+  .cue::after {
+    animation: none;
+    transform: none;
+    opacity: 0.4;
+  }
+
+  .cardIn {
     animation: none;
   }
 
-  .node,
-  .nodeText,
+  .frag,
+  .fragBtn,
   .link,
   .inlineLink,
-  .panelChip,
-  .panelClose,
-  .panelLink,
+  .cardLink,
   .railLink,
   .rowNoteLink,
   .rowName a {

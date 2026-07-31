@@ -10,7 +10,7 @@
  * this route, so the graph is authored here instead.
  *
  * Labels are deliberately short: crisp nouns and two-word phrases, lowercase.
- * The label names the node; the story carries the weight. The click panel is
+ * The label names the node; the story carries the weight. The hover card is
  * where the narrative lives.
  *
  * Positions are hand placed in a normalised volume that spans the viewport:
@@ -18,10 +18,22 @@
  *   y  -1 (bottom) .. +1 (top), up is positive
  *   z  -1 (back) .. +1 (front)
  *
- * The intro type sits over the middle-left of the viewport, so the web is
- * placed as a ring around it: origin story across the top, the studio years
- * along the bottom-left, the current work down the right side. A screen-space
- * keep-out in Mind.tsx nudges any node that would drift behind the type.
+ * Composition. The intro type owns the middle of the left half, so the web
+ * is built around it as one organism instead of a ring:
+ *
+ *   - The leap reads left to right along the top: faith, dropped out,
+ *     san francisco, with future focused and agents carrying the band on
+ *     to the right edge.
+ *   - The spine then dives to paradigm at the centre and climbs back up
+ *     through context to configure in the upper right: the present.
+ *   - The studio years (rejection, resume sites, nouvo, ats, client sites)
+ *     run along the lower left strip beneath the intro, the only ground
+ *     the type leaves open on that side.
+ *   - The nights-and-weekends builds cluster in the lower right, and
+ *     mistakes / self-doubt bridge the two eras at the bottom centre.
+ *
+ * A screen-space keep-out in Mind.tsx still nudges any node that would
+ * drift behind the type on narrower viewports.
  */
 
 export type NodeKind = "belief" | "decision" | "turn" | "company" | "build";
@@ -49,16 +61,16 @@ export const KIND_LABEL: Record<NodeKind, string> = {
 
 export const nodes: readonly MindNode[] = [
   /* ---------------------------------------------------------------- */
-  /* The top band: the foundation and the leap                         */
+  /* The top band: the foundation and the leap, left to right          */
   /* ---------------------------------------------------------------- */
   {
     id: "faith",
     label: "faith",
     kind: "belief",
     rank: 0,
-    x: -0.78,
-    y: 0.8,
-    z: -0.1,
+    x: -0.82,
+    y: 0.84,
+    z: -0.06,
     story:
       "I am a believer, and I stay faithful to God. That is the foundation the rest of this map is built on top of. When I look at how every single piece has fallen into place to get me here, I have no doubt there is a plan for it.",
   },
@@ -67,9 +79,9 @@ export const nodes: readonly MindNode[] = [
     label: "dropped out",
     kind: "decision",
     rank: 0,
-    x: -0.38,
-    y: 0.64,
-    z: 0.22,
+    x: -0.42,
+    y: 0.86,
+    z: 0.18,
     story:
       "I left college. The lecture halls were not the fastest road to where I wanted to go, so I stopped waiting for a future to be handed to me. There is too much happening right now to sit still.",
   },
@@ -78,8 +90,8 @@ export const nodes: readonly MindNode[] = [
     label: "san francisco",
     kind: "decision",
     rank: 0,
-    x: 0.0,
-    y: 0.78,
+    x: -0.04,
+    y: 0.7,
     z: 0.3,
     story:
       "I moved to a city I had never once set foot in. Not because I was lost, but because I could see where everything was heading and I refused to miss it. I came out here to grab it with my own hands.",
@@ -89,9 +101,9 @@ export const nodes: readonly MindNode[] = [
     label: "future focused",
     kind: "belief",
     rank: 1,
-    x: 0.36,
-    y: 0.6,
-    z: -0.26,
+    x: 0.3,
+    y: 0.88,
+    z: -0.22,
     story:
       "I am future-focused to a fault. I move fast, I work harder than I probably should, and I would rather grind my way to something real than coast the safe, slow route to something ordinary.",
   },
@@ -100,24 +112,24 @@ export const nodes: readonly MindNode[] = [
     label: "agents",
     kind: "belief",
     rank: 1,
-    x: 0.72,
-    y: 0.74,
-    z: 0.14,
+    x: 0.76,
+    y: 0.78,
+    z: 0.08,
     story:
       "We are walking into a world run by agents. A buyer’s agent and a seller’s agent talking directly, our attention filtered for us before we ever see it, whole workflows handled while we sleep. Someone has to build the layer underneath all of it.",
   },
 
   /* ---------------------------------------------------------------- */
-  /* The right side: the current work                                  */
+  /* The upper right: the present, where the spine climbs to           */
   /* ---------------------------------------------------------------- */
   {
     id: "configure",
     label: "configure",
     kind: "company",
     rank: 0,
-    x: 0.58,
-    y: 0.42,
-    z: 0.28,
+    x: 0.7,
+    y: 0.44,
+    z: 0.3,
     story:
       "Context infrastructure for AI agents, and the reason I am here. One profile you own that travels with you, so any agent can recognize you instead of starting from zero. I am the founding engineer.",
     link: { label: "configure.dev", href: "https://configure.dev" },
@@ -127,9 +139,9 @@ export const nodes: readonly MindNode[] = [
     label: "customer first",
     kind: "turn",
     rank: 1,
-    x: 0.88,
-    y: 0.34,
-    z: -0.18,
+    x: 0.92,
+    y: 0.18,
+    z: -0.16,
     story:
       "I was a Configure customer before I was ever on the team. I found it while running Paradigm, and the first time I plugged it in I could feel where this was going.",
   },
@@ -138,9 +150,9 @@ export const nodes: readonly MindNode[] = [
     label: "context",
     kind: "turn",
     rank: 0,
-    x: 0.34,
-    y: 0.16,
-    z: 0.1,
+    x: 0.46,
+    y: 0.22,
+    z: 0.12,
     story:
       "The wall I kept hitting. Every agent I built started from zero: no memory of the user, no idea who it was even working for. I spent more time re-feeding context than building anything new, and I solved it badly a dozen different ways before I stopped patching it. This web is what I wanted my agents to have, one map of who I am.",
   },
@@ -149,9 +161,9 @@ export const nodes: readonly MindNode[] = [
     label: "paradigm",
     kind: "company",
     rank: 0,
-    x: 0.64,
-    y: 0.02,
-    z: 0.2,
+    x: 0.26,
+    y: 0.0,
+    z: 0.24,
     story:
       "The first agentic voice-powered growth engine. It finds prospects, calls and emails them, handles the replies, and books the meeting. I ran it until it paid for itself without me.",
     link: { label: "paradigmoutreach.com", href: "https://paradigmoutreach.com" },
@@ -161,25 +173,25 @@ export const nodes: readonly MindNode[] = [
     label: "ultron",
     kind: "build",
     rank: 2,
-    x: 0.92,
-    y: -0.1,
-    z: -0.24,
+    x: 0.84,
+    y: -0.08,
+    z: -0.3,
     story:
       "A hosted MCP server with 26 tools, bridged live into DevCore OS. My agents’ home base, and one of my own answers to the same context problem.",
     link: { label: "ultron-omega.vercel.app", href: "https://ultron-omega.vercel.app" },
   },
 
   /* ---------------------------------------------------------------- */
-  /* The bottom right: nights and weekends                             */
+  /* The lower right: nights and weekends                              */
   /* ---------------------------------------------------------------- */
   {
     id: "gideon",
     label: "gideon",
     kind: "build",
     rank: 1,
-    x: 0.3,
-    y: -0.3,
-    z: -0.4,
+    x: 0.24,
+    y: -0.6,
+    z: -0.28,
     story:
       "I left the lecture halls, not the learning. Talk to Gideon and it draws a live visual map of whatever you are studying, while you say it.",
     link: { label: "github.com/Manueldav2/VisboardAI", href: "https://github.com/Manueldav2/VisboardAI" },
@@ -189,43 +201,43 @@ export const nodes: readonly MindNode[] = [
     label: "late nights",
     kind: "belief",
     rank: 1,
-    x: 0.52,
-    y: -0.44,
-    z: -0.1,
+    x: 0.48,
+    y: -0.5,
+    z: -0.04,
     story:
       "Everything on the lower half of this map is nights and weekends. I work harder than I probably should, and I would rather grind my way to something real than coast the safe, slow route to something ordinary.",
-  },
-  {
-    id: "idex",
-    label: "idex",
-    kind: "build",
-    rank: 1,
-    x: 0.84,
-    y: -0.5,
-    z: 0.26,
-    story:
-      "The IDE that watches the wait. A free, open-source cockpit for coding agents with a contextual scroll feed, so the minutes you spend waiting on a model are not dead minutes.",
-    link: { label: "idex.dev", href: "https://idex.dev" },
   },
   {
     id: "launch-control",
     label: "launch control",
     kind: "build",
     rank: 2,
-    x: 0.42,
-    y: -0.68,
-    z: 0.1,
+    x: 0.34,
+    y: -0.32,
+    z: 0.12,
     story:
       "One idea in, a week of on-brand launch content out. A swarm of Claude agents plans it, makes it, grades its own work, and ships it. Built for Claude Build Day.",
     link: { label: "github.com/Manueldav2/launch-control", href: "https://github.com/Manueldav2/launch-control" },
+  },
+  {
+    id: "idex",
+    label: "idex",
+    kind: "build",
+    rank: 1,
+    x: 0.74,
+    y: -0.62,
+    z: 0.22,
+    story:
+      "The IDE that watches the wait. A free, open-source cockpit for coding agents with a contextual scroll feed, so the minutes you spend waiting on a model are not dead minutes.",
+    link: { label: "idex.dev", href: "https://idex.dev" },
   },
   {
     id: "classroom",
     label: "claude classroom",
     kind: "build",
     rank: 2,
-    x: 0.66,
-    y: -0.82,
+    x: 0.56,
+    y: -0.78,
     z: -0.08,
     story:
       "Makes many Claude Code sessions work as one team, with a shared board, file claims, and negotiation between agents instead of three of them editing the same file.",
@@ -236,25 +248,25 @@ export const nodes: readonly MindNode[] = [
     label: "sovereign",
     kind: "build",
     rank: 2,
-    x: 0.88,
-    y: -0.78,
-    z: 0.3,
+    x: 0.86,
+    y: -0.44,
+    z: 0.02,
     story:
       "A 3D real-time strategy game that runs in a browser tab. Command the army from above, or possess a single unit and fight it out from inside the battle. This one is purely for fun.",
     link: { label: "github.com/Manueldav2/sovereign", href: "https://github.com/Manueldav2/sovereign" },
   },
 
   /* ---------------------------------------------------------------- */
-  /* The bottom left: the studio years                                 */
+  /* The bottom centre: the bridge between the eras                    */
   /* ---------------------------------------------------------------- */
   {
     id: "mistakes",
     label: "mistakes",
     kind: "belief",
     rank: 1,
-    x: 0.06,
-    y: -0.56,
-    z: 0.34,
+    x: 0.04,
+    y: -0.4,
+    z: 0.1,
     story:
       "Break fast, fix fast, learn fast. That is the whole loop. Ship it, watch what breaks, fix it, go again. I once burned 200 dollars on a batch of genuinely terrible emails before I caught it. A mistake you learn from is just tuition.",
   },
@@ -263,20 +275,24 @@ export const nodes: readonly MindNode[] = [
     label: "self-doubt",
     kind: "turn",
     rank: 2,
-    x: -0.05,
-    y: -0.72,
-    z: -0.25,
+    x: 0.02,
+    y: -0.62,
+    z: -0.2,
     story:
       "My biggest early mistake was not technical. I second-guessed my own system instead of believing in it and telling people out loud what I had built. That is the only kind of mistake that ever actually cost me.",
   },
+
+  /* ---------------------------------------------------------------- */
+  /* The lower left strip: the studio years                            */
+  /* ---------------------------------------------------------------- */
   {
     id: "nouvo",
     label: "nouvo",
     kind: "company",
     rank: 0,
-    x: -0.44,
-    y: -0.78,
-    z: 0.12,
+    x: -0.34,
+    y: -0.76,
+    z: 0.18,
     story:
       "My web studio. Athletic portfolios, business sites, resume pages, all built to order for real clients and eventually productized so it earns on its own. It is where I learned to ship fast for people who are counting on it.",
     link: { label: "nouvo.dev", href: "https://nouvo.dev" },
@@ -286,9 +302,9 @@ export const nodes: readonly MindNode[] = [
     label: "client sites",
     kind: "build",
     rank: 2,
-    x: -0.25,
-    y: -0.88,
-    z: 0.22,
+    x: 0.1,
+    y: -0.74,
+    z: 0.2,
     story:
       "Real people with real sites. Dance portfolios, resume pages, a mobile detailing business. Every one of them was somebody counting on me to finish. Check them out.",
     link: { label: "nouvo.dev", href: "https://nouvo.dev" },
@@ -298,9 +314,9 @@ export const nodes: readonly MindNode[] = [
     label: "ats optimizer",
     kind: "build",
     rank: 2,
-    x: -0.55,
-    y: -0.92,
-    z: -0.14,
+    x: -0.15,
+    y: -0.88,
+    z: -0.12,
     story:
       "My resume ATS breaker. It reads your resume against a job post, finds what the tracker will trip on, and rewrites it to get through. Same idea as the resume sites, aimed at the machine instead of the human.",
     link: {
@@ -313,9 +329,9 @@ export const nodes: readonly MindNode[] = [
     label: "resume sites",
     kind: "build",
     rank: 1,
-    x: -0.72,
-    y: -0.62,
-    z: -0.1,
+    x: -0.58,
+    y: -0.88,
+    z: -0.05,
     story:
       "I started building the thing those students were missing, right on my own campus. Resume sites for classmates, portfolios for dancers and athletes, real web presence for people applying to the things they actually wanted. Watching someone I helped get their shot is still one of the best things I have gotten out of building anything.",
   },
@@ -324,9 +340,9 @@ export const nodes: readonly MindNode[] = [
     label: "rejection",
     kind: "turn",
     rank: 1,
-    x: -0.93,
-    y: -0.5,
-    z: -0.2,
+    x: -0.86,
+    y: -0.78,
+    z: -0.1,
     story:
       "I applied for tech internships and did not get one. The people who did land those roles usually had a clean personal site backing them up. I could not stop thinking about how unfair that gap is, so I started building the missing piece myself.",
   },
@@ -383,7 +399,7 @@ export const edges: readonly (readonly [string, string])[] = [
 
 export const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
-/** Adjacency, built once. Used for the highlight subgraph and the panel. */
+/** Adjacency, built once. Used for the highlight subgraph and the card. */
 export const neighbours = (() => {
   const m = new Map<string, string[]>();
   for (const n of nodes) m.set(n.id, []);

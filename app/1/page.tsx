@@ -10,12 +10,12 @@ export const metadata: Metadata = {
 }
 
 /**
- * /1 — THE CONTEXT MAP
+ * /1 — THE CONTEXT FIELD
  *
  * Renders bare (SiteChrome skips nav, footer and chat for /1, /2, /3).
  * Server component on purpose: the whole page, hero and reading both, ships
  * in the first HTML response and paints before any JavaScript runs. The
- * map is dynamically imported client-side underneath it.
+ * field is dynamically imported client-side underneath it.
  */
 export default function MindPage() {
   return <HeroField className={`${hfSerif.variable} ${hfSans.variable}`} />
