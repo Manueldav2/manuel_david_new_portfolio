@@ -171,8 +171,6 @@ export function HeroField({ className }: { className?: string }) {
                 ))}
               </nav>
             </div>
-
-            <div className={styles.cue} aria-hidden="true" data-hf-keepout />
           </div>
         </section>
 
@@ -332,7 +330,7 @@ export function HeroField({ className }: { className?: string }) {
 
             <p className={styles.colophon}>
               <span>{profile.name}, San Francisco</span>
-              <span>Set in Newsreader and IBM Plex Sans</span>
+              <span>Set in Fraunces, Newsreader and IBM Plex Sans</span>
             </p>
           </section>
         </main>

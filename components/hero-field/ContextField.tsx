@@ -92,15 +92,35 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t
 /**
  * Resting brightness and pixel size per tier, near depth then far depth.
  *
- * The resting values are low on purpose. The whole gesture depends on the gap
- * between texture and fact: if the field is already readable there is nothing
- * for the cursor to reveal, and it collapses back into wallpaper.
+ * The hierarchy is deliberately steep. The seven key anchors are set large in
+ * the display italic and legible at rest: they are the names that identify
+ * him, and they give the field its compositional mass. The mid tier is
+ * readable if you lean in; only the long tail rests near the threshold, so
+ * the cursor still has something real to reveal without the whole field
+ * reading as empty space.
  */
 const TIER = {
-  key: { alpha: [0.29, 0.17], size: [16.5, 13.5], depth: [0, 0.34] },
-  mid: { alpha: [0.18, 0.09], size: [13.5, 10.5], depth: [0.2, 0.7] },
-  low: { alpha: [0.13, 0.062], size: [12, 9.5], depth: [0.48, 1] },
+  key: { alpha: [0.92, 0.68], size: [33, 24], depth: [0, 0.34] },
+  mid: { alpha: [0.54, 0.34], size: [15.5, 12.5], depth: [0.2, 0.7] },
+  low: { alpha: [0.4, 0.22], size: [12.5, 10], depth: [0.48, 1] },
 } as const
+
+/**
+ * The scroll descent, in field depths.
+ *
+ * Scrolling out of the hero travels a virtual camera into the field along z.
+ * Every word has a depth; the camera's z is scrubbed straight off scrollY
+ * (read once per rAF, native scrolling untouched). Words ahead of the camera
+ * swell and brighten as they approach, spread outward from a vanishing
+ * point, then fade the instant they pass behind you; the hairlines follow
+ * their endpoints, so the web stretches and lights as you move through it.
+ * PERSP is the focal length: smaller = more violent perspective.
+ */
+const PERSP = 0.8
+/** How many viewport heights of scroll complete the descent. */
+const TRAVEL_SPAN = 1.1
+/** Deepest camera z: a touch past the deepest word, so everything passes. */
+const TRAVEL_DEPTH = 1.45
 
 /** Padding kept around each word, and around the page's own type. */
 const WORD_PAD_X = 22
@@ -242,6 +262,15 @@ export default function ContextField({
     }
     const restCount = restA.length
 
+    // Adjacency, for placement: words cluster near the words they are
+    // actually related to, so density is semantic rather than scattered.
+    const nbr: number[][] = []
+    for (let i = 0; i < fragments.length; i++) nbr.push([])
+    for (let e = 0; e < restCount; e++) {
+      nbr[restA[e]].push(restB[e])
+      nbr[restB[e]].push(restA[e])
+    }
+
     const reduced =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -261,6 +290,10 @@ export default function ContextField({
     const halfH = new Float32Array(COUNT)
     const baseA = new Float32Array(COUNT)
     const chan = new Float32Array(COUNT)
+    /** Perspective scale this frame (1 at rest, grows on the descent). */
+    const sc = new Float32Array(COUNT).fill(1)
+    /** Channel visibility x pass-fade: what the line pass multiplies by. */
+    const vis = new Float32Array(COUNT)
     // 1 when placement failed and the word sits out this layout entirely.
     const parked = new Uint8Array(COUNT)
 
@@ -270,7 +303,8 @@ export default function ContextField({
       const t = Math.random()
       depth[i] = mix(tier.depth[0], tier.depth[1], t)
       baseA[i] = mix(tier.alpha[0], tier.alpha[1], t)
-      const size = mix(tier.size[0], tier.size[1], t) * (narrow ? 0.86 : 1)
+      const narrowK = fragments[i].tier === "key" ? 0.7 : 0.86
+      const size = mix(tier.size[0], tier.size[1], t) * (narrow ? narrowK : 1)
       els[i].style.fontSize = `${size.toFixed(2)}px`
     }
 
@@ -369,11 +403,34 @@ export default function ContextField({
     /* rescale the field. Placement is rejection sampling against two     */
     /* sets of boxes: the words already placed, and the page's own type.  */
     /*                                                                   */
+    /* Sampling is biased, not uniform. The key anchors seed a handful    */
+    /* of cluster centres; every later word tries to land near a placed   */
+    /* word it is actually related to in the graph, and falls back to a   */
+    /* cluster. Density gathers where the life gathers, and the space     */
+    /* between clusters is real negative space instead of even scatter.   */
+    /*                                                                   */
     /* The keep-out boxes are read straight off the DOM rather than       */
     /* hard-coded as fractions of the viewport, so the field gets out of  */
     /* the way of the real headline at whatever size it actually wrapped  */
     /* to. Nothing readable ever has a stray word sitting behind it.      */
     /* ---------------------------------------------------------------- */
+
+    // Cluster centres, normalised. Chosen against the hero block (which
+    // holds the left-centre): mass upper-right, right, below-right, and a
+    // quieter shoulder above the block, so the composition is a diagonal.
+    const CLUSTERS: readonly (readonly [number, number])[] = [
+      [0.55, -0.5],
+      [0.72, 0.18],
+      [0.05, 0.66],
+      [-0.55, 0.68],
+      [-0.35, -0.62],
+    ]
+
+    // Approximate gaussian in [-1.5, 1.5]: sums keep clusters dense in the
+    // middle with soft edges instead of hard discs.
+    const gauss = () =>
+      (Math.random() + Math.random() + Math.random() - 1.5) / 1.0
+
     const place = () => {
       const keepouts: Box[] = []
       const sx = window.scrollX || 0
@@ -401,16 +458,43 @@ export default function ContextField({
         const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 16 - hw) / spanX) : 0
         const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 14 - hh) / spanY) : 0
 
+        const isKey = fragments[i].tier === "key"
+        // Related words already on the board, to gather near.
+        const kin: number[] = []
+        for (const j of nbr[i]) if (j < i && !parked[j]) kin.push(j)
+
+        let found = false
+        let fx = 0
+        let fy = 0
         let okX = 0
         let okY = 0
-        let bestX = 0
-        let bestY = 0
-        let bestClear = -Infinity
-        let found = false
 
         for (let k = 0; k < 420 && !found; k++) {
-          const nx = (Math.random() * 2 - 1) * limX
-          const ny = (Math.random() * 2 - 1) * limY
+          // Widen the net as attempts fail, so tight clusters still resolve.
+          const relax = 1 + k / 90
+          let nx: number
+          let ny: number
+          if (isKey) {
+            // Anchors seed the clusters, spread across them.
+            const c = CLUSTERS[i % CLUSTERS.length]
+            nx = c[0] + gauss() * 0.3 * relax
+            ny = c[1] + gauss() * 0.28 * relax
+          } else if (kin.length > 0 && k % 4 !== 3) {
+            // Gather near a related word; every 4th try goes wide so a
+            // crowded cluster can still spill somewhere honest.
+            const j = kin[(Math.random() * kin.length) | 0]
+            nx = bx[j] + gauss() * 0.27 * relax
+            ny = by[j] + gauss() * 0.28 * relax
+          } else {
+            const c = CLUSTERS[((Math.random() * CLUSTERS.length) | 0)]
+            nx = c[0] + gauss() * 0.4 * relax
+            ny = c[1] + gauss() * 0.4 * relax
+          }
+          if (nx < -limX) nx = -limX
+          else if (nx > limX) nx = limX
+          if (ny < -limY) ny = -limY
+          else if (ny > limY) ny = limY
+
           const x = toX(nx)
           const y = toY(ny)
           cand[0] = x - hw - WORD_PAD_X
@@ -426,35 +510,22 @@ export default function ContextField({
             }
           }
           if (blocked) continue
-
-          let clear = Infinity
           for (let b = 0; b < placed.length; b++) {
             if (hits(cand, placed[b])) {
-              clear = -1
+              blocked = true
               break
             }
-            const dx = Math.abs(x - (placed[b][0] + placed[b][2]) * 0.5)
-            const dy = Math.abs(y - (placed[b][1] + placed[b][3]) * 0.5) * 2.6
-            const d = dx * dx + dy * dy
-            if (d < clear) clear = d
           }
+          if (blocked) continue
 
-          if (clear < 0) {
-            continue
-          }
-          if (clear > bestClear) {
-            bestClear = clear
-            bestX = nx
-            bestY = ny
-            okX = x
-            okY = y
-          }
-          // Take the first candidate that clears everything with room to
-          // spare; otherwise keep hunting for the roomiest one.
-          if (clear > 34000 || k > 120) found = true
+          found = true
+          fx = nx
+          fy = ny
+          okX = x
+          okY = y
         }
 
-        if (bestClear === -Infinity) {
+        if (!found) {
           // Nothing fitted. Park it out of the layout rather than stack it on
           // the headline; a missing fragment costs less than an unreadable
           // page. Parked words render at zero opacity and join no lines.
@@ -465,8 +536,8 @@ export default function ContextField({
         }
 
         parked[i] = 0
-        bx[i] = bestX
-        by[i] = bestY
+        bx[i] = fx
+        by[i] = fy
         placed.push([
           okX - hw - WORD_PAD_X,
           okY - hh - WORD_PAD_Y,
@@ -497,7 +568,7 @@ export default function ContextField({
       // Resting hairlines fade with span: nearby relations whisper, a
       // relation stretched across the whole frame all but disappears.
       restNear = Math.min(vw, vh) * 0.24
-      restFar = Math.min(vw, vh) * 0.95
+      restFar = Math.min(vw, vh) * 1.5
       // The channel the reading column carves through the field once you
       // scroll past the hero.
       bandInner = Math.min(360, vw * 0.34)
@@ -560,16 +631,31 @@ export default function ContextField({
       const actIdx = act ? (idxOfNode.get(act) ?? -1) : -1
 
       const scrollY = window.scrollY || 0
+      // The descent: 0 at rest, 1 once the camera has passed the deepest
+      // word. Scrubbed straight off scrollY (read here, once per frame);
+      // native scrolling is untouched. Reduced motion never travels.
+      const travel = reduced ? 0 : smoothstep(0, vh * TRAVEL_SPAN, scrollY)
+      const camZ = travel * TRAVEL_DEPTH
+      // Mid-descent the resting web brightens as you pass through it, then
+      // hands the page over to the reading channel.
+      const web = 1 + Math.sin(travel * Math.PI) * 2.1
       // How far past the hero we are. Drives the retreat of the field to the
       // margins so body copy is never read through drifting words.
-      const past = smoothstep(vh * 0.12, vh * 0.8, scrollY)
-      const dim = 1 - 0.45 * past
-      const spread = 1 + 0.1 * past
+      const past = smoothstep(vh * 0.3, vh * 1.05, scrollY)
+      const dim = 1 - 0.5 * past
       const driftY = 26 * Math.sin(scrollY / (vh * 1.7))
+      // Vanishing point for the descent: near centre, a breath toward the
+      // field's mass, so the frame empties evenly instead of hollowing out
+      // one side while words pile into the other.
+      const vpx = vw * 0.53
+      const vpy = vh * 0.45
+      // Words hold their viewport clamp at rest, then let go on the way in
+      // so passing words can genuinely leave the frame.
+      const hold = 1 - smoothstep(0.01, 0.1, travel)
 
-      // The card belongs to the hero. Once the reading channel takes over,
+      // The card belongs to the hero. Once the descent starts in earnest,
       // it leaves with the labels' legibility.
-      if (actIdx >= 0 && past > 0.45) {
+      if (actIdx >= 0 && (past > 0.45 || travel > 0.3)) {
         activeRef.current = null
         closeRef.current()
       }
@@ -630,6 +716,7 @@ export default function ContextField({
           els[i].style.opacity = "0"
           wake[i] = 0
           chan[i] = 0
+          vis[i] = 0
           continue
         }
 
@@ -637,7 +724,7 @@ export default function ContextField({
         const nx = bx[i] + Math.sin(clock * 0.107 + ph * 6.2832) * 0.03
         const ny = by[i] + Math.cos(clock * 0.089 + ph * 5.1) * 0.034
 
-        let x = vw * 0.5 + nx * spread * (vw * 0.5 - 26)
+        let x = vw * 0.5 + nx * (vw * 0.5 - 26)
         let y =
           vh * 0.5 + ny * (vh * 0.5 - 24) + driftY * (0.4 + depth[i] * 0.8)
         // Depth parallax: the whole field leans away from the cursor a few
@@ -646,8 +733,32 @@ export default function ContextField({
         const par = (0.32 - depth[i]) * 0.02
         x += (cx - vw * 0.5) * par
         y += (cy - vh * 0.5) * par * 0.7
-        x = Math.min(vw - halfW[i] - 8, Math.max(halfW[i] + 8, x))
-        y = Math.min(vh - halfH[i] - 6, Math.max(halfH[i] + 6, y))
+
+        // The descent. Scale is relative to rest (travel 0 leaves the
+        // measured layout untouched); as the camera advances, words ahead
+        // swell and spread from the vanishing point, and words the camera
+        // has passed blow up and fade out behind you.
+        const depthZ = 0.12 + depth[i] * 0.88
+        const rel = depthZ - camZ
+        let s = (PERSP + depthZ) / (PERSP + Math.max(rel, -PERSP * 0.62))
+        if (s > 3.2) s = 3.2
+        // Words stay lit while they swell past the camera and only die once
+        // they are genuinely behind you; the fly-past is the point.
+        const passFade = smoothstep(-0.36, -0.04, rel)
+        // Positions spread slower than glyphs swell, so the frame stays
+        // populated through the middle of the descent instead of emptying
+        // the moment perspective kicks in.
+        const spreadS = 1 + (s - 1) * 0.72
+        x = vpx + (x - vpx) * spreadS
+        y = vpy + (y - vpy) * spreadS
+        sc[i] = s
+
+        if (hold > 0) {
+          const kx = Math.min(vw - halfW[i] - 8, Math.max(halfW[i] + 8, x))
+          const ky = Math.min(vh - halfH[i] - 6, Math.max(halfH[i] + 6, y))
+          x = mix(x, kx, hold)
+          y = mix(y, ky, hold)
+        }
 
         px[i] = x
         py[i] = y
@@ -674,14 +785,18 @@ export default function ContextField({
         // Reading channel: below the hero the field steps aside for the text.
         const c = mix(1, smoothstep(bandInner, bandOuter, Math.abs(x - vw * 0.5)), past)
         chan[i] = c
+        vis[i] = c * passFade
 
         const ww = wake[i]
         const lit = ww * ww * (3 - 2 * ww)
-        const o = (baseA[i] + lit * (0.94 - baseA[i])) * c * dim
+        // Approaching words brighten a little with their size, so the
+        // descent reads as things coming to meet you, not just inflating.
+        let o = (baseA[i] + lit * (0.96 - baseA[i])) * vis[i] * dim * (1 + (s - 1) * 0.4)
+        if (o > 1) o = 1
         const el = els[i]
         el.style.transform = `translate3d(${(x - halfW[i]).toFixed(1)}px, ${(
           y - halfH[i]
-        ).toFixed(1)}px, 0)`
+        ).toFixed(1)}px, 0) scale(${s.toFixed(3)})`
         el.style.opacity = o.toFixed(3)
 
         if (wake[i] > 0.02) {
@@ -692,7 +807,7 @@ export default function ContextField({
 
         // The single fragment actually under the cursor takes the ember. One
         // word at a time, so the accent stays an event and not a colour.
-        if (wake[i] > 0.82 && d < bestLitD && c > 0.5) {
+        if (wake[i] > 0.82 && d < bestLitD && vis[i] > 0.5) {
           bestLitD = d
           bestLit = i
         }
@@ -745,7 +860,7 @@ export default function ContextField({
         const axp = px[actIdx]
         const ayp = py[actIdx]
         const M = 12
-        const GAP = halfH[actIdx] + 12
+        const GAP = halfH[actIdx] * sc[actIdx] + 12
         const place2 = placeRef.current
         if (!place2.decided) {
           if (ayp + GAP + ch2 <= vh - M) place2.mode = 0
@@ -831,11 +946,18 @@ export default function ContextField({
         const dx = px[i] - px[j]
         const dy = py[i] - py[j]
         const d = Math.sqrt(dx * dx + dy * dy)
-        const restAlpha = 0.05 * smoothstep(restFar, restNear, d)
+        // Visible at rest on purpose: the web is the structure the page is
+        // about, so it reads at arm's length, not only under the cursor.
+        // Mid-descent it brightens further (web > 1) as you pass through.
+        const restAlpha = 0.2 * smoothstep(restFar * web, restNear, d) * web
         const glow = wake[i] * wake[j] * 0.3
-        const alpha = (restAlpha + glow) * Math.min(chan[i], chan[j]) * dim
+        const alpha = (restAlpha + glow) * Math.min(vis[i], vis[j]) * dim
         if (alpha < 0.006) continue
-        push(px[i], py[i], halfW[i], halfH[i], px[j], py[j], halfW[j], halfH[j], alpha, 0, 0)
+        push(
+          px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
+          px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
+          alpha, 0, 0,
+        )
       }
 
       /**
@@ -883,10 +1005,14 @@ export default function ContextField({
             wake[j] *
             smoothstep(linkRadius, linkRadius * 0.14, dij) *
             0.82 *
-            Math.min(chan[i], chan[j]) *
+            Math.min(vis[i], vis[j]) *
             dim
           if (alpha < 0.01) continue
-          push(px[i], py[i], halfW[i], halfH[i], px[j], py[j], halfW[j], halfH[j], alpha, 0, 0)
+          push(
+            px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
+            px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
+            alpha, 0, 0,
+          )
         }
       }
 
@@ -895,9 +1021,9 @@ export default function ContextField({
         const i = nearIdx[n]
         if (i < 0) continue
         const alpha =
-          wake[i] * 0.6 * smoothstep(radius, radius * 0.1, nearDist[n]) * chan[i] * dim
+          wake[i] * 0.6 * smoothstep(radius, radius * 0.1, nearDist[n]) * vis[i] * dim
         if (alpha < 0.008) continue
-        push(cx, cy, 0, 0, px[i], py[i], halfW[i], halfH[i], alpha, 0.9, 0.1)
+        push(cx, cy, 0, 0, px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i], alpha, 0.9, 0.1)
       }
 
       if (renderer) {
@@ -1010,6 +1136,7 @@ export default function ContextField({
             key={f.node.id}
             type="button"
             className={`${styles.frag} ${styles.fragBtn}`}
+            data-tier={f.tier}
             data-active={active === f.node.id ? "true" : undefined}
             aria-expanded={active === f.node.id}
             aria-describedby={active === f.node.id ? "hf-card" : undefined}

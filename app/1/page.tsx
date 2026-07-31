@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { HeroField } from "@/components/hero-field/HeroField"
-import { hfSans, hfSerif } from "@/components/hero-field/fonts"
+import { hfDisplay, hfSans, hfSerif } from "@/components/hero-field/fonts"
 
 export const metadata: Metadata = {
   title: "Manuel David",
@@ -18,5 +18,9 @@ export const metadata: Metadata = {
  * field is dynamically imported client-side underneath it.
  */
 export default function MindPage() {
-  return <HeroField className={`${hfSerif.variable} ${hfSans.variable}`} />
+  return (
+    <HeroField
+      className={`${hfSerif.variable} ${hfSans.variable} ${hfDisplay.variable}`}
+    />
+  )
 }
