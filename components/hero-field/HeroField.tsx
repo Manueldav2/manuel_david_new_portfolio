@@ -73,7 +73,6 @@ const SELECTED_PROJECTS = [
   "claude-skills-sync",
   "ats-resume-optimizer",
   "tripfund",
-  "sovereign",
   "nouvo-clients",
 ]
 
