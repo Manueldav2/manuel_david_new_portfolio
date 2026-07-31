@@ -292,8 +292,7 @@
   margin-left: clamp(0rem, 4.5vw, 4.75rem);
 }
 
-/* Identity, one line: serif name, then the role in the metadata voice.
-   The ember dot is the page's single fixed accent, and it marks him. */
+/* Identity, one line: serif name, then the role in the metadata voice. */
 .kicker {
   display: flex;
   align-items: baseline;
@@ -308,17 +307,6 @@
   font-size: 1.125rem;
   letter-spacing: -0.012em;
   line-height: 1.2;
-}
-
-.kickerName::before {
-  content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--hf-ember);
-  margin-right: 0.55rem;
-  vertical-align: 0.16em;
 }
 
 .kickerRole {

@@ -274,7 +274,7 @@ export const nodes: readonly MindNode[] = [
     z: 0.22,
     story:
       "Working with coding agents means waiting on them, and I watched too many of those minutes die. So I built the cockpit I now sit in all day, and gave it away for free.",
-    link: { label: "idex.dev", href: "https://idex.dev" },
+    link: { label: "github.com/Manueldav2/idex", href: "https://github.com/Manueldav2/idex" },
   },
   {
     id: "classroom",
@@ -287,18 +287,6 @@ export const nodes: readonly MindNode[] = [
     story:
       "It exists because I ran three coding agents on one repo and watched them trample each other’s files. The fix turned out to be social, not technical: make the agents claim their work and negotiate like coworkers.",
     link: { label: "github.com/Manueldav2/claude-classroom", href: "https://github.com/Manueldav2/claude-classroom" },
-  },
-  {
-    id: "sovereign",
-    label: "sovereign",
-    kind: "build",
-    rank: 2,
-    x: 0.86,
-    y: -0.44,
-    z: 0.02,
-    story:
-      "A strategy game where you command the whole army from above, or drop down and fight as one soldier inside it. No business model, no roadmap, just me finding out how much a browser tab can take.",
-    link: { label: "github.com/Manueldav2/sovereign", href: "https://github.com/Manueldav2/sovereign" },
   },
   {
     id: "tripfund",
@@ -609,7 +597,6 @@ export const edges: readonly (readonly [string, string])[] = [
   ["future-focused", "late-nights"],
   ["late-nights", "idex"],
   ["late-nights", "classroom"],
-  ["late-nights", "sovereign"],
   ["late-nights", "thirty-builds"],
   ["late-nights", "tripfund"],
   ["late-nights", "satisfying-videos"],

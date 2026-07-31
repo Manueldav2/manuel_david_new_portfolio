@@ -68,7 +68,6 @@ const low: Fragment[] = [
   storied("ultron", "low"),
   storied("launch-control", "low"),
   storied("classroom", "low"),
-  storied("sovereign", "low"),
   storied("self-doubt", "low"),
   storied("client-sites", "low"),
   storied("ats", "low"),
