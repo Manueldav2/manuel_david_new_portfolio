@@ -90,6 +90,31 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
 /**
+ * Deterministic PRNG (mulberry32). The composition is curated, not rolled:
+ * every load of the page builds the identical field from LAYOUT_SEED, so the
+ * first frame anyone sees is the final one and a reload never rearranges the
+ * room. Only the life on top of the layout, the drift, the ambient wake, the
+ * ghost cursor, stays organic.
+ */
+const mulberry32 = (seed: number) => {
+  let a = seed | 0
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * Chosen by eye from rendered candidates (7, 47, 1987, 20260731, 104729 at
+ * 1440x900 and 390x844): all four quadrants populated, the seven anchors
+ * spread with real air between them, no word pinned to an edge, and the
+ * phone cut keeps a clean diagonal above and below the hero block.
+ */
+const LAYOUT_SEED = 7
+
+/**
  * Resting brightness and pixel size per tier, near depth then far depth.
  *
  * The hierarchy is deliberately steep. The seven key anchors are set large in
@@ -281,6 +306,10 @@ export default function ContextField({
 
     const bx = new Float32Array(COUNT)
     const by = new Float32Array(COUNT)
+    // Where each word is headed. Placement and eviction write these; bx/by
+    // ease toward them every frame, so a re-fit glides instead of snapping.
+    const tbx = new Float32Array(COUNT)
+    const tby = new Float32Array(COUNT)
     const depth = new Float32Array(COUNT)
     const phase = new Float32Array(COUNT)
     const wake = new Float32Array(COUNT)
@@ -297,10 +326,14 @@ export default function ContextField({
     // 1 when placement failed and the word sits out this layout entirely.
     const parked = new Uint8Array(COUNT)
 
+    // Seeded: depth, brightness and size are part of the curated composition
+    // (size feeds the measured boxes the placement is built from), so they
+    // must come out identical on every load.
+    const attrRng = mulberry32(LAYOUT_SEED)
     for (let i = 0; i < COUNT; i++) {
-      phase[i] = Math.random()
+      phase[i] = attrRng()
       const tier = TIER[fragments[i].tier]
-      const t = Math.random()
+      const t = attrRng()
       depth[i] = mix(tier.depth[0], tier.depth[1], t)
       baseA[i] = mix(tier.alpha[0], tier.alpha[1], t)
       const narrowK = fragments[i].tier === "key" ? 0.7 : 0.86
@@ -426,12 +459,7 @@ export default function ContextField({
       [-0.35, -0.62],
     ]
 
-    // Approximate gaussian in [-1.5, 1.5]: sums keep clusters dense in the
-    // middle with soft edges instead of hard discs.
-    const gauss = () =>
-      (Math.random() + Math.random() + Math.random() - 1.5) / 1.0
-
-    const place = () => {
+    const gatherKeepouts = (): Box[] => {
       const keepouts: Box[] = []
       const sx = window.scrollX || 0
       const sy = window.scrollY || 0
@@ -445,7 +473,19 @@ export default function ContextField({
           r.bottom + sy + TYPE_PAD_Y,
         ])
       })
+      return keepouts
+    }
 
+    const place = () => {
+      // Re-seeded on every call: given the same measured boxes and the same
+      // viewport, place() is a pure function of LAYOUT_SEED. Running it twice
+      // is idempotent, so no code path can re-roll the composition.
+      const rand = mulberry32(LAYOUT_SEED ^ 0x9e3779b9)
+      // Approximate gaussian in [-1.5, 1.5]: sums keep clusters dense in the
+      // middle with soft edges instead of hard discs.
+      const gauss = () => rand() + rand() + rand() - 1.5
+
+      const keepouts = gatherKeepouts()
       const placed: Box[] = []
       const cand: Box = [0, 0, 0, 0]
 
@@ -482,11 +522,11 @@ export default function ContextField({
           } else if (kin.length > 0 && k % 4 !== 3) {
             // Gather near a related word; every 4th try goes wide so a
             // crowded cluster can still spill somewhere honest.
-            const j = kin[(Math.random() * kin.length) | 0]
-            nx = bx[j] + gauss() * 0.27 * relax
-            ny = by[j] + gauss() * 0.28 * relax
+            const j = kin[(rand() * kin.length) | 0]
+            nx = tbx[j] + gauss() * 0.27 * relax
+            ny = tby[j] + gauss() * 0.28 * relax
           } else {
-            const c = CLUSTERS[((Math.random() * CLUSTERS.length) | 0)]
+            const c = CLUSTERS[((rand() * CLUSTERS.length) | 0)]
             nx = c[0] + gauss() * 0.4 * relax
             ny = c[1] + gauss() * 0.4 * relax
           }
@@ -532,12 +572,16 @@ export default function ContextField({
           parked[i] = 1
           bx[i] = 0
           by[i] = 0
+          tbx[i] = 0
+          tby[i] = 0
           continue
         }
 
         parked[i] = 0
         bx[i] = fx
         by[i] = fy
+        tbx[i] = fx
+        tby[i] = fy
         placed.push([
           okX - hw - WORD_PAD_X,
           okY - hh - WORD_PAD_Y,
@@ -547,20 +591,118 @@ export default function ContextField({
       }
     }
 
-    let placedW = 0
-    let placedH = 0
+    /**
+     * Re-fits the EXISTING composition to a new viewport. The rescale itself
+     * is free (positions live in normalised space, so toX/toY have already
+     * re-projected every word); this pass only nudges words back out of the
+     * page type's keep-outs and the frame edges, by the smallest
+     * deterministic push that clears them. It never re-samples: word A's
+     * neighbours stay word A's neighbours at every size.
+     */
+    const evict = () => {
+      const keepouts = gatherKeepouts()
+      const spanX = vw * 0.5 - 26
+      const spanY = vh * 0.5 - 24
+
+      for (let i = 0; i < COUNT; i++) {
+        if (parked[i]) continue
+        const hw = halfW[i]
+        const hh = halfH[i]
+        const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 16 - hw) / spanX) : 0
+        const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 14 - hh) / spanY) : 0
+        let nx = Math.min(limX, Math.max(-limX, tbx[i]))
+        let ny = Math.min(limY, Math.max(-limY, tby[i]))
+        let x = toX(nx)
+        let y = toY(ny)
+        let box: Box = [
+          x - hw - WORD_PAD_X,
+          y - hh - WORD_PAD_Y,
+          x + hw + WORD_PAD_X,
+          y + hh + WORD_PAD_Y,
+        ]
+
+        for (let pass = 0; pass < 4; pass++) {
+          let hit: Box | null = null
+          for (let b = 0; b < keepouts.length; b++) {
+            if (hits(box, keepouts[b])) {
+              hit = keepouts[b]
+              break
+            }
+          }
+          if (!hit) break
+          // Four ways out of the overlap, smallest movement first, kept
+          // inside the frame. Fully deterministic: no dice, so a resize can
+          // shove a word aside but never deal a new hand.
+          const pushes: [number, number][] = [
+            [hit[0] - box[2], 0],
+            [hit[2] - box[0], 0],
+            [0, hit[1] - box[3]],
+            [0, hit[3] - box[1]],
+          ]
+          pushes.sort(
+            (a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]),
+          )
+          let moved = false
+          for (const [dxp, dyp] of pushes) {
+            const nnx = spanX > 0 ? (x + dxp - vw * 0.5) / spanX : 0
+            const nny = spanY > 0 ? (y + dyp - vh * 0.5) / spanY : 0
+            if (nnx < -limX || nnx > limX || nny < -limY || nny > limY) continue
+            x += dxp
+            y += dyp
+            nx = nnx
+            ny = nny
+            box = [
+              x - hw - WORD_PAD_X,
+              y - hh - WORD_PAD_Y,
+              x + hw + WORD_PAD_X,
+              y + hh + WORD_PAD_Y,
+            ]
+            moved = true
+            break
+          }
+          if (!moved) break
+        }
+
+        let blocked = false
+        for (let b = 0; b < keepouts.length; b++) {
+          if (hits(box, keepouts[b])) {
+            blocked = true
+            break
+          }
+        }
+        if (blocked) {
+          // No honest spot at this size. Sitting out beats covering the type.
+          parked[i] = 1
+          continue
+        }
+        tbx[i] = nx
+        tby[i] = ny
+      }
+    }
+
+    let laidOut = false
 
     const resize = () => {
-      vw = host.clientWidth || window.innerWidth
-      vh = host.clientHeight || window.innerHeight
+      const w = host.clientWidth || window.innerWidth
+      const h = host.clientHeight || window.innerHeight
+      // The canvas always matches the real viewport 1:1 in CSS pixels.
       if (renderer) {
-        renderer.setSize(vw, vh, false)
+        renderer.setSize(w, h, false)
         camera.left = 0
-        camera.right = vw
+        camera.right = w
         camera.top = 0
-        camera.bottom = vh
+        camera.bottom = h
         camera.updateProjectionMatrix()
       }
+      // The LAYOUT dimensions update only on a real change of shape. A width
+      // change is always real (words re-project proportionally and the
+      // keep-out eviction re-runs); a height-only change under 15% is a
+      // mobile URL bar breathing, and must not move a single word.
+      const widthChanged = Math.abs(w - vw) > 1
+      const heightReal = Math.abs(h - vh) > vh * 0.15
+      if (laidOut && !widthChanged && !heightReal) return
+      vw = w
+      vh = h
       // Recognition radius scales with the short axis so a constellation is
       // the same relative size on a phone as on a display.
       radius = Math.min(vw, vh) * (coarse ? 0.44 : 0.33)
@@ -575,15 +717,13 @@ export default function ContextField({
       bandOuter = bandInner + 250
       placeRef.current.decided = false
       measure()
-      // Re-place only on a real change of shape. Reshuffling the field while
-      // someone drags a window edge would be gratuitous.
-      if (
-        Math.abs(vw - placedW) > placedW * 0.22 ||
-        Math.abs(vh - placedH) > placedH * 0.22
-      ) {
-        placedW = vw
-        placedH = vh
+      if (!laidOut) {
+        // First layout only. Every later resize re-fits the same composition
+        // instead of rolling a new one.
+        laidOut = true
         place()
+      } else {
+        evict()
       }
     }
 
@@ -690,6 +830,10 @@ export default function ContextField({
 
       const riseK = reduced ? 1 : 1 - Math.exp(-dt * 8.5)
       const fallK = reduced ? 1 : 1 - Math.exp(-dt * 2.9)
+      // Base positions glide toward their targets, so a keep-out eviction
+      // after a resize reads as words stepping aside, not teleporting.
+      // Placement writes bx and tbx together, so at rest this is a no-op.
+      const settleK = reduced ? 1 : 1 - Math.exp(-dt * 5)
 
       if (!reduced) {
         ambientAge += dt
@@ -719,6 +863,9 @@ export default function ContextField({
           vis[i] = 0
           continue
         }
+
+        bx[i] += (tbx[i] - bx[i]) * settleK
+        by[i] += (tby[i] - by[i]) * settleK
 
         const ph = phase[i]
         const nx = bx[i] + Math.sin(clock * 0.107 + ph * 6.2832) * 0.03
@@ -1076,13 +1223,19 @@ export default function ContextField({
     // Widths measured before the webfonts land are the fallback's widths, and
     // the whole layout is built out of those widths. Re-place once the real
     // metrics exist, then let the field fade up. Nothing is visible until
-    // this settles, so the reshuffle is never seen.
+    // this settles, so the font-metrics reshuffle is never seen.
+    //
+    // settle() runs EXACTLY once. The old version ran on fonts.ready and
+    // again on an unconditional 1400ms failsafe timer, and each run rolled a
+    // fresh Math.random layout, so the field visibly re-scrambled about 1.4s
+    // after it had already faded in. That was the jarring load. Now the
+    // layout is seeded (idempotent) and the reveal is single-shot.
+    let settled = false
     const settle = () => {
-      if (disposed) return
+      if (disposed || settled) return
+      settled = true
       measure()
-      placedW = 0
-      placedH = 0
-      resize()
+      place()
       if (reduced) {
         step(0)
         step(0)
@@ -1090,9 +1243,34 @@ export default function ContextField({
       readyRef.current?.()
     }
 
-    if (typeof document !== "undefined" && document.fonts?.ready) {
-      document.fonts.ready.then(settle)
+    if (typeof document !== "undefined" && "fonts" in document) {
+      const fonts = document.fonts
+      // Ask for every face/style/weight the fragments are measured in, not
+      // just fonts.ready: ready can resolve before lazily-declared faces are
+      // requested, but load() forces each one into flight now.
+      const specs = new Set<string>()
+      for (let i = 0; i < COUNT; i++) {
+        const cs = getComputedStyle(els[i])
+        specs.add(`${cs.fontStyle} ${cs.fontWeight} 16px ${cs.fontFamily}`)
+      }
+      const loads: Promise<unknown>[] = []
+      if (typeof fonts.load === "function") {
+        specs.forEach((spec) => {
+          loads.push(fonts.load(spec).catch(() => []))
+        })
+      }
+      Promise.all(loads)
+        .then(() => fonts.ready)
+        .then(() => {
+          if (disposed) return
+          if (!settled) settle()
+          // Fonts landed after the failsafe already revealed the field:
+          // correct the measured boxes (line trimming, centring) but keep
+          // every position. A late font never rearranges the room.
+          else measure()
+        })
       // Belt and braces: never leave the field invisible if fonts stall.
+      // Safe to race with the promise above; settle() is single-shot.
       window.setTimeout(settle, 1400)
     } else {
       settle()
