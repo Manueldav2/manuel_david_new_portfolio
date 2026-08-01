@@ -84,7 +84,8 @@ export const work: readonly WorkEntry[] = [
     url: "https://nouvo.dev",
     story: [
       "Nouvo started with a rejection. I applied for tech internships and did not get one. When I looked at the people who did land those roles, a lot of them already had a clean personal site or portfolio backing them up. The tech world treats that as a given. Most people never get handed that edge, and I could not stop thinking about how unfair that gap is.",
-      "So I started building the thing they were missing. Resume and portfolio sites for students and everyday people, the kind of polished web presence that usually only comes with being already plugged into tech. The idea was simple: take the advantage the industry keeps for itself and give it to everyone, so anyone walking into an application has a real shot at the job they actually want.",
+      "So I started building the thing they were missing, right on my own campus. Resume sites for classmates, portfolios for dancers and athletes, real web presence for people applying to the things they actually wanted. It worked. People I knew walked into interviews and auditions with something polished behind their name, and doors started opening for them. That feeling, watching someone I helped get their shot, is still one of the best things I have gotten out of building anything.",
+      "The idea was simple: take the advantage the tech industry keeps for itself and hand it to everyone else.",
       "That turned into Nouvo, my web studio. Athletic portfolios, business sites, resume pages, all built to order for real clients, and eventually productized so it earns on its own at nouvo.dev. It is also where I learned to ship fast for people who are counting on it, which set up everything I have built since.",
     ],
   },
