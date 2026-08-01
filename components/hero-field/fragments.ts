@@ -75,7 +75,6 @@ const low: Fragment[] = [
   storied("thirty-builds", "low"),
   storied("first-client", "low"),
   storied("classmates", "low"),
-  storied("dancers", "low"),
   storied("athletes", "low"),
   storied("tripfund", "low"),
   storied("zantana", "low"),

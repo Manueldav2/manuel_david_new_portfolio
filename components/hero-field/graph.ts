@@ -117,7 +117,7 @@ export const nodes: readonly MindNode[] = [
     y: 0.78,
     z: 0.08,
     story:
-      "I have shipped agents that cold call, agents that write code, and agents that book meetings while I sleep. Once you have watched one work through the night, the question stops being whether that world arrives and becomes who builds its plumbing.",
+      "An agent is software that works on its own: it plans, uses tools, and finishes the job without a human driving every step. I have shipped agents that cold call, write code, and book meetings while I sleep. Once you have watched one work through the night, the question stops being whether that world arrives and becomes who builds its plumbing.",
   },
   {
     id: "break-fast",
@@ -212,7 +212,7 @@ export const nodes: readonly MindNode[] = [
     y: 0.6,
     z: -0.2,
     story:
-      "I think outreach ends with my agent talking to yours: pitching, vetting, scheduling, all before a human reads a word. Paradigm was my bet on getting there before it was obvious.",
+      "Agent to agent is the world where your software talks to mine directly: my agent pitches, yours vets, they settle the details, and the humans only see the outcome. I think outreach ends up there, and Paradigm was my bet on getting there before it was obvious.",
   },
   {
     id: "attention",
@@ -512,17 +512,6 @@ export const nodes: readonly MindNode[] = [
       "Friends ask you to build things as a favor. The first stranger who paid me changed the job: now it had to work for someone with no reason to forgive me.",
   },
   {
-    id: "dancers",
-    label: "dancers",
-    kind: "era",
-    rank: 2,
-    x: -0.5,
-    y: -0.3,
-    z: -0.05,
-    story:
-      "Audition season runs on portfolios, and dancers talk to each other. One site that helped someone get seen turned into a referral chain I never had to ask for.",
-  },
-  {
     id: "athletes",
     label: "athletes",
     kind: "era",
@@ -556,8 +545,6 @@ export const edges: readonly (readonly [string, string])[] = [
   ["resume-sites", "ats"],
   ["college", "classmates"],
   ["classmates", "resume-sites"],
-  ["dancers", "resume-sites"],
-  ["dancers", "nouvo"],
   ["athletes", "nouvo"],
   ["first-client", "nouvo"],
   ["first-client", "client-sites"],
