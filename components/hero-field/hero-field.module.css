@@ -605,38 +605,50 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Project list                                                        */
+/* Project plates                                                      */
+/*                                                                     */
+/* Five figures, magazine style: the words on the left rail, the       */
+/* evidence on the right. A screenshot is treated like a plate in a    */
+/* printed monograph: hairline frame, a small caption line under it,   */
+/* no card, no glass, no shadow.                                       */
 /* ------------------------------------------------------------------ */
 
-.list {
+.plates {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.row {
+.plate {
   display: grid;
-  grid-template-columns: 4rem minmax(150px, 220px) minmax(0, 1fr);
-  gap: 0.35rem 2rem;
-  padding: 1.05rem 0;
+  grid-template-columns: minmax(200px, 0.85fr) minmax(0, 1.15fr);
+  gap: 1.25rem 3.5rem;
+  align-items: start;
+  padding: clamp(1.75rem, 3.5vw, 2.5rem) 0;
   border-top: 1px solid var(--hf-rule-soft);
 }
 
-.rowYear {
+.plateText {
+  min-width: 0;
+  max-width: 44ch;
+}
+
+.plateYear {
+  margin: 0;
   font-size: 0.8rem;
   color: var(--hf-mute);
   font-variant-numeric: tabular-nums;
-  padding-top: 0.2rem;
 }
 
-.rowName {
-  margin: 0;
+.plateName {
+  margin: 0.4rem 0 0;
   font-family: var(--hf-serif), ui-serif, Georgia, serif;
-  font-size: 1.08rem;
+  font-size: 1.35rem;
   font-weight: 500;
+  line-height: 1.25;
 }
 
-.rowName a {
+.plateName a {
   color: var(--hf-bone);
   text-decoration: underline;
   text-decoration-color: transparent;
@@ -645,24 +657,23 @@
   transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
 }
 
-.rowName a:hover {
+.plateName a:hover {
   color: var(--hf-ember-soft);
   text-decoration-color: var(--hf-ember);
 }
 
-.rowBlurb {
-  margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.6;
+.plateBlurb {
+  margin: 0.65rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.62;
   color: var(--hf-read);
-  max-width: 58ch;
 }
 
-.rowNote {
+.plateNote {
   color: var(--hf-mute);
 }
 
-.rowNoteLink {
+.plateNoteLink {
   color: var(--hf-mute);
   text-decoration: underline;
   text-decoration-color: var(--hf-rule);
@@ -671,9 +682,54 @@
   transition: color 180ms var(--hf-ease), text-decoration-color 180ms var(--hf-ease);
 }
 
-.rowNoteLink:hover {
+.plateNoteLink:hover {
   color: var(--hf-bone);
   text-decoration-color: var(--hf-ember);
+}
+
+.plateFigure {
+  margin: 0;
+  min-width: 0;
+}
+
+.plateShotLink {
+  display: block;
+}
+
+.plateImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--hf-rule);
+  background: var(--hf-ink-lift);
+  transition: border-color 180ms var(--hf-ease);
+}
+
+.plateShotLink:hover .plateImg,
+.plateShotLink:focus-visible .plateImg {
+  border-color: var(--hf-ember);
+}
+
+.plateCaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.55rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  color: var(--hf-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The quiet line after the plates: the long tail stays on GitHub. */
+.platesFoot {
+  margin: clamp(1.75rem, 3.5vw, 2.5rem) 0 0;
+  padding-top: 1.05rem;
+  border-top: 1px solid var(--hf-rule-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--hf-mute);
+  max-width: 58ch;
 }
 
 /* ------------------------------------------------------------------ */
@@ -739,12 +795,13 @@
     grid-column: auto;
   }
 
-  .row {
-    grid-template-columns: 4rem minmax(0, 1fr);
+  .plate {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
   }
 
-  .rowBlurb {
-    grid-column: 2;
+  .plateText {
+    max-width: 58ch;
   }
 
   .close {

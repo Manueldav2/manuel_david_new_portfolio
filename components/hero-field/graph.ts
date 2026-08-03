@@ -72,18 +72,18 @@ export const nodes: readonly MindNode[] = [
     y: 0.84,
     z: -0.06,
     story:
-      "Every decision on this map looked reckless on paper: leave school, cross the country, bet on myself. None of it ever felt like gambling, because I have never once believed I was doing this alone.",
+      "Every decision on this map looked reckless on paper: cross the country, bet on myself, build for a future nobody could see yet. None of it ever felt like gambling, because I have never once believed I was doing this alone.",
   },
   {
-    id: "dropped-out",
-    label: "dropped out",
+    id: "all-in",
+    label: "all in",
     kind: "decision",
     rank: 0,
     x: -0.42,
     y: 0.86,
     z: 0.18,
     story:
-      "The real trade was four more semesters against four more shipped products, and I picked the products. School was the only thing in my life moving slower than I was.",
+      "Betting on myself is the one decision that explains all the others. I packed up, crossed the country, and made building the entire plan: no plan B, because I never intended to use one.",
     link: { label: "the full story, on 18VC", href: "https://youtu.be/sbacIYWPbSM" },
   },
   {
@@ -238,7 +238,7 @@ export const nodes: readonly MindNode[] = [
     y: -0.6,
     z: -0.28,
     story:
-      "I quit school and then immediately built a study tool, which tells you what I actually left: the format, not the learning. This one listens while you talk and sketches the diagram you would have doodled in the margin.",
+      "I never stopped being a student, I just fired the format. This one listens while you talk and sketches the diagram you would have doodled in the margin.",
     link: { label: "github.com/Manueldav2/VisboardAI", href: "https://github.com/Manueldav2/VisboardAI" },
   },
   {
@@ -299,60 +299,6 @@ export const nodes: readonly MindNode[] = [
     story:
       "Group trips die in the group chat. This one wires the plan to actual money: a shared pot, live flight prices, and a bot that politely bullies everyone into funding it.",
     link: { label: "tripfund-mocha.vercel.app", href: "https://tripfund-mocha.vercel.app" },
-  },
-  {
-    id: "zantana",
-    label: "zantana",
-    kind: "build",
-    rank: 2,
-    x: 0.42,
-    y: -0.86,
-    z: 0.1,
-    story:
-      "A whole party game living in one HTML file you can text to a friend. The constraint was the point: if it needs a server, it is not a party trick anymore.",
-    link: { label: "github.com/Manueldav2/zantana", href: "https://github.com/Manueldav2/zantana" },
-  },
-  {
-    id: "skills-sync",
-    label: "skills sync",
-    kind: "build",
-    rank: 2,
-    x: 0.68,
-    y: -0.9,
-    z: -0.18,
-    story:
-      "One npx command and every machine I sit down at knows my whole Claude setup. Tiny tool, published to npm, and I probably run it more than anything else I have made.",
-    link: {
-      label: "npmjs.com/package/claude-skills-sync",
-      href: "https://www.npmjs.com/package/claude-skills-sync",
-    },
-  },
-  {
-    id: "satisfying-videos",
-    label: "satisfying videos",
-    kind: "build",
-    rank: 2,
-    x: 0.94,
-    y: -0.74,
-    z: 0.06,
-    story:
-      "A pipeline that invents oddly satisfying clips, renders them with a video model, and posts them to TikTok without me. I built it mostly to learn where hands-off stops working.",
-    link: { label: "satisfying-video-gen.web.app", href: "https://satisfying-video-gen.web.app" },
-  },
-  {
-    id: "lead-gen",
-    label: "lead gen",
-    kind: "build",
-    rank: 2,
-    x: 0.18,
-    y: -0.24,
-    z: 0.3,
-    story:
-      "Give it a market and it hands back a list of qualified businesses worth a call. I keep it small and open; boring tools are the ones people actually reuse.",
-    link: {
-      label: "github.com/Manueldav2/AI_generated_leads",
-      href: "https://github.com/Manueldav2/AI_generated_leads",
-    },
   },
   {
     id: "shipping",
@@ -426,7 +372,7 @@ export const nodes: readonly MindNode[] = [
     y: -0.76,
     z: 0.18,
     story:
-      "The studio is where deadlines became real: a dancer’s audition does not move because my build broke. Those first invoices taught me more than the lectures did.",
+      "The studio is where deadlines became real: a dancer’s audition does not move because my build broke. Those first invoices taught me things no tutorial ever covered.",
     link: { label: "nouvo.dev", href: "https://nouvo.dev" },
   },
   {
@@ -465,7 +411,7 @@ export const nodes: readonly MindNode[] = [
     y: -0.88,
     z: -0.05,
     story:
-      "The first ones went to classmates, then dancers, then athletes, built at my desk while I was still enrolled. The day someone I built for landed the interview, it stopped being a side hustle in my head.",
+      "The first ones went to classmates, then dancers, then athletes, all built from the same desk after everything else was done for the day. The day someone I built for landed the interview, it stopped being a side hustle in my head.",
   },
   {
     id: "rejection",
@@ -477,17 +423,6 @@ export const nodes: readonly MindNode[] = [
     z: -0.1,
     story:
       "The internship answers came in two flavors: no, and silence. The people getting yeses were not smarter, they had better proof, and proof turned out to be something you can build.",
-  },
-  {
-    id: "college",
-    label: "college",
-    kind: "era",
-    rank: 2,
-    x: -0.7,
-    y: -0.55,
-    z: 0.1,
-    story:
-      "By my last semesters the laptop in the lecture hall was open to client work, not notes. I was not skipping the education, I was swapping it for one with deadlines.",
   },
   {
     id: "classmates",
@@ -530,20 +465,17 @@ export const nodes: readonly MindNode[] = [
  */
 export const edges: readonly (readonly [string, string])[] = [
   // The foundation, and the leap
-  ["faith", "dropped-out"],
+  ["faith", "all-in"],
   ["faith", "san-francisco"],
-  ["future-focused", "dropped-out"],
-  ["dropped-out", "san-francisco"],
-  ["dropped-out", "gideon"],
-  ["dropped-out", "college"],
+  ["future-focused", "all-in"],
+  ["all-in", "san-francisco"],
+  ["all-in", "gideon"],
 
   // The rejection, and the studio it turned into
   ["rejection", "nouvo"],
   ["rejection", "resume-sites"],
-  ["rejection", "college"],
   ["resume-sites", "nouvo"],
   ["resume-sites", "ats"],
-  ["college", "classmates"],
   ["classmates", "resume-sites"],
   ["athletes", "nouvo"],
   ["first-client", "nouvo"],
@@ -562,7 +494,6 @@ export const edges: readonly (readonly [string, string])[] = [
   ["paradigm", "launch-control"],
   ["paradigm", "voice-agents"],
   ["paradigm", "agent-to-agent"],
-  ["paradigm", "lead-gen"],
   ["voice-agents", "agents"],
   ["agent-to-agent", "future-focused"],
   ["attention", "agents"],
@@ -586,13 +517,9 @@ export const edges: readonly (readonly [string, string])[] = [
   ["late-nights", "classroom"],
   ["late-nights", "thirty-builds"],
   ["late-nights", "tripfund"],
-  ["late-nights", "satisfying-videos"],
   ["open-source", "idex"],
   ["open-source", "classroom"],
-  ["open-source", "skills-sync"],
   ["thirty-builds", "open-source"],
-  ["thirty-builds", "zantana"],
-  ["thirty-builds", "lead-gen"],
   ["shipping", "open-source"],
   ["mistakes", "idex"],
   ["mistakes", "classroom"],
@@ -613,13 +540,13 @@ export const neighbours = (() => {
 
 /**
  * Reveal order: breadth first from the decision everything else hangs off, so
- * the web draws itself outward from the moment he left school rather than
+ * the web draws itself outward from the moment he went all in rather than
  * fading up as one undifferentiated block.
  */
 export const revealOrder = (() => {
   const order = new Map<string, number>();
-  const queue = ["dropped-out"];
-  order.set("dropped-out", 0);
+  const queue = ["all-in"];
+  order.set("all-in", 0);
   for (let i = 0; i < queue.length; i++) {
     const id = queue[i];
     const d = order.get(id) ?? 0;

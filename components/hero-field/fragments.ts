@@ -36,7 +36,7 @@ const storied = (id: string, tier: FragmentTier): Fragment => {
 /** The spine of the life: the words that would identify him to anything. */
 const key: Fragment[] = [
   storied("faith", "key"),
-  storied("dropped-out", "key"),
+  storied("all-in", "key"),
   storied("san-francisco", "key"),
   storied("configure", "key"),
   storied("paradigm", "key"),
@@ -57,7 +57,6 @@ const mid: Fragment[] = [
   storied("gideon", "mid"),
   storied("idex", "mid"),
   storied("shipping", "mid"),
-  storied("college", "mid"),
   storied("attention", "mid"),
   storied("agent-to-agent", "mid"),
   storied("voice-agents", "mid"),
@@ -77,10 +76,6 @@ const low: Fragment[] = [
   storied("classmates", "low"),
   storied("athletes", "low"),
   storied("tripfund", "low"),
-  storied("zantana", "low"),
-  storied("skills-sync", "low"),
-  storied("satisfying-videos", "low"),
-  storied("lead-gen", "low"),
 ];
 
 /**

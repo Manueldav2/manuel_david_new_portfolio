@@ -64,19 +64,20 @@ const ROLES: { company: string; lead: boolean; paragraphs: number[] | "all" }[] 
   { company: "Nouvo", lead: false, paragraphs: "all" },
 ]
 
-const SELECTED_PROJECTS = [
-  "idex",
-  "ultron",
-  "launch-control",
-  "gideon",
-  "claude-classroom",
-  "claude-skills-sync",
-  "ats-resume-optimizer",
-  "tripfund",
+/**
+ * The featured five: live, working surfaces only, each shown as a plate with
+ * a real screenshot. Everything else stays on GitHub (and gets one quiet
+ * line, not a slot).
+ */
+const FEATURED_PROJECTS = [
+  "paradigm",
   "nouvo-clients",
+  "ultron",
+  "gideon",
+  "ats-resume-optimizer",
 ]
 
-const selectedProjects = SELECTED_PROJECTS.map((slug) =>
+const featuredProjects = FEATURED_PROJECTS.map((slug) =>
   projects.find((p) => p.slug === slug),
 ).filter((p): p is (typeof projects)[number] => Boolean(p))
 
@@ -249,47 +250,91 @@ export function HeroField({ className }: { className?: string }) {
           {/* ------------------------------------------------------------ */}
           <section className={styles.chapter} aria-labelledby="mk-projects">
             <h2 id="mk-projects" className={styles.chapterLead}>
-              The rest is public. {profile.projectsTotalLabel} builds so far,
-              and these are the ones worth your time.
+              {profile.projectsTotalLabel} builds so far. These five are live
+              right now; go see them.
             </h2>
 
-            <ul className={styles.list}>
-              {selectedProjects.map((p) => {
-                const href = p.url ?? p.github
+            <ul className={styles.plates}>
+              {featuredProjects.map((p, i) => {
+                const href =
+                  p.slug === "nouvo-clients" ? "https://nouvo.dev" : (p.url ?? p.github)
+                const site = href ? host(href) : null
                 return (
-                  <li key={p.slug} className={styles.row}>
-                    <span className={styles.rowYear}>{p.year}</span>
-                    <h3 className={styles.rowName}>
-                      {href ? (
-                        <a href={href} target="_blank" rel="noreferrer">
-                          {p.name}
-                        </a>
-                      ) : (
-                        p.name
-                      )}
-                    </h3>
-                    <p className={styles.rowBlurb}>
-                      {typo(p.blurb)}
-                      {p.clients ? (
-                        <span className={styles.rowNote}>
-                          {" "}
-                          Check them out at{" "}
-                          <a
-                            className={styles.rowNoteLink}
-                            href="https://nouvo.dev"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            nouvo.dev
+                  <li key={p.slug} className={styles.plate}>
+                    <div className={styles.plateText}>
+                      <p className={styles.plateYear}>{p.year}</p>
+                      <h3 className={styles.plateName}>
+                        {href ? (
+                          <a href={href} target="_blank" rel="noreferrer">
+                            {p.name}
                           </a>
-                          .
-                        </span>
-                      ) : null}
-                    </p>
+                        ) : (
+                          p.name
+                        )}
+                      </h3>
+                      <p className={styles.plateBlurb}>
+                        {typo(p.blurb)}
+                        {p.clients ? (
+                          <span className={styles.plateNote}>
+                            {" "}
+                            The full gallery lives at{" "}
+                            <a
+                              className={styles.plateNoteLink}
+                              href="https://nouvo.dev"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              nouvo.dev
+                            </a>
+                            .
+                          </span>
+                        ) : null}
+                      </p>
+                    </div>
+
+                    {p.shot ? (
+                      <figure className={styles.plateFigure}>
+                        <a
+                          className={styles.plateShotLink}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          tabIndex={-1}
+                        >
+                          <img
+                            className={styles.plateImg}
+                            src={p.shot}
+                            alt={p.shotAlt ?? `Screenshot of ${p.name}`}
+                            width={960}
+                            height={600}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </a>
+                        <figcaption className={styles.plateCaption}>
+                          <span>fig. {String(i + 1).padStart(2, "0")}</span>
+                          {site ? <span>{site}</span> : null}
+                        </figcaption>
+                      </figure>
+                    ) : null}
                   </li>
                 )
               })}
             </ul>
+
+            <p className={styles.platesFoot}>
+              The other twenty-some, IDEX, Claude Classroom, Launch Control and
+              the rest, live on{" "}
+              <a
+                className={styles.plateNoteLink}
+                href={profile.github}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+              .
+            </p>
           </section>
 
           {/* ------------------------------------------------------------ */}

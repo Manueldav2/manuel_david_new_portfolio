@@ -4,7 +4,7 @@ import { AboutStory } from "@/components/about/AboutStory"
 export const metadata: Metadata = {
   title: "About — Manuel David",
   description:
-    "The story behind the work: leaving college for San Francisco on faith, building fast, and why Manuel David is set on the infrastructure for a world run by agents.",
+    "The story behind the work: moving to San Francisco on faith, building fast, and why Manuel David is set on the infrastructure for a world run by agents.",
 }
 
 export default function AboutPage() {

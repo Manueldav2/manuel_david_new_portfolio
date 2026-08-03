@@ -6,7 +6,7 @@ import { hfDisplay, hfSans, hfSerif } from "@/components/hero-field/fonts"
 export const metadata: Metadata = {
   title: "Manuel David",
   description:
-    "I dropped out, moved to San Francisco, and started building. Founding engineer at Configure, founder of Paradigm and Nouvo. My life, drawn as a living context map.",
+    "I moved to San Francisco and went all in on building. Founding engineer at Configure, founder of Paradigm and Nouvo. My life, drawn as a living context map.",
 }
 
 /**
