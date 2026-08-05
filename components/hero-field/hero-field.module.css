@@ -721,6 +721,59 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ------------------------------------------------------------------ */
+/* Personal figures                                                    */
+/*                                                                     */
+/* Photographs of the author, set beside the prose in the exact plate  */
+/* language: hairline frame, fig. number, a short caption in his       */
+/* voice. They share one numbering series with the project shots, and  */
+/* they live in the margins the reading grid already holds open, so    */
+/* the text column never has to move for them.                         */
+/* ------------------------------------------------------------------ */
+
+.photoFigure {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.photoCaptionFig {
+  flex-shrink: 0;
+}
+
+.photoCaptionText {
+  text-align: right;
+  text-wrap: pretty;
+}
+
+/* The About margin figure: rail column, nudged onto the lede's cap line. */
+.marginFigure {
+  margin-top: 0.4rem;
+}
+
+/* A rail figure under a role's meta: the founder era, at margin scale. */
+.railFigure {
+  margin-top: 1.5rem;
+}
+
+/* In the prose flow, closing a role's story at full column measure. */
+.proseFigure {
+  margin-top: 2rem;
+}
+
+/* The companion plate under the Launch Control words: snapshot size,
+   clearly subordinate to the project's own screenshot across the row. */
+.companionFigure {
+  margin-top: 1.75rem;
+  max-width: 15.5rem;
+}
+
+/* The close: him and the humanoid, under the last paragraph. */
+.closeFigure {
+  margin-top: 2.1rem;
+  max-width: 20rem;
+}
+
 /* The quiet line after the plates: the long tail stays on GitHub. */
 .platesFoot {
   margin: clamp(1.75rem, 3.5vw, 2.5rem) 0 0;
@@ -806,6 +859,25 @@
 
   .close {
     grid-template-columns: 1fr;
+  }
+
+  /* Single column: the portrait figures step into the flow at a modest
+     width instead of blowing up to full poster size. At 390px this is
+     the full column anyway. */
+  .marginFigure,
+  .railFigure,
+  .companionFigure,
+  .closeFigure {
+    max-width: 24rem;
+  }
+
+  .marginFigure {
+    margin-top: 0.25rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .railFigure {
+    margin-top: 1.1rem;
   }
 }
 

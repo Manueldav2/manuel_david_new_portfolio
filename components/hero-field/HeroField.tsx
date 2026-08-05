@@ -52,15 +52,123 @@ const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 const byCompany = (name: string) => work.find((w) => w.company === name)
 
 /**
+ * The personal plates. Five photographs set in the same figure language as
+ * the project screenshots: hairline frame, small mono caption. Each one sits
+ * beside the prose it belongs to, never in a gallery. The portraits are
+ * EXIF-rotated (stored landscape, displayed upright), so width/height here
+ * are the DISPLAYED dimensions the browser resolves them to.
+ */
+type Photo = {
+  src: string
+  alt: string
+  caption: string
+  width: number
+  height: number
+}
+
+const PHOTOS = {
+  beach: {
+    src: "/photos/beach.jpg",
+    alt: "Manuel walking barefoot on a beach at sunset, hands in his pockets, smiling",
+    caption: "Off the clock.",
+    width: 1050,
+    height: 1400,
+  },
+  antler: {
+    src: "/photos/antler.jpg",
+    alt: "Manuel standing in front of the Antler wall in San Francisco",
+    caption: "Antler, San Francisco.",
+    width: 1050,
+    height: 1400,
+  },
+  openai: {
+    src: "/photos/openai.jpg",
+    alt: "Manuel in front of a giant screen reading OpenAI Voice Hack Night",
+    caption: "Voice Hack Night at OpenAI.",
+    width: 1400,
+    height: 1050,
+  },
+  buildDay: {
+    src: "/photos/claude-build-day.jpg",
+    alt: "Manuel on stage in front of the Claude Build Day screen, June 13, San Francisco",
+    caption: "Build Day, where Launch Control was born.",
+    width: 1050,
+    height: 1400,
+  },
+  optimus: {
+    src: "/photos/optimus.jpg",
+    alt: "Manuel grinning next to Tesla’s Optimus humanoid robot in a showroom",
+    caption: "Meeting Optimus.",
+    width: 1050,
+    height: 1400,
+  },
+} satisfies Record<string, Photo>
+
+/**
+ * One plate series for the whole page, numbered in document order: the
+ * beach (01), Antler (02), Voice Hack Night (03), the five project shots
+ * (04 to 08), Build Day beside the Launch Control plate (09), and Optimus
+ * at the close (10). PLATE_FIG_BASE keeps the project plates in sequence.
+ */
+const FIG = { beach: 1, antler: 2, openai: 3, buildDay: 9, optimus: 10 }
+const PLATE_FIG_BASE = 4
+
+function PhotoFigure({
+  photo,
+  fig,
+  className,
+}: {
+  photo: Photo
+  fig: number
+  className?: string
+}) {
+  return (
+    <figure className={`${styles.photoFigure} ${className ?? ""}`}>
+      <img
+        className={styles.plateImg}
+        src={photo.src}
+        alt={photo.alt}
+        width={photo.width}
+        height={photo.height}
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption className={styles.plateCaption}>
+        <span className={styles.photoCaptionFig}>
+          fig. {String(fig).padStart(2, "0")}
+        </span>
+        <span className={styles.photoCaptionText}>{photo.caption}</span>
+      </figcaption>
+    </figure>
+  )
+}
+
+/**
  * Person first: the roles read as one continuous story. Configure and Nouvo
  * run their full arcs. Paradigm renders only its vision paragraph: paragraph
  * 0 (the 200-dollar email batch, the break-fast loop) is told in the field's
  * hover cards instead, and paragraph 2 retells the leap and the context wall
  * that About and Configure already carry. Nothing on the page twice.
+ *
+ * Paradigm carries the founder-era photographs: Antler in the rail under
+ * the meta, and the OpenAI voice night closing its prose, since the voice
+ * demos are that company's whole thesis.
  */
-const ROLES: { company: string; lead: boolean; paragraphs: number[] | "all" }[] = [
+const ROLES: {
+  company: string
+  lead: boolean
+  paragraphs: number[] | "all"
+  railPhoto?: keyof typeof PHOTOS
+  prosePhoto?: keyof typeof PHOTOS
+}[] = [
   { company: "Configure", lead: true, paragraphs: [0, 1] },
-  { company: "Paradigm", lead: false, paragraphs: [1] },
+  {
+    company: "Paradigm",
+    lead: false,
+    paragraphs: [1],
+    railPhoto: "antler",
+    prosePhoto: "openai",
+  },
   { company: "Nouvo", lead: false, paragraphs: "all" },
 ]
 
@@ -183,6 +291,13 @@ export function HeroField({ className }: { className?: string }) {
               Who I am, before what I do.
             </h2>
             <div className={styles.chapterBody}>
+              {/* The margin figure: the warm photograph beside the personal
+                  prose, in the rail column the grid already holds open. */}
+              <PhotoFigure
+                photo={PHOTOS.beach}
+                fig={FIG.beach}
+                className={styles.marginFigure}
+              />
               <div className={styles.prose}>
                 <p className={styles.lede}>{typo(profile.about[0])}</p>
                 <p>{typo(profile.about[1])}</p>
@@ -232,6 +347,13 @@ export function HeroField({ className }: { className?: string }) {
                         {host(entry.url)}
                       </a>
                     ) : null}
+                    {role.railPhoto ? (
+                      <PhotoFigure
+                        photo={PHOTOS[role.railPhoto]}
+                        fig={FIG[role.railPhoto]}
+                        className={styles.railFigure}
+                      />
+                    ) : null}
                   </div>
 
                   <div className={styles.prose}>
@@ -239,6 +361,13 @@ export function HeroField({ className }: { className?: string }) {
                     {paragraphs.map((para, n) => (
                       <p key={n}>{typo(para)}</p>
                     ))}
+                    {role.prosePhoto ? (
+                      <PhotoFigure
+                        photo={PHOTOS[role.prosePhoto]}
+                        fig={FIG[role.prosePhoto]}
+                        className={styles.proseFigure}
+                      />
+                    ) : null}
                   </div>
                 </article>
               )
@@ -290,6 +419,15 @@ export function HeroField({ className }: { className?: string }) {
                           </span>
                         ) : null}
                       </p>
+                      {p.slug === "launch-control" ? (
+                        /* The companion plate: the night the project comes
+                           from, set under its words at snapshot size. */
+                        <PhotoFigure
+                          photo={PHOTOS.buildDay}
+                          fig={FIG.buildDay}
+                          className={styles.companionFigure}
+                        />
+                      ) : null}
                     </div>
 
                     {p.shot ? (
@@ -312,7 +450,9 @@ export function HeroField({ className }: { className?: string }) {
                           />
                         </a>
                         <figcaption className={styles.plateCaption}>
-                          <span>fig. {String(i + 1).padStart(2, "0")}</span>
+                          <span>
+                            fig. {String(i + PLATE_FIG_BASE).padStart(2, "0")}
+                          </span>
                           {site ? <span>{site}</span> : null}
                         </figcaption>
                       </figure>
@@ -348,6 +488,12 @@ export function HeroField({ className }: { className?: string }) {
             <div className={styles.close}>
               <div className={styles.prose}>
                 <p className={styles.lede}>{typo(profile.about[4])}</p>
+                {/* Him and a humanoid robot IS this section. */}
+                <PhotoFigure
+                  photo={PHOTOS.optimus}
+                  fig={FIG.optimus}
+                  className={styles.closeFigure}
+                />
               </div>
 
               <aside className={styles.closeAside}>
