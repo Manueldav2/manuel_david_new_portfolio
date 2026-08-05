@@ -827,6 +827,13 @@ export default function ContextField({
     const boxA: Box = [0, 0, 0, 0]
     const boxB: Box = [0, 0, 0, 0]
 
+    /** Horizontal candidate offsets (normalised), shared by the anchor
+     * rescue and the Configure guarantee: fixed order, deterministic. */
+    const XOFF = [
+      0, -0.12, 0.12, -0.24, 0.24, -0.36, 0.36, -0.48, 0.48, -0.6, 0.6,
+      -0.72, 0.72,
+    ]
+
     // Which resting edges belong to the life spine (for the entrance
     // draw-in). Resolved once against the fragment indices.
     const restSpineArr = new Uint8Array(restCount)
@@ -839,6 +846,10 @@ export default function ContextField({
     /** Edge-brightness factor derived from the word grade, cached. */
     const lightE = new Float32Array(COUNT).fill(1)
     const lightIdx = idxOfNode.get("configure") ?? -1
+    /** 1 for the words that linger through the paper phone descent: the
+     * lowest one or two on the sheet ride down on a composed path (see
+     * the descent block) so the handoff never goes fully blank. */
+    const lingerFlag = new Uint8Array(COUNT)
 
     /**
      * The grade. Configure is the light source: warmth and brightness fall
@@ -875,6 +886,108 @@ export default function ContextField({
         const g = Math.round(mix(cool[1], warmc[1], w))
         const b = Math.round(mix(cool[2], warmc[2], w))
         els[i].style.setProperty("--hfw", `rgb(${r} ${g} ${b})`)
+      }
+
+      // The paper phone descent's lingerers: the two lowest words in the
+      // layout. They sit under the whole hero stack, so the keep-outs
+      // sweep up and away from them the moment scrolling starts, and the
+      // sheet keeps some ink through the middle of the descent instead of
+      // going featureless beige. Recomputed with every layout, per frame
+      // never.
+      lingerFlag.fill(0)
+      if (paper && narrow) {
+        let low1 = -1
+        let low2 = -1
+        for (let i = 0; i < COUNT; i++) {
+          if (parked[i]) continue
+          const y = toY(tby[i])
+          if (low1 < 0 || y > toY(tby[low1])) {
+            low2 = low1
+            low1 = i
+          } else if (low2 < 0 || y > toY(tby[low2])) {
+            low2 = i
+          }
+        }
+        if (low1 >= 0) lingerFlag[low1] = 1
+        if (low2 >= 0) lingerFlag[low2] = 2
+      }
+    }
+
+    /**
+     * The Configure guarantee. Configure is importance 5 and the scene's
+     * light source: a cut that parks it has deleted the point of the page,
+     * which is exactly what the phone layouts were doing when the rescue
+     * found no fully-clear slot and gave up. If Configure is still parked
+     * after a layout pass, this re-runs the band scan with the one hard
+     * requirement kept (clear of the type keep-outs) and the soft one
+     * relaxed: the candidate overlapping the least label area wins, and
+     * whatever lesser words still overlap it sit out instead. Fully
+     * deterministic: fixed candidate order, ties keep the first.
+     */
+    const ensureAnchor = (keepouts: Box[]) => {
+      const i = lightIdx
+      if (i < 0 || i >= COUNT || !parked[i]) return
+      const spanX = vw * 0.5 - 26
+      const spanY = vh * 0.5 - 24
+      if (spanX <= 0 || spanY <= 0 || keepouts.length === 0) return
+      let stackTop = Infinity
+      let stackBot = -Infinity
+      for (const k of keepouts) {
+        if (k[1] < stackTop) stackTop = k[1]
+        if (k[3] > stackBot) stackBot = k[3]
+      }
+      const bandBelowFirst = vh - stackBot > stackTop
+      const saveX = tbx[i]
+      const saveY = tby[i]
+      const rowH = (halfH[i] + WORD_PAD_Y) * 2 + 6
+      let bestX = 0
+      let bestY = 0
+      let bestCost = Infinity
+      for (let row = 0; row < 6 && bestCost > 0; row++) {
+        const below = bandBelowFirst ? row % 2 === 0 : row % 2 === 1
+        const off = halfH[i] + WORD_PAD_Y + 6 + Math.floor(row / 2) * rowH
+        const cy2 = below ? stackBot + off : stackTop - off
+        for (let xo = 0; xo < XOFF.length && bestCost > 0; xo++) {
+          tbx[i] = saveX + XOFF[xo]
+          tby[i] = (cy2 - vh * 0.5) / spanY
+          clampWord(i)
+          wordBox(i, boxA)
+          let clear = true
+          for (let b = 0; b < keepouts.length && clear; b++) {
+            clear = !hits(boxA, keepouts[b])
+          }
+          if (!clear) continue
+          let cost = 0
+          for (let j = 0; j < COUNT; j++) {
+            if (j === i || parked[j]) continue
+            wordBox(j, boxB)
+            const ox = Math.min(boxA[2], boxB[2]) - Math.max(boxA[0], boxB[0])
+            const oy = Math.min(boxA[3], boxB[3]) - Math.max(boxA[1], boxB[1])
+            if (ox > 0 && oy > 0) cost += ox * oy
+          }
+          if (cost < bestCost) {
+            bestCost = cost
+            bestX = tbx[i]
+            bestY = tby[i]
+          }
+        }
+      }
+      if (bestCost === Infinity) {
+        // No keep-out-clear slot exists at all (a pathological viewport).
+        tbx[i] = saveX
+        tby[i] = saveY
+        return
+      }
+      tbx[i] = bestX
+      tby[i] = bestY
+      parked[i] = 0
+      // The light source claims its spot: any lesser word still under it
+      // sits out. Everything is lesser; Configure is the top of the scale.
+      wordBox(i, boxA)
+      for (let j = 0; j < COUNT; j++) {
+        if (j === i || parked[j]) continue
+        wordBox(j, boxB)
+        if (hits(boxA, boxB)) parked[j] = 1
       }
     }
 
@@ -967,10 +1080,6 @@ export default function ContextField({
         if (k[1] < stackTop) stackTop = k[1]
         if (k[3] > stackBot) stackBot = k[3]
       }
-      const XOFF = [
-        0, -0.12, 0.12, -0.24, 0.24, -0.36, 0.36, -0.48, 0.48, -0.6, 0.6,
-        -0.72, 0.72,
-      ]
       // Most important first: Configure gets the pick of the open slots,
       // never the leftovers.
       const rescueOrder: number[] = []
@@ -1046,6 +1155,9 @@ export default function ContextField({
           if (yield_ === i) break
         }
       }
+
+      // Configure always survives the cut; see ensureAnchor.
+      ensureAnchor(keepouts)
 
       for (let i = 0; i < COUNT; i++) {
         bx[i] = tbx[i]
@@ -1143,6 +1255,10 @@ export default function ContextField({
         tby[i] = ny
       }
 
+      // A resize can shove Configure into a corner it cannot honestly
+      // hold; the guarantee applies to every re-fit, not just placement.
+      ensureAnchor(keepouts)
+
       applyLight()
     }
 
@@ -1235,6 +1351,13 @@ export default function ContextField({
     let proxCandidate: string | null = null
     let proxHold = 0
     const PROX_HOLD_S = 0.18
+    // A pointer that has left the field and parked over the hero type is
+    // reading the page, not sweeping words: after this long over the
+    // identity/headline column, an open card eases closed. Word-to-word
+    // travel never runs the timer (the pointer is over the field, not the
+    // type), so the open/close hysteresis above it is untouched.
+    let awayHold = 0
+    const AWAY_CLOSE_S = 0.6
 
     // The entrance clock. Held at zero until the layout settles (fonts
     // measured, field revealed), then runs the one-take cue sheet above.
@@ -1412,20 +1535,33 @@ export default function ContextField({
         // has passed blow up and fade out behind you.
         const depthZ = 0.12 + depth[i] * 0.88
         const rel = depthZ - camZ
+        // The lingerers (paper phone only): the lowest words on the sheet
+        // swell less, spread less, keep their frame clamp, and hold their
+        // pass-fade far longer, so the mid-descent handoff always carries
+        // a line or two of composed ink instead of ~600px of bare stock.
+        const linger = lingerFlag[i] !== 0
         let s = (PERSP + depthZ) / (PERSP + Math.max(rel, -PERSP * 0.62))
-        const sCap = paper ? 2.4 : 3.2
+        const sCap = linger ? 1.5 : paper ? 2.4 : 3.2
         if (s > sCap) s = sCap
         // Words stay lit while they swell past the camera and only die once
         // they are genuinely behind you; the fly-past is the point. Paper
         // lets passed words linger much longer (and swell less), so the
         // mid-descent sheet keeps some ink on it through the handoff.
-        const passFade = paper
-          ? smoothstep(-0.8, -0.08, rel)
-          : smoothstep(-0.36, -0.04, rel)
+        // Each lingerer retires before the reading column climbs into its
+        // band: the lower slot first, the upper one at the handoff's end,
+        // so lingering ink is never read through the prose.
+        const passFade = linger
+          ? smoothstep(-1.7, -0.35, rel) *
+            (lingerFlag[i] === 1
+              ? 1 - smoothstep(0.66, 0.84, travel)
+              : 1 - smoothstep(0.5, 0.68, travel))
+          : paper
+            ? smoothstep(-0.8, -0.08, rel)
+            : smoothstep(-0.36, -0.04, rel)
         // Positions spread slower than glyphs swell, so the frame stays
         // populated through the middle of the descent instead of emptying
         // the moment perspective kicks in.
-        const spreadS = 1 + (s - 1) * 0.72
+        const spreadS = 1 + (s - 1) * (linger ? 0.3 : 0.72)
         x = vpx + (x - vpx) * spreadS
         y = vpy + (y - vpy) * spreadS
         // The entrance: each word breathes in on its cue with a small,
@@ -1441,11 +1577,26 @@ export default function ContextField({
         if (inA < 1) s *= 0.9 + 0.1 * inA
         sc[i] = s
 
-        if (hold > 0) {
+        // Lingerers are never released from the frame: they fade out in
+        // place at the end of the descent instead of flying off it.
+        const holdK = linger ? 1 : hold
+        if (holdK > 0) {
           const kx = Math.min(vw - halfW[i] - 8, Math.max(halfW[i] + 8, x))
           const ky = Math.min(vh - halfH[i] - 6, Math.max(halfH[i] + 6, y))
-          x = mix(x, kx, hold)
-          y = mix(y, ky, hold)
+          x = mix(x, kx, holdK)
+          y = mix(y, ky, holdK)
+        }
+
+        // The lingerers' composed path: as the descent gets under way they
+        // ease into the right gutter, in the band the hero type has already
+        // vacated and the rising reading channel has not yet covered, one
+        // above the other. The keep-out fade below still applies to them,
+        // so the path can graze nothing; the channel and the pass-fade
+        // retire them at the end of the handoff.
+        if (linger && travel > 0) {
+          const lt = smoothstep(0.15, 0.5, travel)
+          x = mix(x, vw * 0.78, lt)
+          y = mix(y, vh * (lingerFlag[i] === 1 ? 0.3 : 0.46), lt)
         }
 
         px[i] = x
@@ -1493,6 +1644,31 @@ export default function ContextField({
             const ey = 1 - Math.min(1, outY / (hhS + 1))
             vis[i] *= mix(1, ex * ey, smoothstep(0.02, 0.12, travel))
           }
+        }
+
+        // The type keep-outs hold during the DESCENT too. Placement
+        // guarantees the identity block and the contact links are clear at
+        // rest, but the retreat used to be free to carry a swollen glyph
+        // straight over manuel@configure.dev. A travelling word entering a
+        // keep-out (shifted into viewport space) fades with its
+        // penetration, the same reading as the frame-edge rule above; the
+        // rest gate keeps the pixel-scale drift orbit out of it entirely.
+        if (travel > 0.01 && vis[i] > 0) {
+          const hwK = halfW[i] * s
+          const hhK = halfH[i] * s
+          let occ = 1
+          for (let k = 0; k < typeBoxes.length; k++) {
+            const tb3 = typeBoxes[k]
+            const ox = Math.min(x + hwK, tb3[2]) - Math.max(x - hwK, tb3[0])
+            const oy =
+              Math.min(y + hhK, tb3[3] - scrollY) -
+              Math.max(y - hhK, tb3[1] - scrollY)
+            if (ox > 0 && oy > 0) {
+              const f = 1 - Math.min(1, Math.min(ox, oy) / 14)
+              if (f < occ) occ = f
+            }
+          }
+          if (occ < 1) vis[i] *= mix(1, occ, smoothstep(0.01, 0.08, travel))
         }
 
         const ww = wake[i]
@@ -1615,6 +1791,32 @@ export default function ContextField({
           if (actIdx >= 0 && actD > radius * 1.15 && !cardHotRef.current) {
             closeRef.current()
           }
+        }
+
+        // The away timer (see AWAY_CLOSE_S): pointer parked over the hero
+        // type block with a card still open eases the card closed. Never
+        // while the card itself is being read.
+        if (actIdx >= 0 && hasPointer && !cardHotRef.current) {
+          let overType = false
+          for (let k = 0; k < typeBoxes.length && !overType; k++) {
+            const tb3 = typeBoxes[k]
+            overType =
+              targetX >= tb3[0] &&
+              targetX <= tb3[2] &&
+              targetY >= tb3[1] - scrollY &&
+              targetY <= tb3[3] - scrollY
+          }
+          if (overType) {
+            awayHold += dt
+            if (awayHold >= AWAY_CLOSE_S) {
+              awayHold = 0
+              closeRef.current()
+            }
+          } else {
+            awayHold = 0
+          }
+        } else {
+          awayHold = 0
         }
       }
 
@@ -2157,7 +2359,15 @@ export default function ContextField({
       // The floor term keeps the cursor CONNECTED at all times: wherever the
       // pointer floats, its nearest words hold a whisper of a line to it,
       // brightening as it closes in and as the words wake.
-      for (let n = 0; n < CURSOR_LINKS && seg < MAX_SEGMENTS; n++) {
+      //
+      // A REAL reader only, like the ember. The ghost cursor still wakes
+      // words, but a tether needs a visible anchor at both ends: strokes
+      // converging on an invisible ghost point read as broken pen work
+      // (near-parallel doubles beside real edges, orphan stubs, inverted
+      // Vs meeting in blank space), plainest on paper where every line is
+      // ink. On touch there is no cursor at all, so there is no tether.
+      const tetherGate = reduced || coarse ? 0 : smoothstep(0.35, 0.7, userBlend)
+      for (let n = 0; tetherGate > 0.01 && n < CURSOR_LINKS && seg < MAX_SEGMENTS; n++) {
         const i = nearIdx[n]
         if (i < 0) continue
         let alpha =
@@ -2165,6 +2375,7 @@ export default function ContextField({
             0.12 * smoothstep(radius * 1.9, radius * 0.25, nearDist[n]) +
             wake[i] * 0.5 * smoothstep(radius, radius * 0.1, nearDist[n])) *
           (paper ? 1.5 : 1) *
+          tetherGate *
           vis[i] *
           dim *
           // The tethers are the last thing to arrive: the field finishes
