@@ -18,6 +18,7 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      { source: "/1", destination: "/", permanent: true },
       { source: "/experience", destination: "/work", permanent: true },
       { source: "/education", destination: "/", permanent: true },
       { source: "/summary", destination: "/", permanent: true },

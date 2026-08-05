@@ -9,14 +9,14 @@ import { ChatShell } from "@/components/chat/ChatShell"
 import { ChatDrawer } from "@/components/chat/ChatDrawer"
 
 /**
- * The redesign experiments live at /1, /2 and /3 and must render BARE:
- * no nav, no footer, no chat launcher, no top padding. Each one is a full
- * viewport-owning composition being judged on its own terms, so the existing
- * site chrome would only get in the way of the comparison.
+ * The context-field page IS the site now, and it renders BARE: no nav, no
+ * footer, no chat launcher, no top padding. It owns the whole viewport and
+ * carries its own identity, story, and contact routes.
  *
- * Every other route gets the normal chrome.
+ * The legacy espresso pages (/work, /projects, /about, /chat) keep the
+ * normal chrome until the rollout replaces them.
  */
-const BARE_ROUTE = /^\/[123](\/|$)/
+const BARE_ROUTE = /^\/([123](\/|$))?$/
 
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
