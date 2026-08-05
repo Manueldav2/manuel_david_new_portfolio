@@ -74,7 +74,7 @@ const FEATURED_PROJECTS = [
   "nouvo-clients",
   "ultron",
   "gideon",
-  "ats-resume-optimizer",
+  "launch-control",
 ]
 
 const featuredProjects = FEATURED_PROJECTS.map((slug) =>
@@ -323,8 +323,8 @@ export function HeroField({ className }: { className?: string }) {
             </ul>
 
             <p className={styles.platesFoot}>
-              The other twenty-some, IDEX, Claude Classroom, Launch Control and
-              the rest, live on{" "}
+              The other twenty-some, IDEX, Claude Classroom, the ATS Resume
+              Optimizer and the rest, live on{" "}
               <a
                 className={styles.plateNoteLink}
                 href={profile.github}
