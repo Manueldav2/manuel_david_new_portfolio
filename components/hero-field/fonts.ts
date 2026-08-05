@@ -1,4 +1,11 @@
-import { Fraunces, IBM_Plex_Sans, Newsreader } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Fraunces,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  Instrument_Sans,
+  Newsreader,
+} from "next/font/google";
 
 /**
  * Type system for the /1 CONTEXT FIELD hero only.
@@ -42,4 +49,69 @@ export const hfSans = IBM_Plex_Sans({
   weight: ["400", "500"],
   display: "swap",
   variable: "--hf-sans",
+});
+
+/* ------------------------------------------------------------------ */
+/* The three type-identity experiments (/1, /2, /3). Each route loads  */
+/* only the faces it wears; the CSS keys off the same custom          */
+/* properties, so a variant is a different set of variables on the    */
+/* same markup.                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * /1 "sharper serif": the SAME Fraunces, with its SOFT and WONK optical
+ * axes exposed so the display cut can run wonky (WONK 1, SOFT 0) at real
+ * headline scale while the field words stay composed. It answers the
+ * base --hf-display slot, so everything display-voiced sharpens at once.
+ */
+export const hfDisplayWonk = Fraunces({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
+  axes: ["SOFT", "WONK", "opsz"],
+  variable: "--hf-display",
+});
+
+/**
+ * /2 "modern grotesk": Bricolage Grotesque is the loud voice, a grotesk
+ * with real quirk in its cuts (that flared g, the tight apertures) and an
+ * optical axis so it holds up from 12px metadata to a 70px headline.
+ * Instrument Sans is the quiet workhorse beside it: prose, metadata, the
+ * field's long tail. Weight does the hierarchy serif italics used to.
+ */
+export const hfGrotesk = Bricolage_Grotesque({
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz"],
+  variable: "--hf-display",
+});
+
+export const hfGroteskText = Instrument_Sans({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--hf-sans",
+});
+
+/**
+ * /3 "data-editorial": Newsreader takes over the DISPLAY slot too, with its
+ * optical axis live, so the headline is a light, high-contrast editorial
+ * serif that reads nothing like Fraunces next door; IBM Plex Mono carries
+ * the field words as live telemetry. Same family DNA as the Plex Sans
+ * metadata voice.
+ */
+export const hfSerifDisplay = Newsreader({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
+  axes: ["opsz"],
+  variable: "--hf-display",
+});
+
+
+export const hfMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--hf-mono",
 });

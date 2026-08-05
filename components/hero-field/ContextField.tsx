@@ -17,7 +17,7 @@ import {
 } from "three"
 
 import { pickFragments } from "./fragments"
-import { KIND_LABEL, edges, nodeById } from "./graph"
+import { KIND_LABEL, edges, importanceOf, nodeById, strongEdges } from "./graph"
 import styles from "./hero-field.module.css"
 
 /**
@@ -75,12 +75,35 @@ const LINE_FRAG = /* glsl */ `
 `
 
 const MAX_SEGMENTS = 240
-const MAX_AWAKE = 24
-const CURSOR_LINKS = 4
+const CURSOR_LINKS = 3
 /** Gap left between the edge of a word and the hairline that reaches for it. */
 const NODE_PAD = 7
 /** How long the card lingers after the pointer leaves word or card. */
 const GRACE_MS = 280
+
+/**
+ * Drift amplitude, in PIXELS, not normalised space. The old drift was a
+ * fraction of the half-viewport (0.03 = 21px at 1440), which was larger than
+ * the placement padding between words, so over a minute the field slowly
+ * tangled: labels wandered into each other and the composition degraded
+ * frame by frame. In pixel space each word owns an exclusive orbit around
+ * its seeded anchor that is strictly smaller than the padding placement
+ * guaranteed, so the field breathes but two words can never meet, at t=0 or
+ * t=forever.
+ */
+const DRIFT_X = 5
+const DRIFT_Y = 3.5
+/** Clearance kept between a passing hairline and any label it crosses. */
+const CLIP_PAD = 8
+/** Sub-segments shorter than this are dropped instead of drawn as crumbs. */
+const MIN_SUB_PX = 12
+/**
+ * At rest a node shows at most this many constellation lines, shortest
+ * first. Hub nodes in the graph have up to nine relations; drawing all nine
+ * as permanent hairlines is where the "messy moments" came from. The full
+ * degree still lights up when both ends actually wake.
+ */
+const REST_DEG_MAX = 3
 
 const smoothstep = (edge0: number, edge1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
@@ -126,8 +149,8 @@ const LAYOUT_SEED = 7
  */
 const TIER = {
   key: { alpha: [0.92, 0.68], size: [33, 24], depth: [0, 0.34] },
-  mid: { alpha: [0.54, 0.34], size: [15.5, 12.5], depth: [0.2, 0.7] },
-  low: { alpha: [0.4, 0.22], size: [12.5, 10], depth: [0.48, 1] },
+  mid: { alpha: [0.56, 0.36], size: [15.5, 12.5], depth: [0.2, 0.7] },
+  low: { alpha: [0.42, 0.25], size: [12.5, 10.5], depth: [0.48, 1] },
 } as const
 
 /**
@@ -147,9 +170,11 @@ const TRAVEL_SPAN = 1.1
 /** Deepest camera z: a touch past the deepest word, so everything passes. */
 const TRAVEL_DEPTH = 1.45
 
-/** Padding kept around each word, and around the page's own type. */
+/** Padding kept around each word, and around the page's own type. The
+ * vertical pad is deliberately larger than DRIFT_Y + the worst-case
+ * parallax differential, so the placement guarantee survives motion. */
 const WORD_PAD_X = 22
-const WORD_PAD_Y = 9
+const WORD_PAD_Y = 12
 const TYPE_PAD_X = 18
 const TYPE_PAD_Y = 12
 
@@ -158,13 +183,34 @@ type Box = [x0: number, y0: number, x1: number, y1: number]
 const hits = (a: Box, b: Box) =>
   a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
 
+/**
+ * The type identities the field can wear. The mechanics are shared; each
+ * identity tunes only density (how many words the viewport carries) and the
+ * size contrast between tiers, because a grotesk can run denser than a serif
+ * and a mono field wants more air around fewer words.
+ */
+export type FieldVariant = "base" | "serif" | "grotesk" | "mono"
+
+const FIELD_TUNE: Record<
+  FieldVariant,
+  { counts: [phone: number, mid: number, wide: number]; size: { key: number; mid: number; low: number } }
+> = {
+  base: { counts: [20, 36, 48], size: { key: 1, mid: 1, low: 1 } },
+  serif: { counts: [20, 36, 48], size: { key: 1.18, mid: 1.05, low: 0.98 } },
+  grotesk: { counts: [22, 38, 48], size: { key: 1.06, mid: 1.05, low: 1.05 } },
+  mono: { counts: [16, 28, 40], size: { key: 1.04, mid: 0.94, low: 0.95 } },
+}
+
 export default function ContextField({
   className,
   onReady,
   cardMount,
+  variant = "base",
 }: {
   className?: string
   onReady?: () => void
+  /** Which type identity's density/size tuning to run. Defaults to the live one. */
+  variant?: FieldVariant
   /**
    * Where the story card portals to. The field lives inside the fixed
    * backdrop (z-index 0), which is its own stacking context, so a card
@@ -203,10 +249,19 @@ export default function ContextField({
   }
   const close = () => {
     clearHide()
+    cardHotRef.current = false
     setActive(null)
   }
+  const openRef = useRef(open)
+  openRef.current = open
   const closeRef = useRef(close)
   closeRef.current = close
+  // True while the pointer is over the open card; the proximity system must
+  // never close a card someone is actually reading.
+  const cardHotRef = useRef(false)
+  // Escape dismisses a card; the proximity system must not immediately put
+  // the same card back while the cursor is still parked beside the word.
+  const suppressRef = useRef<string | null>(null)
   const scheduleHide = () => {
     clearHide()
     hideTimer.current = window.setTimeout(() => {
@@ -230,7 +285,10 @@ export default function ContextField({
   // Escape closes; a press or tap anywhere outside a word or the card closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeRef.current()
+      if (e.key === "Escape") {
+        suppressRef.current = activeRef.current
+        closeRef.current()
+      }
     }
     const onDocClick = (e: MouseEvent) => {
       const t = e.target as Node | null
@@ -251,8 +309,9 @@ export default function ContextField({
   // count can be decided before a single node is created.
   const fragments = useMemo(() => {
     const w = typeof window === "undefined" ? 1440 : window.innerWidth
-    return pickFragments(w < 720 ? 18 : w < 1100 ? 30 : 40)
-  }, [])
+    const [phone, mid, wide] = FIELD_TUNE[variant].counts
+    return pickFragments(w < 720 ? phone : w < 1100 ? mid : wide)
+  }, [variant])
 
   useEffect(() => {
     const host = hostRef.current
@@ -277,12 +336,17 @@ export default function ContextField({
     // and the true structure is what lights up.
     const restA: number[] = []
     const restB: number[] = []
+    const restStrong: number[] = []
+    const strongKey = new Set(
+      strongEdges.map(([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`)),
+    )
     for (const [a, b] of edges) {
       const ia = idxOfNode.get(a)
       const ib = idxOfNode.get(b)
       if (ia !== undefined && ib !== undefined) {
         restA.push(ia)
         restB.push(ib)
+        restStrong.push(strongKey.has(a < b ? `${a}|${b}` : `${b}|${a}`) ? 1 : 0)
       }
     }
     const restCount = restA.length
@@ -323,21 +387,48 @@ export default function ContextField({
     const sc = new Float32Array(COUNT).fill(1)
     /** Channel visibility x pass-fade: what the line pass multiplies by. */
     const vis = new Float32Array(COUNT)
+    /** Final on-screen opacity this frame; the line pass treats any label
+     * above a whisper as an occluder that hairlines must not cross. */
+    const opac = new Float32Array(COUNT)
     // 1 when placement failed and the word sits out this layout entirely.
     const parked = new Uint8Array(COUNT)
+
+    // Resting-web bookkeeping: per-frame degree count, and the edge order
+    // (shortest first) so the cap keeps the tight local relations and sheds
+    // the long room-crossing hairlines. Allocated once; the order array is
+    // nearly sorted between frames, so the insertion sort is cheap.
+    const restDeg = new Uint8Array(COUNT)
+    const restLen = new Float32Array(restCount)
+    const restOrder: number[] = []
+    for (let e = 0; e < restCount; e++) restOrder.push(e)
+
+    // Scratch for clipping hairlines around label boxes.
+    const blockT0 = new Float32Array(64)
+    const blockT1 = new Float32Array(64)
 
     // Seeded: depth, brightness and size are part of the curated composition
     // (size feeds the measured boxes the placement is built from), so they
     // must come out identical on every load.
     const attrRng = mulberry32(LAYOUT_SEED)
+    const tune = FIELD_TUNE[variant].size
     for (let i = 0; i < COUNT; i++) {
       phase[i] = attrRng()
       const tier = TIER[fragments[i].tier]
       const t = attrRng()
       depth[i] = mix(tier.depth[0], tier.depth[1], t)
-      baseA[i] = mix(tier.alpha[0], tier.alpha[1], t)
+      // Size and resting brightness are SEMANTIC, not aesthetic accident:
+      // both map off the node's importance scale (graph.ts), identically in
+      // every variant. Configure and faith dominate, then Paradigm, then
+      // the other anchors, then the majors, then the long tail. A whisper
+      // of seeded jitter keeps the field from reading as mechanical.
+      const w = importanceOf(fragments[i].node.id)
+      baseA[i] = Math.min(0.95, (0.3 + 0.026 * w * w) * (0.94 + t * 0.12))
       const narrowK = fragments[i].tier === "key" ? 0.7 : 0.86
-      const size = mix(tier.size[0], tier.size[1], t) * (narrow ? narrowK : 1)
+      const size =
+        (10.5 + 1.05 * w * w) *
+        (0.96 + t * 0.08) *
+        (narrow ? narrowK : 1) *
+        tune[fragments[i].tier]
       els[i].style.fontSize = `${size.toFixed(2)}px`
     }
 
@@ -405,15 +496,16 @@ export default function ContextField({
     }
 
     // Scratch, allocated once.
-    const awakeIdx = new Int32Array(COUNT)
-    const awakeW = new Float32Array(COUNT)
     const nearIdx = new Int32Array(CURSOR_LINKS)
     const nearDist = new Float32Array(CURSOR_LINKS)
+    // 1 for every word related (in the REAL graph) to the word whose card
+    // is open: hovering a word lights its true constellation.
+    const nbrFlag = new Uint8Array(COUNT)
+    let nbrFlagFor = -2
 
     let vw = 1
     let vh = 1
     let radius = 300
-    let linkRadius = 220
     let bandInner = 340
     let bandOuter = 580
     let restNear = 260
@@ -432,32 +524,22 @@ export default function ContextField({
     /* ---------------------------------------------------------------- */
     /* Layout                                                            */
     /*                                                                   */
-    /* Base positions live in normalised space so small resizes just      */
-    /* rescale the field. Placement is rejection sampling against two     */
-    /* sets of boxes: the words already placed, and the page's own type.  */
-    /*                                                                   */
-    /* Sampling is biased, not uniform. The key anchors seed a handful    */
-    /* of cluster centres; every later word tries to land near a placed   */
-    /* word it is actually related to in the graph, and falls back to a   */
-    /* cluster. Density gathers where the life gathers, and the space     */
-    /* between clusters is real negative space instead of even scatter.   */
-    /*                                                                   */
-    /* The keep-out boxes are read straight off the DOM rather than       */
-    /* hard-coded as fractions of the viewport, so the field gets out of  */
-    /* the way of the real headline at whatever size it actually wrapped  */
-    /* to. Nothing readable ever has a stray word sitting behind it.      */
+    /* AUTHORED, not sampled. Every node carries a hand-set normalised    */
+    /* position in graph.ts, so the composition is a designed shape:      */
+    /* centre-weighted, corners empty, the open-source hub mid-field      */
+    /* where its spokes radiate cleanly, and identical on every load.     */
+    /* place() converts the authored positions to the frame, then runs a  */
+    /* fully deterministic relaxation: overlapping labels push each       */
+    /* other apart, everything stays inside the frame with real margin,   */
+    /* out of the page type's keep-outs, and out of the corners. There    */
+    /* is no randomness anywhere in the pipeline any more.                */
     /* ---------------------------------------------------------------- */
 
-    // Cluster centres, normalised. Chosen against the hero block (which
-    // holds the left-centre): mass upper-right, right, below-right, and a
-    // quieter shoulder above the block, so the composition is a diagonal.
-    const CLUSTERS: readonly (readonly [number, number])[] = [
-      [0.55, -0.5],
-      [0.72, 0.18],
-      [0.05, 0.66],
-      [-0.55, 0.68],
-      [-0.35, -0.62],
-    ]
+    // The page type's keep-out boxes, in PAGE coordinates. Cached from the
+    // latest gather so the line pass can clip hairlines around the hero
+    // block every frame: the web must thread AROUND the big type, never
+    // strike through it.
+    let typeBoxes: Box[] = []
 
     const gatherKeepouts = (): Box[] => {
       const keepouts: Box[] = []
@@ -473,121 +555,149 @@ export default function ContextField({
           r.bottom + sy + TYPE_PAD_Y,
         ])
       })
+      typeBoxes = keepouts
       return keepouts
     }
 
-    const place = () => {
-      // Re-seeded on every call: given the same measured boxes and the same
-      // viewport, place() is a pure function of LAYOUT_SEED. Running it twice
-      // is idempotent, so no code path can re-roll the composition.
-      const rand = mulberry32(LAYOUT_SEED ^ 0x9e3779b9)
-      // Approximate gaussian in [-1.5, 1.5]: sums keep clusters dense in the
-      // middle with soft edges instead of hard discs.
-      const gauss = () => rand() + rand() + rand() - 1.5
+    const limXFor = (hw: number) => {
+      const spanX = vw * 0.5 - 26
+      return spanX > 0 ? Math.min(1, (vw * 0.5 - 28 - hw) / spanX) : 0
+    }
+    const limYFor = (hh: number) => {
+      const spanY = vh * 0.5 - 24
+      return spanY > 0 ? Math.min(1, (vh * 0.5 - 24 - hh) / spanY) : 0
+    }
 
+    /** Frame, margin and corner rules for one word, applied in place. */
+    const clampWord = (i: number) => {
+      const lim = fragments[i].tier === "key" ? 0.84 : 1
+      const lx = Math.min(limXFor(halfW[i]), lim)
+      const ly = Math.min(limYFor(halfH[i]), lim)
+      if (tbx[i] < -lx) tbx[i] = -lx
+      else if (tbx[i] > lx) tbx[i] = lx
+      if (tby[i] < -ly) tby[i] = -ly
+      else if (tby[i] > ly) tby[i] = ly
+      // A corner is where a label goes to die.
+      if (Math.abs(tbx[i]) > 0.88 && Math.abs(tby[i]) > 0.88) {
+        tbx[i] *= 0.86
+        tby[i] *= 0.86
+      }
+    }
+
+    const wordBox = (i: number, out: Box) => {
+      const x = toX(tbx[i])
+      const y = toY(tby[i])
+      out[0] = x - halfW[i] - WORD_PAD_X
+      out[1] = y - halfH[i] - WORD_PAD_Y
+      out[2] = x + halfW[i] + WORD_PAD_X
+      out[3] = y + halfH[i] + WORD_PAD_Y
+    }
+
+    const boxA: Box = [0, 0, 0, 0]
+    const boxB: Box = [0, 0, 0, 0]
+
+    const place = () => {
       const keepouts = gatherKeepouts()
-      const placed: Box[] = []
-      const cand: Box = [0, 0, 0, 0]
+      const spanX = vw * 0.5 - 26
+      const spanY = vh * 0.5 - 24
+      if (spanX <= 0 || spanY <= 0) return
+
+      // 1) The authored composition, straight from the data (graph y is
+      //    up-positive; the screen's is not).
+      for (let i = 0; i < COUNT; i++) {
+        parked[i] = 0
+        tbx[i] = fragments[i].node.x
+        tby[i] = -fragments[i].node.y
+        clampWord(i)
+      }
+
+      // 2) Deterministic relaxation. Same inputs, same order, same result.
+      for (let pass = 0; pass < 70; pass++) {
+        let moved = false
+
+        for (let i = 0; i < COUNT; i++) {
+          const ax = toX(tbx[i])
+          const ay = toY(tby[i])
+          for (let j = i + 1; j < COUNT; j++) {
+            const bx2 = toX(tbx[j])
+            const by2 = toY(tby[j])
+            const ox = halfW[i] + halfW[j] + WORD_PAD_X * 2 - Math.abs(ax - bx2)
+            const oy = halfH[i] + halfH[j] + WORD_PAD_Y * 2 - Math.abs(ay - by2)
+            if (ox <= 0 || oy <= 0) continue
+            moved = true
+            if (ox < oy) {
+              const dir = ax < bx2 ? -1 : ax > bx2 ? 1 : i < j ? -1 : 1
+              const d = ((ox * 0.5 + 0.5) * dir) / spanX
+              tbx[i] += d
+              tbx[j] -= d
+            } else {
+              const dir = ay < by2 ? -1 : ay > by2 ? 1 : i < j ? -1 : 1
+              const d = ((oy * 0.5 + 0.5) * dir) / spanY
+              tby[i] += d
+              tby[j] -= d
+            }
+            clampWord(i)
+            clampWord(j)
+          }
+        }
+
+        for (let i = 0; i < COUNT; i++) {
+          wordBox(i, boxA)
+          for (let b = 0; b < keepouts.length; b++) {
+            const k = keepouts[b]
+            if (!hits(boxA, k)) continue
+            moved = true
+            // Smallest exit from the type's box, fully deterministic.
+            const pushes: [number, number][] = [
+              [k[0] - boxA[2], 0],
+              [k[2] - boxA[0], 0],
+              [0, k[1] - boxA[3]],
+              [0, k[3] - boxA[1]],
+            ]
+            pushes.sort(
+              (p, q) => Math.abs(p[0] + p[1]) - Math.abs(q[0] + q[1]),
+            )
+            tbx[i] += pushes[0][0] / spanX
+            tby[i] += pushes[0][1] / spanY
+            clampWord(i)
+            break
+          }
+        }
+
+        if (!moved) break
+      }
+
+      // 3) Anything the relaxation could not honestly fit sits out: a
+      //    label buried in the type, or the less important of a stuck
+      //    overlapping pair. A missing fragment costs less than a mess.
+      for (let i = 0; i < COUNT; i++) {
+        wordBox(i, boxA)
+        for (let b = 0; b < keepouts.length; b++) {
+          if (hits(boxA, keepouts[b])) {
+            parked[i] = 1
+            break
+          }
+        }
+      }
+      for (let i = 0; i < COUNT; i++) {
+        if (parked[i]) continue
+        wordBox(i, boxA)
+        for (let j = i + 1; j < COUNT; j++) {
+          if (parked[j]) continue
+          wordBox(j, boxB)
+          if (!hits(boxA, boxB)) continue
+          const yield_ =
+            importanceOf(fragments[i].node.id) < importanceOf(fragments[j].node.id)
+              ? i
+              : j
+          parked[yield_] = 1
+          if (yield_ === i) break
+        }
+      }
 
       for (let i = 0; i < COUNT; i++) {
-        const hw = halfW[i]
-        const hh = halfH[i]
-        // Keep the whole word inside the frame, not just its centre.
-        const spanX = vw * 0.5 - 26
-        const spanY = vh * 0.5 - 24
-        const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 16 - hw) / spanX) : 0
-        const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 14 - hh) / spanY) : 0
-
-        const isKey = fragments[i].tier === "key"
-        // Related words already on the board, to gather near.
-        const kin: number[] = []
-        for (const j of nbr[i]) if (j < i && !parked[j]) kin.push(j)
-
-        let found = false
-        let fx = 0
-        let fy = 0
-        let okX = 0
-        let okY = 0
-
-        for (let k = 0; k < 420 && !found; k++) {
-          // Widen the net as attempts fail, so tight clusters still resolve.
-          const relax = 1 + k / 90
-          let nx: number
-          let ny: number
-          if (isKey) {
-            // Anchors seed the clusters, spread across them.
-            const c = CLUSTERS[i % CLUSTERS.length]
-            nx = c[0] + gauss() * 0.3 * relax
-            ny = c[1] + gauss() * 0.28 * relax
-          } else if (kin.length > 0 && k % 4 !== 3) {
-            // Gather near a related word; every 4th try goes wide so a
-            // crowded cluster can still spill somewhere honest.
-            const j = kin[(rand() * kin.length) | 0]
-            nx = tbx[j] + gauss() * 0.27 * relax
-            ny = tby[j] + gauss() * 0.28 * relax
-          } else {
-            const c = CLUSTERS[((rand() * CLUSTERS.length) | 0)]
-            nx = c[0] + gauss() * 0.4 * relax
-            ny = c[1] + gauss() * 0.4 * relax
-          }
-          if (nx < -limX) nx = -limX
-          else if (nx > limX) nx = limX
-          if (ny < -limY) ny = -limY
-          else if (ny > limY) ny = limY
-
-          const x = toX(nx)
-          const y = toY(ny)
-          cand[0] = x - hw - WORD_PAD_X
-          cand[1] = y - hh - WORD_PAD_Y
-          cand[2] = x + hw + WORD_PAD_X
-          cand[3] = y + hh + WORD_PAD_Y
-
-          let blocked = false
-          for (let b = 0; b < keepouts.length; b++) {
-            if (hits(cand, keepouts[b])) {
-              blocked = true
-              break
-            }
-          }
-          if (blocked) continue
-          for (let b = 0; b < placed.length; b++) {
-            if (hits(cand, placed[b])) {
-              blocked = true
-              break
-            }
-          }
-          if (blocked) continue
-
-          found = true
-          fx = nx
-          fy = ny
-          okX = x
-          okY = y
-        }
-
-        if (!found) {
-          // Nothing fitted. Park it out of the layout rather than stack it on
-          // the headline; a missing fragment costs less than an unreadable
-          // page. Parked words render at zero opacity and join no lines.
-          parked[i] = 1
-          bx[i] = 0
-          by[i] = 0
-          tbx[i] = 0
-          tby[i] = 0
-          continue
-        }
-
-        parked[i] = 0
-        bx[i] = fx
-        by[i] = fy
-        tbx[i] = fx
-        tby[i] = fy
-        placed.push([
-          okX - hw - WORD_PAD_X,
-          okY - hh - WORD_PAD_Y,
-          okX + hw + WORD_PAD_X,
-          okY + hh + WORD_PAD_Y,
-        ])
+        bx[i] = tbx[i]
+        by[i] = tby[i]
       }
     }
 
@@ -608,8 +718,8 @@ export default function ContextField({
         if (parked[i]) continue
         const hw = halfW[i]
         const hh = halfH[i]
-        const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 16 - hw) / spanX) : 0
-        const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 14 - hh) / spanY) : 0
+        const limX = spanX > 0 ? Math.min(1, (vw * 0.5 - 28 - hw) / spanX) : 0
+        const limY = spanY > 0 ? Math.min(1, (vh * 0.5 - 24 - hh) / spanY) : 0
         let nx = Math.min(limX, Math.max(-limX, tbx[i]))
         let ny = Math.min(limY, Math.max(-limY, tby[i]))
         let x = toX(nx)
@@ -706,11 +816,12 @@ export default function ContextField({
       // Recognition radius scales with the short axis so a constellation is
       // the same relative size on a phone as on a display.
       radius = Math.min(vw, vh) * (coarse ? 0.44 : 0.33)
-      linkRadius = radius * 0.8
       // Resting hairlines fade with span: nearby relations whisper, a
-      // relation stretched across the whole frame all but disappears.
-      restNear = Math.min(vw, vh) * 0.24
-      restFar = Math.min(vw, vh) * 1.5
+      // relation stretched across the whole frame is gone entirely. The
+      // far limit is deliberately tight: long room-crossing hairlines are
+      // what made certain frames read as a tangle.
+      restNear = Math.min(vw, vh) * 0.22
+      restFar = Math.min(vw, vh) * 1.05
       // The channel the reading column carves through the field once you
       // scroll past the hero.
       bandInner = Math.min(360, vw * 0.34)
@@ -756,6 +867,14 @@ export default function ContextField({
     let ambientAge = 0
     let ambientWait = 4.5
 
+    // Proximity cards: sweeping the field surfaces the nearest word's story
+    // without needing to land on the label. A candidate must stay nearest
+    // for PROX_HOLD_S before it opens (and must be clearly closer than the
+    // word whose card is already up), so cards never flicker-swap.
+    let proxCandidate: string | null = null
+    let proxHold = 0
+    const PROX_HOLD_S = 0.18
+
     let raf = 0
     let last = performance.now()
     // The still frame is composed, not arbitrary: this is the point on the idle
@@ -769,6 +888,13 @@ export default function ContextField({
 
       const act = activeRef.current
       const actIdx = act ? (idxOfNode.get(act) ?? -1) : -1
+
+      // The active word's REAL relations, refreshed only when it changes.
+      if (actIdx !== nbrFlagFor) {
+        nbrFlag.fill(0)
+        if (actIdx >= 0) for (const j of nbr[actIdx]) nbrFlag[j] = 1
+        nbrFlagFor = actIdx
+      }
 
       const scrollY = window.scrollY || 0
       // The descent: 0 at rest, 1 once the camera has passed the deepest
@@ -839,13 +965,23 @@ export default function ContextField({
         ambientAge += dt
         ambientWait -= dt
         if (ambientWait <= 0) {
-          ambientIdx = Math.floor(Math.random() * COUNT)
-          ambientAge = 0
           ambientWait = 7 + Math.random() * 8
+          // One self-wake at a time, and only a word that is actually in the
+          // layout AND well clear of wherever the cursor already is, so the
+          // ambient thought never stacks on top of a live constellation.
+          for (let tries = 0; tries < 8; tries++) {
+            const c = Math.floor(Math.random() * COUNT)
+            if (parked[c]) continue
+            const ddx = px[c] - cx
+            const ddy = py[c] - cy
+            if (ddx * ddx + ddy * ddy < radius * radius * 1.69) continue
+            ambientIdx = c
+            ambientAge = 0
+            break
+          }
         }
       }
 
-      let awakeCount = 0
       for (let n = 0; n < CURSOR_LINKS; n++) {
         nearIdx[n] = -1
         nearDist[n] = Infinity
@@ -861,6 +997,7 @@ export default function ContextField({
           wake[i] = 0
           chan[i] = 0
           vis[i] = 0
+          opac[i] = 0
           continue
         }
 
@@ -868,16 +1005,24 @@ export default function ContextField({
         by[i] += (tby[i] - by[i]) * settleK
 
         const ph = phase[i]
-        const nx = bx[i] + Math.sin(clock * 0.107 + ph * 6.2832) * 0.03
-        const ny = by[i] + Math.cos(clock * 0.089 + ph * 5.1) * 0.034
-
-        let x = vw * 0.5 + nx * (vw * 0.5 - 26)
+        // Drift is added in PIXELS after projection, inside each word's
+        // exclusive orbit (see DRIFT_X/DRIFT_Y): the breathing can never
+        // spend the separation the placement paid for.
+        let x =
+          vw * 0.5 +
+          bx[i] * (vw * 0.5 - 26) +
+          Math.sin(clock * 0.107 + ph * 6.2832) * DRIFT_X
         let y =
-          vh * 0.5 + ny * (vh * 0.5 - 24) + driftY * (0.4 + depth[i] * 0.8)
+          vh * 0.5 +
+          by[i] * (vh * 0.5 - 24) +
+          Math.cos(clock * 0.089 + ph * 5.1) * DRIFT_Y +
+          driftY * (0.4 + depth[i] * 0.8)
         // Depth parallax: the whole field leans away from the cursor a few
         // pixels, near words more than far ones, so the scatter reads as a
-        // volume rather than a plane.
-        const par = (0.32 - depth[i]) * 0.02
+        // volume rather than a plane. The coefficient is budgeted together
+        // with the drift orbit against WORD_PAD, so the lean cannot tangle
+        // the field either.
+        const par = (0.32 - depth[i]) * 0.014
         x += (cx - vw * 0.5) * par
         y += (cy - vh * 0.5) * par * 0.7
 
@@ -925,6 +1070,9 @@ export default function ContextField({
           const pulse = Math.sin((ambientAge / 2.8) * Math.PI) * 0.55
           if (pulse > target) target = pulse
         }
+        // The open word's true relations wake with it, wherever they sit:
+        // recognising a word means seeing what it is actually connected to.
+        if (nbrFlag[i] && target < 0.85) target = 0.85
         if (i === actIdx) target = 1
         const w = wake[i]
         wake[i] = w + (target - w) * (target > w ? riseK : fallK)
@@ -945,12 +1093,7 @@ export default function ContextField({
           y - halfH[i]
         ).toFixed(1)}px, 0) scale(${s.toFixed(3)})`
         el.style.opacity = o.toFixed(3)
-
-        if (wake[i] > 0.02) {
-          awakeIdx[awakeCount] = i
-          awakeW[awakeCount] = wake[i]
-          awakeCount++
-        }
+        opac[i] = o
 
         // The single fragment actually under the cursor takes the ember. One
         // word at a time, so the accent stays an event and not a colour.
@@ -959,7 +1102,9 @@ export default function ContextField({
           bestLit = i
         }
 
-        if (d < nearDist[CURSOR_LINKS - 1] && target > 0.04) {
+        // The nearest words are tracked UNCONDITIONALLY (no wake gate): the
+        // cursor is always webbed to its neighbourhood, wherever it floats.
+        if (d < nearDist[CURSOR_LINKS - 1]) {
           let n = CURSOR_LINKS - 1
           while (n > 0 && nearDist[n - 1] > d) {
             nearDist[n] = nearDist[n - 1]
@@ -980,21 +1125,52 @@ export default function ContextField({
         litIndex = bestLit
       }
 
-      // Cap the awake set by brightness so the pair loop stays bounded.
-      if (awakeCount > MAX_AWAKE) {
-        for (let a = 1; a < awakeCount; a++) {
-          const ki = awakeIdx[a]
-          const kw = awakeW[a]
-          let b = a - 1
-          while (b >= 0 && awakeW[b] < kw) {
-            awakeW[b + 1] = awakeW[b]
-            awakeIdx[b + 1] = awakeIdx[b]
-            b--
+      /* Proximity cards ------------------------------------------------ */
+      // Sweeping near a word surfaces its story without landing on the
+      // label. Real pointer only (never the ghost, never touch), hero only.
+      // Hysteresis both ways: a new word must hold nearest for PROX_HOLD_S
+      // and be clearly closer than the current card's word to take over,
+      // and a card only leaves once the cursor is well outside its orbit
+      // (and never while the card itself is being read).
+      if (!coarse && !reduced && userBlend > 0.6 && travel < 0.15 && past < 0.3) {
+        const nearest = nearIdx[0]
+        const nearestD = nearDist[0]
+        const actD =
+          actIdx >= 0
+            ? Math.sqrt((px[actIdx] - cx) ** 2 + (py[actIdx] - cy) ** 2)
+            : Infinity
+        const openR = radius * 0.5
+        const wantId =
+          nearest >= 0 && nearestD < openR && vis[nearest] > 0.3
+            ? fragments[nearest].node.id
+            : null
+        if (wantId !== suppressRef.current) suppressRef.current = null
+        if (
+          wantId &&
+          wantId !== act &&
+          wantId !== suppressRef.current &&
+          (actIdx < 0 ||
+            nearestD < actD * 0.7 ||
+            (!cardHotRef.current && actD > radius * 0.9))
+        ) {
+          if (proxCandidate === wantId) {
+            proxHold += dt
+            if (proxHold >= PROX_HOLD_S) {
+              proxCandidate = null
+              proxHold = 0
+              openRef.current(wantId)
+            }
+          } else {
+            proxCandidate = wantId
+            proxHold = 0
           }
-          awakeW[b + 1] = kw
-          awakeIdx[b + 1] = ki
+        } else if (!wantId) {
+          proxCandidate = null
+          proxHold = 0
+          if (actIdx >= 0 && actD > radius * 1.15 && !cardHotRef.current) {
+            closeRef.current()
+          }
         }
-        awakeCount = MAX_AWAKE
       }
 
       /* Card ---------------------------------------------------------- */
@@ -1034,10 +1210,41 @@ export default function ContextField({
 
       let seg = 0
 
+      /** Raw segment write. Everything above it decides WHAT to draw. */
+      const writeSeg = (
+        x0: number,
+        y0: number,
+        x1: number,
+        y1: number,
+        alpha: number,
+        tint0: number,
+        tint1: number,
+      ) => {
+        if (seg >= MAX_SEGMENTS) return
+        const v = seg * 6
+        linePositions[v] = x0
+        linePositions[v + 1] = y0
+        linePositions[v + 2] = 0
+        linePositions[v + 3] = x1
+        linePositions[v + 4] = y1
+        linePositions[v + 5] = 0
+        const t = seg * 2
+        lineAlpha[t] = alpha
+        lineAlpha[t + 1] = alpha
+        lineTint[t] = tint0
+        lineTint[t + 1] = tint1
+        seg++
+      }
+
       /**
        * Writes one hairline between two nodes, trimmed to stop clear of each
        * word's box so the line reads as a connection between two pieces of
-       * type rather than a strike-through.
+       * type rather than a strike-through, and CLIPPED around every other
+       * visible label it would cross: the line ducks behind a word with the
+       * same clearance the endpoints get, so no hairline ever strikes
+       * through a label anywhere along its length. skipA/skipB are the
+       * endpoint indices (-1 for the cursor), which must not occlude their
+       * own line.
        */
       const push = (
         ax: number,
@@ -1051,6 +1258,8 @@ export default function ContextField({
         alpha: number,
         tintA: number,
         tintB: number,
+        skipA: number,
+        skipB: number,
       ) => {
         const dx = bxp - ax
         const dy = byp - ay
@@ -1062,19 +1271,142 @@ export default function ContextField({
         const tB = boxT(ux, uy, bhw, bhh) + NODE_PAD
         if (tA + tB >= len - 4) return
 
-        const v = seg * 6
-        linePositions[v] = ax + ux * tA
-        linePositions[v + 1] = ay + uy * tA
-        linePositions[v + 2] = 0
-        linePositions[v + 3] = bxp - ux * tB
-        linePositions[v + 4] = byp - uy * tB
-        linePositions[v + 5] = 0
-        const t = seg * 2
-        lineAlpha[t] = alpha
-        lineAlpha[t + 1] = alpha
-        lineTint[t] = tintA
-        lineTint[t + 1] = tintB
-        seg++
+        const sx = ax + ux * tA
+        const sy = ay + uy * tA
+        const rx = bxp - ux * tB - sx
+        const ry = byp - uy * tB - sy
+        const segLen = len - tA - tB
+
+        // Slab test against every visible label box (padded), collecting the
+        // blocked parameter intervals along the segment.
+        let nb = 0
+        for (let k = 0; k < COUNT && nb < 64; k++) {
+          if (k === skipA || k === skipB) continue
+          if (opac[k] < 0.05) continue
+          const ohw = halfW[k] * sc[k] + CLIP_PAD
+          const ohh = halfH[k] * sc[k] + CLIP_PAD
+          const ox0 = px[k] - ohw
+          const ox1 = px[k] + ohw
+          const oy0 = py[k] - ohh
+          const oy1 = py[k] + ohh
+          let tEn = -Infinity
+          let tEx = Infinity
+          if (Math.abs(rx) < 1e-6) {
+            if (sx < ox0 || sx > ox1) continue
+          } else {
+            const inv = 1 / rx
+            let ta = (ox0 - sx) * inv
+            let tb = (ox1 - sx) * inv
+            if (ta > tb) {
+              const tmp = ta
+              ta = tb
+              tb = tmp
+            }
+            tEn = ta
+            tEx = tb
+          }
+          if (Math.abs(ry) < 1e-6) {
+            if (sy < oy0 || sy > oy1) continue
+          } else {
+            const inv = 1 / ry
+            let ta = (oy0 - sy) * inv
+            let tb = (oy1 - sy) * inv
+            if (ta > tb) {
+              const tmp = ta
+              ta = tb
+              tb = tmp
+            }
+            if (ta > tEn) tEn = ta
+            if (tb < tEx) tEx = tb
+          }
+          if (tEn >= tEx || tEx <= 0 || tEn >= 1) continue
+          blockT0[nb] = tEn < 0 ? 0 : tEn
+          blockT1[nb] = tEx > 1 ? 1 : tEx
+          nb++
+        }
+
+        // The page's own type occludes too: the hero block's keep-out box,
+        // shifted into viewport space, so no hairline ever crosses the
+        // headline or the prose column it protects.
+        for (let k = 0; k < typeBoxes.length && nb < 64; k++) {
+          const tb2 = typeBoxes[k]
+          const ox0 = tb2[0]
+          const oy0 = tb2[1] - scrollY
+          const ox1 = tb2[2]
+          const oy1 = tb2[3] - scrollY
+          let tEn = -Infinity
+          let tEx = Infinity
+          if (Math.abs(rx) < 1e-6) {
+            if (sx < ox0 || sx > ox1) continue
+          } else {
+            const inv = 1 / rx
+            let ta = (ox0 - sx) * inv
+            let tb = (ox1 - sx) * inv
+            if (ta > tb) {
+              const tmp = ta
+              ta = tb
+              tb = tmp
+            }
+            tEn = ta
+            tEx = tb
+          }
+          if (Math.abs(ry) < 1e-6) {
+            if (sy < oy0 || sy > oy1) continue
+          } else {
+            const inv = 1 / ry
+            let ta = (oy0 - sy) * inv
+            let tb = (oy1 - sy) * inv
+            if (ta > tb) {
+              const tmp = ta
+              ta = tb
+              tb = tmp
+            }
+            if (ta > tEn) tEn = ta
+            if (tb < tEx) tEx = tb
+          }
+          if (tEn >= tEx || tEx <= 0 || tEn >= 1) continue
+          blockT0[nb] = tEn < 0 ? 0 : tEn
+          blockT1[nb] = tEx > 1 ? 1 : tEx
+          nb++
+        }
+
+        if (nb === 0) {
+          writeSeg(sx, sy, sx + rx, sy + ry, alpha, tintA, tintB)
+          return
+        }
+
+        // Sort the blocked intervals (insertion; nb is tiny), then draw the
+        // gaps between them. Slivers shorter than MIN_SUB_PX are dropped.
+        for (let a2 = 1; a2 < nb; a2++) {
+          const k0 = blockT0[a2]
+          const k1 = blockT1[a2]
+          let b2 = a2 - 1
+          while (b2 >= 0 && blockT0[b2] > k0) {
+            blockT0[b2 + 1] = blockT0[b2]
+            blockT1[b2 + 1] = blockT1[b2]
+            b2--
+          }
+          blockT0[b2 + 1] = k0
+          blockT1[b2 + 1] = k1
+        }
+        const minT = segLen > 0 ? MIN_SUB_PX / segLen : 1
+        let cur = 0
+        for (let q = 0; q <= nb; q++) {
+          const gapEnd = q === nb ? 1 : blockT0[q]
+          if (gapEnd - cur >= minT) {
+            writeSeg(
+              sx + rx * cur,
+              sy + ry * cur,
+              sx + rx * gapEnd,
+              sy + ry * gapEnd,
+              alpha,
+              mix(tintA, tintB, cur),
+              mix(tintA, tintB, gapEnd),
+            )
+          }
+          if (q < nb && blockT1[q] > cur) cur = blockT1[q]
+          if (cur >= 1) break
+        }
       }
 
       /**
@@ -1086,91 +1418,92 @@ export default function ContextField({
        * structure the spider-crawl reveals is the structure that was always
        * faintly there.
        */
-      for (let e = 0; e < restCount && seg < MAX_SEGMENTS; e++) {
+      // Order the resting edges shortest first (nearly sorted from the last
+      // frame, so the insertion sort is close to free), then draw under a
+      // per-node degree cap: a hub keeps its REST_DEG_MAX tightest relations
+      // as permanent hairlines and sheds the long room-crossing ones, which
+      // is what kept certain frames from piling up. A capped relation still
+      // lights when both of its ends actually wake.
+      for (let e = 0; e < restCount; e++) {
+        const ddx = px[restA[e]] - px[restB[e]]
+        const ddy = py[restA[e]] - py[restB[e]]
+        restLen[e] = ddx * ddx + ddy * ddy
+      }
+      for (let a2 = 1; a2 < restCount; a2++) {
+        const e2 = restOrder[a2]
+        const l2 = restLen[e2]
+        let b2 = a2 - 1
+        while (b2 >= 0 && restLen[restOrder[b2]] > l2) {
+          restOrder[b2 + 1] = restOrder[b2]
+          b2--
+        }
+        restOrder[b2 + 1] = e2
+      }
+      restDeg.fill(0)
+      for (let o2 = 0; o2 < restCount && seg < MAX_SEGMENTS; o2++) {
+        const e = restOrder[o2]
         const i = restA[e]
         const j = restB[e]
         if (parked[i] || parked[j]) continue
-        const dx = px[i] - px[j]
-        const dy = py[i] - py[j]
-        const d = Math.sqrt(dx * dx + dy * dy)
+        const glow = wake[i] * wake[j] * 0.3
+        // An edge touching the open word ALWAYS draws (the card promises
+        // the word's relationships), and the spine edges are never capped:
+        // Paradigm being a Configure customer is the hinge of the story.
+        const strong = restStrong[e] === 1
+        const isActive = i === actIdx || j === actIdx
+        const overCap =
+          !isActive &&
+          !strong &&
+          (restDeg[i] >= REST_DEG_MAX || restDeg[j] >= REST_DEG_MAX)
+        if (overCap && glow < 0.02) continue
+        const d = Math.sqrt(restLen[e])
         // Visible at rest on purpose: the web is the structure the page is
         // about, so it reads at arm's length, not only under the cursor.
         // Mid-descent it brightens further (web > 1) as you pass through.
-        const restAlpha = 0.2 * smoothstep(restFar * web, restNear, d) * web
-        const glow = wake[i] * wake[j] * 0.3
-        const alpha = (restAlpha + glow) * Math.min(vis[i], vis[j]) * dim
-        if (alpha < 0.006) continue
+        // The spine draws at roughly double presence.
+        const restAlpha = overCap
+          ? 0
+          : (strong ? 0.46 : 0.22) *
+            smoothstep(restFar * web * (strong ? 1.7 : 1), restNear, d) *
+            web
+        let alpha = (restAlpha + glow) * Math.min(vis[i], vis[j]) * dim
+        if (isActive) {
+          const floor = 0.32 * Math.min(vis[i], vis[j]) * dim
+          if (alpha < floor) alpha = floor
+        }
+        if (alpha < 0.008) continue
+        restDeg[i]++
+        restDeg[j]++
         push(
           px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
           px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
-          alpha, 0, 0,
+          alpha, 0, 0, i, j,
         )
       }
 
-      /**
-       * Fragment to fragment: the recognition itself.
-       *
-       * Every awake fragment reaches for its two nearest awake neighbours and
-       * nothing else. Linking every pair inside a radius makes a hairball that
-       * reads as generic particle wallpaper; capping the degree makes a graph
-       * you can follow, which is the difference between decoration and an
-       * argument about relationships.
-       */
-      for (let a = 0; a < awakeCount && seg < MAX_SEGMENTS; a++) {
-        const i = awakeIdx[a]
-        const wi = wake[i]
-
-        let n0 = -1
-        let d0 = Infinity
-        let n1 = -1
-        let d1 = Infinity
-
-        for (let b = 0; b < awakeCount; b++) {
-          if (b === a) continue
-          const j = awakeIdx[b]
-          const dx = px[i] - px[j]
-          const dy = py[i] - py[j]
-          const dij = Math.sqrt(dx * dx + dy * dy)
-          if (dij >= linkRadius) continue
-          if (dij < d0) {
-            d1 = d0
-            n1 = n0
-            d0 = dij
-            n0 = j
-          } else if (dij < d1) {
-            d1 = dij
-            n1 = j
-          }
-        }
-
-        for (let k = 0; k < 2 && seg < MAX_SEGMENTS; k++) {
-          const j = k === 0 ? n0 : n1
-          const dij = k === 0 ? d0 : d1
-          if (j < 0) continue
-          const alpha =
-            wi *
-            wake[j] *
-            smoothstep(linkRadius, linkRadius * 0.14, dij) *
-            0.82 *
-            Math.min(vis[i], vis[j]) *
-            dim
-          if (alpha < 0.01) continue
-          push(
-            px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
-            px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
-            alpha, 0, 0,
-          )
-        }
-      }
+      // There is deliberately NO nearest-neighbour "recognition" pass any
+      // more. Every line the field draws between two words is read as a
+      // claimed relationship, and proximity in the layout is not one: the
+      // old pass kept inventing pairs like a classroom tool linked to a
+      // context server because they happened to land near each other. Only
+      // the audited graph draws; waking a word brightens its REAL relations
+      // through the resting-web loop above.
 
       // Cursor tethers: the field reaching back toward whoever is reading.
+      // The floor term keeps the cursor CONNECTED at all times: wherever the
+      // pointer floats, its nearest words hold a whisper of a line to it,
+      // brightening as it closes in and as the words wake.
       for (let n = 0; n < CURSOR_LINKS && seg < MAX_SEGMENTS; n++) {
         const i = nearIdx[n]
         if (i < 0) continue
         const alpha =
-          wake[i] * 0.6 * smoothstep(radius, radius * 0.1, nearDist[n]) * vis[i] * dim
+          (0.07 +
+            0.12 * smoothstep(radius * 1.9, radius * 0.25, nearDist[n]) +
+            wake[i] * 0.5 * smoothstep(radius, radius * 0.1, nearDist[n])) *
+          vis[i] *
+          dim
         if (alpha < 0.008) continue
-        push(cx, cy, 0, 0, px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i], alpha, 0.9, 0.1)
+        push(cx, cy, 0, 0, px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i], alpha, 0.9, 0.1, -1, i)
       }
 
       if (renderer) {
@@ -1353,10 +1686,16 @@ export default function ContextField({
                   aria-label={`${activeNode.label}: ${KIND_LABEL[activeNode.kind]}`}
                   onClick={(e) => e.stopPropagation()}
                   onPointerEnter={(e) => {
-                    if (e.pointerType !== "touch") clearHide()
+                    if (e.pointerType !== "touch") {
+                      cardHotRef.current = true
+                      clearHide()
+                    }
                   }}
                   onPointerLeave={(e) => {
-                    if (e.pointerType !== "touch") scheduleHide()
+                    if (e.pointerType !== "touch") {
+                      cardHotRef.current = false
+                      scheduleHide()
+                    }
                   }}
                   onFocus={clearHide}
                   onBlur={blurAway}

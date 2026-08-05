@@ -31,6 +31,19 @@ gsap.registerPlugin(useGSAP)
  */
 const ContextField = dynamic(() => import("./ContextField"), { ssr: false })
 
+import type { FieldVariant } from "./ContextField"
+
+/**
+ * The colophon tells the truth per identity. Everything else in the copy is
+ * identical across the variants; only the type wearing it changes.
+ */
+const COLOPHON: Record<FieldVariant, string> = {
+  base: "Set in Fraunces, Newsreader and IBM Plex Sans",
+  serif: "Set in Fraunces, Newsreader and IBM Plex Sans",
+  grotesk: "Set in Bricolage Grotesque and Instrument Sans",
+  mono: "Set in Newsreader and IBM Plex Mono",
+}
+
 const links = [
   { label: profile.email, href: `mailto:${profile.email}` },
   { label: "github.com/Manueldav2", href: profile.github },
@@ -248,7 +261,18 @@ const featuredProjects = FEATURED_PROJECTS.map((slug) =>
   projects.find((p) => p.slug === slug),
 ).filter((p): p is (typeof projects)[number] => Boolean(p))
 
-export function HeroField({ className }: { className?: string }) {
+export function HeroField({
+  className,
+  variant = "base",
+}: {
+  className?: string
+  /**
+   * Type identity. The routes /1, /2, /3 mount the same page with a
+   * different identity; the mechanics, copy and structure are shared, and
+   * the CSS keys everything visual off data-variant on the root.
+   */
+  variant?: FieldVariant
+}) {
   const layerRef = useRef<HTMLDivElement | null>(null)
   // The story card portals here: a mount above the page content, still
   // inside .root so the palette and font variables reach it. The field
@@ -270,7 +294,7 @@ export function HeroField({ className }: { className?: string }) {
   }, [])
 
   return (
-    <div className={`${styles.root} ${className ?? ""}`}>
+    <div className={`${styles.root} ${className ?? ""}`} data-variant={variant}>
       <div className={styles.backdrop}>
         <div className={styles.vignette} />
         <div ref={layerRef} className={styles.canvasLayer} data-ready="false">
@@ -278,6 +302,7 @@ export function HeroField({ className }: { className?: string }) {
             className={styles.canvasHost}
             onReady={handleReady}
             cardMount={cardMountRef}
+            variant={variant}
           />
         </div>
         <div className={styles.grain} />
@@ -554,7 +579,7 @@ export function HeroField({ className }: { className?: string }) {
 
             <p className={styles.colophon}>
               <span>{profile.name}, San Francisco</span>
-              <span>Set in Fraunces, Newsreader and IBM Plex Sans</span>
+              <span>{COLOPHON[variant]}</span>
             </p>
           </section>
         </main>
