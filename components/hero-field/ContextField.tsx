@@ -10,6 +10,7 @@ import {
   Color,
   DynamicDrawUsage,
   LineSegments,
+  NormalBlending,
   OrthographicCamera,
   Scene,
   ShaderMaterial,
@@ -74,7 +75,7 @@ const LINE_FRAG = /* glsl */ `
   }
 `
 
-const MAX_SEGMENTS = 240
+const MAX_SEGMENTS = 400
 const CURSOR_LINKS = 3
 /** Gap left between the edge of a word and the hairline that reaches for it. */
 const NODE_PAD = 7
@@ -113,6 +114,69 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 }
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
+
+/** Weighted exit: fast start, long settle. The entrance easing family. */
+const easeOutQuart = (t: number) => {
+  const u = 1 - Math.min(1, Math.max(0, t))
+  return 1 - u * u * u * u
+}
+
+/* ------------------------------------------------------------------ */
+/* LIGHTING                                                            */
+/*                                                                     */
+/* The field is lit, not uniformly dim. Configure is the light source:  */
+/* it sits at the gravitational centre of the life, so warmth and       */
+/* brightness fall off from it, and the far words cool into             */
+/* atmospheric depth. The grade is computed per word from the AUTHORED  */
+/* layout (once per placement, not per frame): each word gets a colour  */
+/* on the cool-to-warm ramp and a brightness factor the frame loop      */
+/* multiplies in. No filters, no bloom: it is only colour and alpha.    */
+/* ------------------------------------------------------------------ */
+
+/** Cool far-field ink and the warm tone near the source, as RGB. */
+const LIGHT_COOL: [number, number, number] = [0xa6, 0xbe, 0xc8]
+const LIGHT_WARM: [number, number, number] = [0xf4, 0xe6, 0xc0]
+/** Paper wears its own ramp: warm near-black ink close to the source,
+ * cooling to a softer graphite grey in the far field. */
+const PAPER_COOL: [number, number, number] = [0x6b, 0x67, 0x62]
+const PAPER_WARM: [number, number, number] = [0x24, 0x20, 0x1c]
+
+/**
+ * Brightness envelope of the light, by distance from the source in units
+ * of the short viewport axis. Words inside NEAR bathe in it; past FAR
+ * they sink toward the resting-dim floor.
+ */
+const LIGHT_NEAR = 0.12
+const LIGHT_FAR = 0.92
+
+/* ------------------------------------------------------------------ */
+/* ENTRANCE                                                            */
+/*                                                                     */
+/* One take, under 2.6s: the life spine ignites node by node with its   */
+/* edges drawing in behind it, then the rest of the field breathes in   */
+/* by tier, then the ambient drift takes over. Reduced motion lands     */
+/* composed instantly.                                                  */
+/* ------------------------------------------------------------------ */
+
+/** The life spine, in ignition order. */
+const SPINE_ORDER = [
+  "faith",
+  "all-in",
+  "san-francisco",
+  "nouvo",
+  "paradigm",
+  "configure",
+] as const
+const SPINE_STEP = 0.15
+const SPINE_START = 0.38
+/** When the non-spine tiers breathe in. */
+const INTRO_KEY = SPINE_START + SPINE_ORDER.length * SPINE_STEP
+const INTRO_MID = INTRO_KEY + 0.14
+const INTRO_LOW = INTRO_MID + 0.2
+/** Per-word fade duration once its cue hits. */
+const INTRO_FADE = 0.5
+/** The clock value at which the entrance is simply over. */
+const INTRO_DONE = 2.55
 
 /**
  * Deterministic PRNG (mulberry32). The composition is curated, not rolled:
@@ -191,7 +255,7 @@ const hits = (a: Box, b: Box) =>
  * size contrast between tiers, because a grotesk can run denser than a serif
  * and a mono field wants more air around fewer words.
  */
-export type FieldVariant = "base" | "serif" | "grotesk" | "mono"
+export type FieldVariant = "base" | "serif" | "grotesk" | "mono" | "paper"
 
 const FIELD_TUNE: Record<
   FieldVariant,
@@ -201,6 +265,9 @@ const FIELD_TUNE: Record<
   serif: { counts: [20, 36, 48], size: { key: 1.18, mid: 1.05, low: 0.98 } },
   grotesk: { counts: [22, 38, 48], size: { key: 1.06, mid: 1.05, low: 1.05 } },
   mono: { counts: [16, 28, 40], size: { key: 1.04, mid: 0.94, low: 0.95 } },
+  /* Heavy cardstock runs CALM: the spine, the majors, and nothing else.
+   * A printed sheet earns its gravity from what it leaves off. */
+  paper: { counts: [12, 16, 21], size: { key: 1.16, mid: 1.0, low: 0.98 } },
 }
 
 export default function ContextField({
@@ -412,6 +479,23 @@ export default function ContextField({
     const blockT0 = new Float32Array(64)
     const blockT1 = new Float32Array(64)
 
+    // The lighting grade: per-word brightness factor and warm-ramp colour,
+    // recomputed whenever the layout moves (placement, eviction). Read by
+    // the frame loop as plain multipliers; never computed per frame.
+    const lightK = new Float32Array(COUNT).fill(1)
+    // The entrance cue sheet: when each word breathes in, in intro-clock
+    // seconds. The life spine ignites in order; the tiers follow.
+    const introAt = new Float32Array(COUNT)
+    const spineCue = new Map<string, number>()
+    SPINE_ORDER.forEach((id, k) => spineCue.set(id, SPINE_START + k * SPINE_STEP))
+    /** Spine edge pairs (consecutive ignitions), for the draw-in. */
+    const spineEdge = new Set<string>()
+    for (const [a, b] of edges) {
+      if (spineCue.has(a) && spineCue.has(b)) {
+        spineEdge.add(a < b ? `${a}|${b}` : `${b}|${a}`)
+      }
+    }
+
     // Seeded: depth, brightness and size are part of the curated composition
     // (size feeds the measured boxes the placement is built from), so they
     // must come out identical on every load.
@@ -419,6 +503,16 @@ export default function ContextField({
     const tune = FIELD_TUNE[variant].size
     for (let i = 0; i < COUNT; i++) {
       phase[i] = attrRng()
+      const id = fragments[i].node.id
+      const cue = spineCue.get(id)
+      introAt[i] =
+        cue !== undefined
+          ? cue
+          : fragments[i].tier === "key"
+            ? INTRO_KEY
+            : fragments[i].tier === "mid"
+              ? INTRO_MID + phase[i] * 0.26
+              : INTRO_LOW + phase[i] * 0.3
       const tier = TIER[fragments[i].tier]
       const t = attrRng()
       depth[i] = mix(tier.depth[0], tier.depth[1], t)
@@ -474,17 +568,21 @@ export default function ContextField({
     lineGeo.setAttribute("aTint", lineTintAttr)
     lineGeo.setDrawRange(0, 0)
 
+    // Paper draws INK on a light sheet: normal blending, warm near-black
+    // strokes, a deep oxide accent. The dark grounds keep the additive
+    // pale-filament pass.
+    const paper = variant === "paper"
     const lineMat = new ShaderMaterial({
       vertexShader: LINE_VERT,
       fragmentShader: LINE_FRAG,
       uniforms: {
-        uBase: { value: new Color("#c9dcd6") },
-        uEmber: { value: new Color("#e2552c") },
+        uBase: { value: new Color(paper ? "#403a33" : "#c9dcd6") },
+        uEmber: { value: new Color(paper ? "#8f3116" : "#e2552c") },
       },
       transparent: true,
       depthWrite: false,
       depthTest: false,
-      blending: AdditiveBlending,
+      blending: paper ? NormalBlending : AdditiveBlending,
     })
 
     const lines = new LineSegments(lineGeo, lineMat)
@@ -602,6 +700,54 @@ export default function ContextField({
     const boxA: Box = [0, 0, 0, 0]
     const boxB: Box = [0, 0, 0, 0]
 
+    // Which resting edges belong to the life spine (for the entrance
+    // draw-in). Resolved once against the fragment indices.
+    const restSpineArr = new Uint8Array(restCount)
+    for (let e = 0; e < restCount; e++) {
+      const a = fragments[restA[e]].node.id
+      const b = fragments[restB[e]].node.id
+      restSpineArr[e] = spineEdge.has(a < b ? `${a}|${b}` : `${b}|${a}`) ? 1 : 0
+    }
+
+    /** Edge-brightness factor derived from the word grade, cached. */
+    const lightE = new Float32Array(COUNT).fill(1)
+    const lightIdx = idxOfNode.get("configure") ?? -1
+
+    /**
+     * The grade. Configure is the light source: warmth and brightness fall
+     * off from it, far words cool toward the resting floor, and depth cools
+     * a word further. Runs after every placement/eviction, never per frame:
+     * the drift orbit is pixels wide, far below the grade's falloff scale.
+     */
+    const applyLight = () => {
+      const span = Math.min(vw, vh)
+      if (span <= 0) return
+      const lx = lightIdx >= 0 ? toX(tbx[lightIdx]) : vw * 0.62
+      const ly = lightIdx >= 0 ? toY(tby[lightIdx]) : vh * 0.44
+      const cool = paper ? PAPER_COOL : LIGHT_COOL
+      const warmc = paper ? PAPER_WARM : LIGHT_WARM
+      for (let i = 0; i < COUNT; i++) {
+        const ddx = toX(tbx[i]) - lx
+        const ddy = toY(tby[i]) - ly
+        const d = Math.sqrt(ddx * ddx + ddy * ddy) / span
+        let w = smoothstep(LIGHT_FAR, LIGHT_NEAR, d) * (1 - depth[i] * 0.38)
+        // The anchors always carry some of the light with them: faith and
+        // Nouvo are the names of the story, and a name gone cold reads as
+        // an accident rather than atmosphere.
+        if (fragments[i].tier === "key" && w < 0.34) w = 0.34
+        // Floored at a mild dim so the far field sinks into atmosphere
+        // without ever going missing; near the source it genuinely burns.
+        // On stock the floor sits higher: even the lightest impression is
+        // real ink, and hierarchy rides on size, weight and warmth.
+        lightK[i] = paper ? 1.14 + 0.36 * w : 0.86 + 0.44 * w
+        lightE[i] = 0.8 + 0.55 * w
+        const r = Math.round(mix(cool[0], warmc[0], w))
+        const g = Math.round(mix(cool[1], warmc[1], w))
+        const b = Math.round(mix(cool[2], warmc[2], w))
+        els[i].style.setProperty("--hfw", `rgb(${r} ${g} ${b})`)
+      }
+    }
+
     const place = () => {
       const keepouts = gatherKeepouts()
       const spanX = vw * 0.5 - 26
@@ -673,6 +819,70 @@ export default function ContextField({
         if (!moved) break
       }
 
+      // 2.5) Anchor rescue. On a narrow viewport the type stack swallows
+      //    the centre of the frame, and the smallest-exit push can strand
+      //    an anchor inside it; the spine must survive the phone cut, so
+      //    before a key word is allowed to park, it tries the open bands
+      //    above and below the whole type stack. Fully deterministic:
+      //    fixed candidate order, first honest fit wins.
+      let stackTop = Infinity
+      let stackBot = -Infinity
+      for (const k of keepouts) {
+        if (k[1] < stackTop) stackTop = k[1]
+        if (k[3] > stackBot) stackBot = k[3]
+      }
+      const XOFF = [
+        0, -0.12, 0.12, -0.24, 0.24, -0.36, 0.36, -0.48, 0.48, -0.6, 0.6,
+        -0.72, 0.72,
+      ]
+      // Most important first: Configure gets the pick of the open slots,
+      // never the leftovers.
+      const rescueOrder: number[] = []
+      for (let i = 0; i < COUNT; i++) {
+        if (fragments[i].tier === "key") rescueOrder.push(i)
+      }
+      rescueOrder.sort(
+        (a, b) =>
+          importanceOf(fragments[b].node.id) - importanceOf(fragments[a].node.id),
+      )
+      // The roomier band gets tried first.
+      const bandBelowFirst = vh - stackBot > stackTop
+      for (const i of rescueOrder) {
+        wordBox(i, boxA)
+        let hit = false
+        for (let b = 0; b < keepouts.length && !hit; b++) hit = hits(boxA, keepouts[b])
+        if (!hit) continue
+        const saveX = tbx[i]
+        const saveY = tby[i]
+        const rowH = (halfH[i] + WORD_PAD_Y) * 2 + 6
+        let placed = false
+        for (let row = 0; row < 4 && !placed; row++) {
+          const below = bandBelowFirst ? row % 2 === 0 : row % 2 === 1
+          const off = (halfH[i] + WORD_PAD_Y + 6) + Math.floor(row / 2) * rowH
+          const cy2 = below ? stackBot + off : stackTop - off
+          for (let xo = 0; xo < XOFF.length && !placed; xo++) {
+            tbx[i] = saveX + XOFF[xo]
+            tby[i] = spanY > 0 ? (cy2 - vh * 0.5) / spanY : 0
+            clampWord(i)
+            wordBox(i, boxA)
+            let clear = true
+            for (let b = 0; b < keepouts.length && clear; b++) {
+              clear = !hits(boxA, keepouts[b])
+            }
+            for (let j = 0; j < COUNT && clear; j++) {
+              if (j === i) continue
+              wordBox(j, boxB)
+              if (hits(boxA, boxB)) clear = false
+            }
+            if (clear) placed = true
+          }
+        }
+        if (!placed) {
+          tbx[i] = saveX
+          tby[i] = saveY
+        }
+      }
+
       // 3) Anything the relaxation could not honestly fit sits out: a
       //    label buried in the type, or the less important of a stuck
       //    overlapping pair. A missing fragment costs less than a mess.
@@ -705,6 +915,8 @@ export default function ContextField({
         bx[i] = tbx[i]
         by[i] = tby[i]
       }
+
+      applyLight()
     }
 
     /**
@@ -794,6 +1006,8 @@ export default function ContextField({
         tbx[i] = nx
         tby[i] = ny
       }
+
+      applyLight()
     }
 
     let laidOut = false
@@ -881,6 +1095,12 @@ export default function ContextField({
     let proxHold = 0
     const PROX_HOLD_S = 0.18
 
+    // The entrance clock. Held at zero until the layout settles (fonts
+    // measured, field revealed), then runs the one-take cue sheet above.
+    // Reduced motion never runs it: everything lands composed.
+    let introOn = false
+    let introClock = 0
+
     let raf = 0
     let last = performance.now()
     // The still frame is composed, not arbitrary: this is the point on the idle
@@ -891,6 +1111,9 @@ export default function ContextField({
 
     const step = (dt: number) => {
       clock += dt
+      if (introOn && !reduced && introClock < INTRO_DONE + 1) introClock += dt
+      /** The entrance clock this frame; reduced motion is always done. */
+      const introT = reduced ? INTRO_DONE + 9 : introClock
 
       const act = activeRef.current
       const actIdx = act ? (idxOfNode.get(act) ?? -1) : -1
@@ -916,6 +1139,13 @@ export default function ContextField({
       const past = smoothstep(vh * 0.3, vh * 1.05, scrollY)
       const dim = 1 - 0.5 * past
       const driftY = 26 * Math.sin(scrollY / (vh * 1.7))
+      // Ambient camera drift: a slow orbit, a few pixels wide over ~26s,
+      // applied with the same depth weighting as the cursor parallax so the
+      // scene reads as a shallow volume the moment you land, before any
+      // scroll. Budgeted against WORD_PAD with the drift orbit, so it can
+      // never spend the separation the placement guaranteed.
+      const ambX = Math.sin(clock * 0.239) * 4.6 + Math.sin(clock * 0.101 + 1.7) * 2.2
+      const ambY = Math.cos(clock * 0.173) * 3.4 + Math.sin(clock * 0.077) * 1.6
       // Vanishing point for the descent: near centre, a breath toward the
       // field's mass, so the frame empties evenly instead of hollowing out
       // one side while words pile into the other.
@@ -1028,9 +1258,10 @@ export default function ContextField({
         // volume rather than a plane. The coefficient is budgeted together
         // with the drift orbit against WORD_PAD, so the lean cannot tangle
         // the field either.
-        const par = (0.32 - depth[i]) * 0.014
-        x += (cx - vw * 0.5) * par
-        y += (cy - vh * 0.5) * par * 0.7
+        const parW = 0.32 - depth[i]
+        const par = parW * 0.014
+        x += (cx - vw * 0.5) * par + ambX * parW
+        y += (cy - vh * 0.5) * par * 0.7 + ambY * parW
 
         // The descent. Scale is relative to rest (travel 0 leaves the
         // measured layout untouched); as the camera advances, words ahead
@@ -1049,6 +1280,17 @@ export default function ContextField({
         const spreadS = 1 + (s - 1) * 0.72
         x = vpx + (x - vpx) * spreadS
         y = vpy + (y - vpy) * spreadS
+        // The entrance: each word breathes in on its cue with a small,
+        // weighted settle of scale. Position is never touched, so the
+        // choreography can never disturb the authored layout.
+        const cueT = introAt[i]
+        const inA =
+          introT >= cueT + INTRO_FADE
+            ? 1
+            : introT <= cueT
+              ? 0
+              : easeOutQuart((introT - cueT) / INTRO_FADE)
+        if (inA < 1) s *= 0.9 + 0.1 * inA
         sc[i] = s
 
         if (hold > 0) {
@@ -1086,13 +1328,26 @@ export default function ContextField({
         // Reading channel: below the hero the field steps aside for the text.
         const c = mix(1, smoothstep(bandInner, bandOuter, Math.abs(x - vw * 0.5)), past)
         chan[i] = c
-        vis[i] = c * passFade
+        vis[i] = c * passFade * inA
 
         const ww = wake[i]
         const lit = ww * ww * (3 - 2 * ww)
+        // The lit ground: resting brightness carries the light grade, so
+        // words near the source rest brighter and the far field sinks into
+        // atmosphere. Waking a word still lifts it to full presence.
+        const bA = Math.min(0.95, baseA[i] * lightK[i])
         // Approaching words brighten a little with their size, so the
         // descent reads as things coming to meet you, not just inflating.
-        let o = (baseA[i] + lit * (0.96 - baseA[i])) * vis[i] * dim * (1 + (s - 1) * 0.4)
+        let o = (bA + lit * (0.96 - bA)) * vis[i] * dim * (1 + (s - 1) * 0.4)
+        // Ignition: a word arriving in the entrance flares past its resting
+        // brightness and settles, so the take reads as things LIGHTING, not
+        // fading in. The spine burns hardest.
+        if (introT < INTRO_DONE && introT > cueT) {
+          const flare =
+            Math.sin(Math.PI * Math.min(1, (introT - cueT) / 0.9)) *
+            (cueT < INTRO_KEY ? 0.75 : 0.32)
+          o *= 1 + flare
+        }
         if (o > 1) o = 1
         const el = els[i]
         el.style.transform = `translate3d(${(x - halfW[i]).toFixed(1)}px, ${(
@@ -1121,6 +1376,10 @@ export default function ContextField({
           nearIdx[n] = i
         }
       }
+
+      // The ember stays out of the entrance: recognition is a reward for
+      // arriving, not part of the take.
+      if (introT < INTRO_DONE - 0.4) bestLit = -1
 
       // An open card owns the ember, wherever the eased cursor has settled.
       if (actIdx >= 0) bestLit = actIdx
@@ -1222,7 +1481,8 @@ export default function ContextField({
         y0: number,
         x1: number,
         y1: number,
-        alpha: number,
+        alpha0: number,
+        alpha1: number,
         tint0: number,
         tint1: number,
       ) => {
@@ -1235,11 +1495,49 @@ export default function ContextField({
         linePositions[v + 4] = y1
         linePositions[v + 5] = 0
         const t = seg * 2
-        lineAlpha[t] = alpha
-        lineAlpha[t + 1] = alpha
+        lineAlpha[t] = alpha0
+        lineAlpha[t + 1] = alpha1
         lineTint[t] = tint0
         lineTint[t + 1] = tint1
         seg++
+      }
+
+      /** Luminance profile along a stroke: full at the nodes, dimmer at
+       * mid-span, so the web reads as lit filaments rather than wireframe.
+       * Pure alpha gradient; no glow, no bloom, no width change. */
+      const lum = (t: number) => 1 - 0.42 * Math.sin(Math.PI * t)
+
+      /** One lit sub-span of a stroke, in segment parameter space. Splits
+       * at the midpoint so the linear per-vertex alpha can actually dip. */
+      const emitSub = (
+        sx: number,
+        sy: number,
+        rx: number,
+        ry: number,
+        alpha: number,
+        tintA: number,
+        tintB: number,
+        t0: number,
+        t1: number,
+      ) => {
+        if (t0 < 0.5 && t1 > 0.5) {
+          writeSeg(
+            sx + rx * t0, sy + ry * t0, sx + rx * 0.5, sy + ry * 0.5,
+            alpha * lum(t0), alpha * lum(0.5),
+            mix(tintA, tintB, t0), mix(tintA, tintB, 0.5),
+          )
+          writeSeg(
+            sx + rx * 0.5, sy + ry * 0.5, sx + rx * t1, sy + ry * t1,
+            alpha * lum(0.5), alpha * lum(t1),
+            mix(tintA, tintB, 0.5), mix(tintA, tintB, t1),
+          )
+          return
+        }
+        writeSeg(
+          sx + rx * t0, sy + ry * t0, sx + rx * t1, sy + ry * t1,
+          alpha * lum(t0), alpha * lum(t1),
+          mix(tintA, tintB, t0), mix(tintA, tintB, t1),
+        )
       }
 
       /**
@@ -1377,7 +1675,7 @@ export default function ContextField({
         }
 
         if (nb === 0) {
-          writeSeg(sx, sy, sx + rx, sy + ry, alpha, tintA, tintB)
+          emitSub(sx, sy, rx, ry, alpha, tintA, tintB, 0, 1)
           return
         }
 
@@ -1400,15 +1698,7 @@ export default function ContextField({
         for (let q = 0; q <= nb; q++) {
           const gapEnd = q === nb ? 1 : blockT0[q]
           if (gapEnd - cur >= minT) {
-            writeSeg(
-              sx + rx * cur,
-              sy + ry * cur,
-              sx + rx * gapEnd,
-              sy + ry * gapEnd,
-              alpha,
-              mix(tintA, tintB, cur),
-              mix(tintA, tintB, gapEnd),
-            )
+            emitSub(sx, sy, rx, ry, alpha, tintA, tintB, cur, gapEnd)
           }
           if (q < nb && blockT1[q] > cur) cur = blockT1[q]
           if (cur >= 1) break
@@ -1491,13 +1781,23 @@ export default function ContextField({
         // The spine draws at roughly double presence.
         const restAlpha = overCap
           ? 0
-          : (strong ? 0.46 : 0.22) *
+          : (strong ? 0.52 : 0.27) *
             smoothstep(restFar * web * (strong ? 1.7 : 1), restNear, d) *
             web
         let alpha = (restAlpha + glow) * Math.min(vis[i], vis[j]) * dim
+        // The grade reaches the web: strokes near the light source hold
+        // more presence than strokes out in the atmospheric far field.
+        // Ink on stock needs more body than light on ink to read at all.
+        alpha *= (lightE[i] + lightE[j]) * (paper ? 0.8 : 0.5)
         if (isActive) {
           const floor = 0.32 * Math.min(vis[i], vis[j]) * dim
           if (alpha < floor) alpha = floor
+        }
+        // During the entrance, a stroke waits a beat after its later word
+        // has breathed in, so the web assembles just behind the words.
+        const cueEdge = Math.max(introAt[i], introAt[j]) + 0.1
+        if (introT < INTRO_DONE) {
+          alpha *= smoothstep(cueEdge, cueEdge + 0.34, introT)
         }
         if (alpha < 0.008) continue
         if (restDeg[i] < REST_DEG_MAX) restAng[i * REST_DEG_MAX + restDeg[i]] = ang
@@ -1507,11 +1807,45 @@ export default function ContextField({
         }
         restDeg[i]++
         restDeg[j]++
+        // The life spine draws ITSELF in during the entrance: each spine
+        // stroke grows from the earlier-ignited word toward the later one.
+        if (restSpineArr[e] === 1 && introT < INTRO_DONE) {
+          const from = introAt[i] <= introAt[j] ? i : j
+          const to = from === i ? j : i
+          const g0 = introAt[from] + 0.08
+          if (introT <= g0) continue
+          const g = easeOutQuart((introT - g0) / (SPINE_STEP * 2.6))
+          if (g < 1) {
+            push(
+              px[from], py[from], halfW[from] * sc[from], halfH[from] * sc[from],
+              px[from] + (px[to] - px[from]) * g,
+              py[from] + (py[to] - py[from]) * g,
+              0, 0,
+              alpha * (0.3 + 0.7 * g), 0, 0, from, to,
+            )
+            continue
+          }
+        }
         push(
           px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
           px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
           alpha, 0, 0, i, j,
         )
+        // The spine carries more material: a second stroke a half-hair off
+        // the first reads as a heavier filament at any DPR, with no width
+        // API and no glow.
+        if (strong) {
+          const sdx = px[j] - px[i]
+          const sdy = py[j] - py[i]
+          const sl = Math.sqrt(sdx * sdx + sdy * sdy) || 1
+          const oxp = (-sdy / sl) * 0.8
+          const oyp = (sdx / sl) * 0.8
+          push(
+            px[i] + oxp, py[i] + oyp, halfW[i] * sc[i], halfH[i] * sc[i],
+            px[j] + oxp, py[j] + oyp, halfW[j] * sc[j], halfH[j] * sc[j],
+            alpha * 0.6, 0, 0, i, j,
+          )
+        }
       }
 
       // There is deliberately NO nearest-neighbour "recognition" pass any
@@ -1533,8 +1867,12 @@ export default function ContextField({
           (0.07 +
             0.12 * smoothstep(radius * 1.9, radius * 0.25, nearDist[n]) +
             wake[i] * 0.5 * smoothstep(radius, radius * 0.1, nearDist[n])) *
+          (paper ? 1.5 : 1) *
           vis[i] *
-          dim
+          dim *
+          // The tethers are the last thing to arrive: the field finishes
+          // assembling itself before it reaches for the reader.
+          (introT >= INTRO_DONE ? 1 : smoothstep(INTRO_DONE - 0.7, INTRO_DONE, introT))
         if (alpha < 0.008) continue
         push(cx, cy, 0, 0, px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i], alpha, 0.9, 0.1, -1, i)
       }
@@ -1602,6 +1940,8 @@ export default function ContextField({
       settled = true
       measure()
       place()
+      // The entrance clock starts the moment the composed layout exists.
+      introOn = true
       if (reduced) {
         step(0)
         step(0)
@@ -1630,10 +1970,16 @@ export default function ContextField({
         .then(() => {
           if (disposed) return
           if (!settled) settle()
-          // Fonts landed after the failsafe already revealed the field:
-          // correct the measured boxes (line trimming, centring) but keep
-          // every position. A late font never rearranges the room.
-          else measure()
+          else {
+            // Fonts landed after the failsafe already revealed the field.
+            // Re-run the SAME deterministic placement on the real metrics:
+            // a room built on fallback widths can park the wrong words
+            // (even an anchor), and every load must converge on the one
+            // authored composition. The base positions glide there through
+            // the settle easing; nothing snaps.
+            measure()
+            place()
+          }
         })
       // Belt and braces: never leave the field invisible if fonts stall.
       // Safe to race with the promise above; settle() is single-shot.

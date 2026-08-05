@@ -42,6 +42,7 @@ const COLOPHON: Record<FieldVariant, string> = {
   serif: "Set in Fraunces, Newsreader and IBM Plex Sans",
   grotesk: "Set in Bricolage Grotesque and Instrument Sans",
   mono: "Set in Newsreader and IBM Plex Mono",
+  paper: "Set in Fraunces, Newsreader and IBM Plex Sans, on heavy stock",
 }
 
 const links = [
@@ -311,11 +312,16 @@ export function HeroField({
       <div className={styles.content}>
         <section className={styles.hero}>
           <div className={styles.frame}>
-            {/* One block, one keep-out. Identity, claim, the field's own
-                caption, and the ways out, set as a single column the field
-                drifts around. */}
-            <div className={styles.block} data-hf-keepout>
-              <header className={`${styles.kicker} ${styles.reveal}`} style={at(0)}>
+            {/* One column, FIVE keep-outs: each line of the hero guards its
+                own box instead of the block guarding one big rectangle, so
+                the field can tuck into the rag of the type and the whole
+                viewport reads as one composed space. Nothing covers a glyph. */}
+            <div className={styles.block}>
+              <header
+                className={`${styles.kicker} ${styles.reveal}`}
+                style={at(0)}
+                data-hf-keepout
+              >
                 <h1 className={styles.kickerName}>{profile.name}</h1>
                 <p className={styles.kickerRole}>
                   Founding engineer at{" "}
@@ -331,15 +337,27 @@ export function HeroField({
                 </p>
               </header>
 
-              <p className={`${styles.headline} ${styles.reveal}`} style={at(90)}>
+              <p
+                className={`${styles.headline} ${styles.reveal}`}
+                style={at(90)}
+                data-hf-keepout
+              >
                 Welcome to my <em>context page.</em>
               </p>
 
-              <p className={`${styles.deck} ${styles.reveal}`} style={at(210)}>
+              <p
+                className={`${styles.deck} ${styles.reveal}`}
+                style={at(210)}
+                data-hf-keepout
+              >
                 Behind this is the context of my life.
               </p>
 
-              <p className={`${styles.invite} ${styles.reveal}`} style={at(290)}>
+              <p
+                className={`${styles.invite} ${styles.reveal}`}
+                style={at(290)}
+                data-hf-keepout
+              >
                 {verb === "tap"
                   ? "Tap any word and it will tell you its story."
                   : "Hover any word and it will tell you its story."}
@@ -349,6 +367,7 @@ export function HeroField({
                 className={`${styles.heroLinks} ${styles.reveal}`}
                 style={at(370)}
                 aria-label="Elsewhere"
+                data-hf-keepout
               >
                 {links.map((link) => (
                   <a

@@ -435,8 +435,8 @@ export const nodes: readonly MindNode[] = [
     label: "first client",
     kind: "era",
     rank: 2,
-    x: -0.3,
-    y: -0.5,
+    x: -0.14,
+    y: -0.54,
     z: 0.22,
     story:
       "Friends ask you to build things as a favor. The first stranger who paid me changed the job: now it had to work for someone with no reason to forgive me.",
@@ -447,7 +447,7 @@ export const nodes: readonly MindNode[] = [
     kind: "era",
     rank: 2,
     x: -0.68,
-    y: -0.4,
+    y: -0.52,
     z: 0.18,
     story:
       "A recruiter gives each athlete a few seconds. A page that puts the film, the stats and the name in one clean place is sometimes the difference between skipped and seen.",
@@ -491,8 +491,11 @@ export const nodes: readonly MindNode[] = [
     label: "Voice Hack Night",
     kind: "night",
     rank: 2,
-    x: -0.02,
-    y: 0.3,
+    /* Authored into the pocket right of the hero's link row, beside the
+     * voice-agents cluster it belongs to: the field tucks into the rag of
+     * the type there, so the composition reads as one space. */
+    x: 0.0,
+    y: -0.42,
     z: -0.08,
     story:
       "An OpenAI voice hack night taught me that a live agent on the speakers beats any slide deck. Voice stopped being a feature that night and became a conviction.",

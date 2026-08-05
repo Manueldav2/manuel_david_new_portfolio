@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { HeroField } from "@/components/hero-field/HeroField"
-import { hfGrotesk, hfGroteskText } from "@/components/hero-field/fonts"
+import { hfDisplay, hfSans, hfSerif } from "@/components/hero-field/fonts"
 
 export const metadata: Metadata = {
   title: "Manuel David",
@@ -10,16 +10,18 @@ export const metadata: Metadata = {
 }
 
 /**
- * /2 — MODERN GROTESK. Bricolage Grotesque carries the headline and the
- * field's anchors, Instrument Sans carries everything quiet. Weight and
- * tracking do the hierarchy the serif italics used to; the serif slot is
- * remapped to the sans in CSS, so no serif loads at all.
+ * /2 — HEAVY STOCK. The same audited context map, re-materialized as a
+ * printed object: warm uncoated cardstock, the web inked into the fiber,
+ * type at real press weight. The field runs its calmest density tier,
+ * because a sheet earns its gravity from what it leaves off. Every
+ * interaction is weighted: ink darkens under the cursor like pressure,
+ * nothing floats.
  */
 export default function Variant2Page() {
   return (
     <HeroField
-      variant="grotesk"
-      className={`${hfGroteskText.variable} ${hfGrotesk.variable}`}
+      variant="paper"
+      className={`${hfSerif.variable} ${hfSans.variable} ${hfDisplay.variable}`}
     />
   )
 }
