@@ -126,14 +126,14 @@ export const nodes: readonly MindNode[] = [
   },
   {
     id: "break-fast",
-    label: "break fast, fix fast",
+    label: "velocity",
     kind: "belief",
     rank: 1,
     x: -0.06,
     y: 0.08,
     z: -0.15,
     story:
-      "I get a build breaking in front of me as fast as I possibly can, because a bug I can see is already halfway fixed. Slow and careful does not avoid the mistakes, it just schedules them for later.",
+      "Break fast, fix fast, learn fast. I get a build breaking in front of me as fast as I possibly can, because a bug I can see is already halfway fixed, and speed is the one edge a builder fully controls.",
   },
 
   /* ---------------------------------------------------------------- */
@@ -239,8 +239,8 @@ export const nodes: readonly MindNode[] = [
     label: "Gideon",
     kind: "build",
     rank: 1,
-    x: 0.28,
-    y: -0.74,
+    x: 0.22,
+    y: -0.76,
     z: -0.28,
     story:
       "I never stopped being a student, I just fired the format. This one listens while you talk and sketches the diagram you would have doodled in the margin.",
@@ -251,7 +251,7 @@ export const nodes: readonly MindNode[] = [
     label: "late nights",
     kind: "belief",
     rank: 1,
-    x: 0.5,
+    x: 0.6,
     y: -0.52,
     z: -0.04,
     story:
@@ -262,8 +262,8 @@ export const nodes: readonly MindNode[] = [
     label: "Launch Control",
     kind: "build",
     rank: 2,
-    x: 0.7,
-    y: -0.82,
+    x: 0.62,
+    y: -0.84,
     z: 0.12,
     story:
       "I typed in one idea and watched a swarm of agents plan the launch, write every asset, and grade each other’s drafts. The unsettling part was how little of it needed me.",
@@ -274,8 +274,8 @@ export const nodes: readonly MindNode[] = [
     label: "IDEX",
     kind: "build",
     rank: 1,
-    x: 0.64,
-    y: -0.64,
+    x: 0.8,
+    y: -0.48,
     z: 0.22,
     story:
       "Working with coding agents means waiting on them, and I watched too many of those minutes die. So I built the cockpit I now sit in all day, and gave it away for free.",
@@ -286,8 +286,8 @@ export const nodes: readonly MindNode[] = [
     label: "Claude Classroom",
     kind: "build",
     rank: 2,
-    x: 0.42,
-    y: -0.88,
+    x: 0.44,
+    y: -0.9,
     z: -0.08,
     story:
       "It exists because I ran three coding agents on one repo and watched them trample each other’s files. The fix turned out to be social, not technical: make the agents claim their work and negotiate like coworkers.",
@@ -298,8 +298,8 @@ export const nodes: readonly MindNode[] = [
     label: "TripFund",
     kind: "build",
     rank: 2,
-    x: 0.56,
-    y: -0.76,
+    x: 0.72,
+    y: -0.66,
     z: -0.14,
     story:
       "Group trips die in the group chat. This one wires the plan to actual money: a shared pot, live flight prices, and a bot that politely bullies everyone into funding it.",
@@ -351,19 +351,9 @@ export const nodes: readonly MindNode[] = [
     y: -0.52,
     z: 0.1,
     story:
-      "I once sent two hundred dollars of genuinely terrible emails in one afternoon. Best tuition I ever paid.",
+      "I once sent two hundred dollars of genuinely terrible emails in one afternoon. Best tuition I ever paid. The only mistakes that ever cost me real ground were the times I doubted the work instead of shipping it.",
   },
-  {
-    id: "self-doubt",
-    label: "self-doubt",
-    kind: "turn",
-    rank: 2,
-    x: -0.14,
-    y: -0.64,
-    z: -0.2,
-    story:
-      "For months I demoed Paradigm with an apology preloaded, certain someone was about to find the crack. The system kept working; only the doubt kept failing.",
-  },
+
 
   /* ---------------------------------------------------------------- */
   /* The studio years                                                  */
@@ -490,8 +480,8 @@ export const nodes: readonly MindNode[] = [
     label: "Build Day",
     kind: "night",
     rank: 2,
-    x: 0.82,
-    y: -0.7,
+    x: 0.84,
+    y: -0.78,
     z: 0.06,
     story:
       "Claude Build Day, June 13, San Francisco: I stood on stage and let a swarm of agents plan and ship a launch in front of the room. Standing there felt less like a demo and more like a preview.",
@@ -534,8 +524,8 @@ export const nodes: readonly MindNode[] = [
     label: "Zantana",
     kind: "build",
     rank: 2,
-    x: 0.74,
-    y: -0.42,
+    x: 0.5,
+    y: -0.26,
     z: -0.18,
     story:
       "A party game in a single HTML file: no backend, no build step, open it and play. The constraint is the whole design, and it is the smallest thing I have shipped that makes a room laugh.",
@@ -546,8 +536,8 @@ export const nodes: readonly MindNode[] = [
     label: "Sovereign",
     kind: "build",
     rank: 2,
-    x: 0.84,
-    y: -0.54,
+    x: 0.88,
+    y: -0.62,
     z: 0.16,
     story:
       "A browser RTS where you can command the whole army or drop into one soldier first-person. Started as a way to learn 3D properly; stayed because possessing your own units is too fun to delete.",
@@ -558,8 +548,8 @@ export const nodes: readonly MindNode[] = [
     label: "Satisfying Videos",
     kind: "build",
     rank: 2,
-    x: 0.62,
-    y: -0.3,
+    x: 0.68,
+    y: -0.36,
     z: -0.22,
     story:
       "A pipeline that dreams up oddly satisfying clips, renders them with a video model, and posts them on its own. A tiny media company that runs while I sleep, built mostly to prove the loop closes.",
@@ -570,8 +560,8 @@ export const nodes: readonly MindNode[] = [
     label: "skills sync",
     kind: "build",
     rank: 2,
-    x: 0.78,
-    y: -0.22,
+    x: 0.86,
+    y: -0.18,
     z: 0.05,
     story:
       "One command that carries my agent setup to any machine I sit down at. Built in an evening, because configuring the same tools twice in one week is a bug.",
@@ -673,7 +663,6 @@ export const edges: readonly (readonly [string, string])[] = [
   ["paradigm", "antler"], // the founder era ran through the Antler floor
   ["antler", "san-francisco"], // the Antler wall is a San Francisco address
   ["paradigm", "mistakes"], // the 200-dollar email batch happened at Paradigm
-  ["paradigm", "self-doubt"], // he demoed Paradigm with an apology preloaded for months
   ["paradigm", "context"], // Paradigm is where he kept hitting the context wall
   ["paradigm", "agents"], // Paradigm is an agentic system end to end
   ["paradigm", "customer-first"], // Paradigm's books are where Configure first appeared
@@ -690,7 +679,6 @@ export const edges: readonly (readonly [string, string])[] = [
   ["agent-to-agent", "future-focused"], // agent-to-agent is the future he is betting on
   ["attention", "agents"], // an agent reading your inbound before you is the attention filter
   ["attention", "future-focused"], // the loud-inbound world is one of his predictions
-  ["mistakes", "self-doubt"], // the mistakes were tuition; only the doubt actually cost him
   ["mistakes", "break-fast"], // break fast, fix fast is his answer to mistakes
   ["break-fast", "paradigm"], // Paradigm runs on that rule
   ["break-fast", "shipping"], // shipping fast is how the loop closes

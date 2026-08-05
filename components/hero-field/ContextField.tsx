@@ -96,7 +96,7 @@ const DRIFT_Y = 3.5
 /** Clearance kept between a passing hairline and any label it crosses. */
 const CLIP_PAD = 8
 /** Sub-segments shorter than this are dropped instead of drawn as crumbs. */
-const MIN_SUB_PX = 12
+const MIN_SUB_PX = 18
 /**
  * At rest a node shows at most this many constellation lines, shortest
  * first. Hub nodes in the graph have up to nine relations; drawing all nine
@@ -104,6 +104,8 @@ const MIN_SUB_PX = 12
  * degree still lights up when both ends actually wake.
  */
 const REST_DEG_MAX = 3
+/** Minimum angle (radians) between two resting hairlines leaving one node. */
+const MIN_EDGE_ANGLE = 0.3
 
 const smoothstep = (edge0: number, edge1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
@@ -401,6 +403,10 @@ export default function ContextField({
     const restLen = new Float32Array(restCount)
     const restOrder: number[] = []
     for (let e = 0; e < restCount; e++) restOrder.push(e)
+    /** Departure angles of the hairlines already drawn from each node this
+     * frame. Two lines leaving one node nearly parallel read as clutter, so
+     * a new line must clear every drawn one by MIN_EDGE_ANGLE. */
+    const restAng = new Float32Array(COUNT * REST_DEG_MAX)
 
     // Scratch for clipping hairlines around label boxes.
     const blockT0 = new Float32Array(64)
@@ -1445,17 +1451,39 @@ export default function ContextField({
         const i = restA[e]
         const j = restB[e]
         if (parked[i] || parked[j]) continue
-        const glow = wake[i] * wake[j] * 0.3
+        const glow = wake[i] * wake[j] * 0.26
         // An edge touching the open word ALWAYS draws (the card promises
         // the word's relationships), and the spine edges are never capped:
         // Paradigm being a Configure customer is the hinge of the story.
         const strong = restStrong[e] === 1
         const isActive = i === actIdx || j === actIdx
+        // The cap yields ONLY to the spine and to the open card's word:
+        // passing wake brightens the capped subset, and the full fan of a
+        // hub is reserved for actually resting on it. Fewer, better lines.
         const overCap =
           !isActive &&
           !strong &&
           (restDeg[i] >= REST_DEG_MAX || restDeg[j] >= REST_DEG_MAX)
-        if (overCap && glow < 0.02) continue
+        if (overCap) continue
+
+        // Angular separation: a hairline that would leave either endpoint
+        // nearly parallel to one already drawn is dropped (unless it is the
+        // spine or belongs to the open card): fewer, better lines.
+        const ang = Math.atan2(py[j] - py[i], px[j] - px[i])
+        if (!isActive && !strong) {
+          let bunched = false
+          for (let q = 0; q < restDeg[i] && !bunched; q++) {
+            const da = Math.abs(ang - restAng[i * REST_DEG_MAX + q]) % (Math.PI * 2)
+            if (Math.min(da, Math.PI * 2 - da) < MIN_EDGE_ANGLE) bunched = true
+          }
+          const angJ = ang > 0 ? ang - Math.PI : ang + Math.PI
+          for (let q = 0; q < restDeg[j] && !bunched; q++) {
+            const da = Math.abs(angJ - restAng[j * REST_DEG_MAX + q]) % (Math.PI * 2)
+            if (Math.min(da, Math.PI * 2 - da) < MIN_EDGE_ANGLE) bunched = true
+          }
+          if (bunched) continue
+        }
+
         const d = Math.sqrt(restLen[e])
         // Visible at rest on purpose: the web is the structure the page is
         // about, so it reads at arm's length, not only under the cursor.
@@ -1472,6 +1500,11 @@ export default function ContextField({
           if (alpha < floor) alpha = floor
         }
         if (alpha < 0.008) continue
+        if (restDeg[i] < REST_DEG_MAX) restAng[i * REST_DEG_MAX + restDeg[i]] = ang
+        if (restDeg[j] < REST_DEG_MAX) {
+          restAng[j * REST_DEG_MAX + restDeg[j]] =
+            ang > 0 ? ang - Math.PI : ang + Math.PI
+        }
         restDeg[i]++
         restDeg[j]++
         push(
