@@ -724,11 +724,12 @@
 /* ------------------------------------------------------------------ */
 /* Personal figures                                                    */
 /*                                                                     */
-/* Photographs of the author, set beside the prose in the exact plate  */
-/* language: hairline frame, fig. number, a short caption in his       */
-/* voice. They share one numbering series with the project shots, and  */
-/* they live in the margins the reading grid already holds open, so    */
-/* the text column never has to move for them.                         */
+/* Photographs of the author, set beside the prose in the plate        */
+/* language minus the label: hairline frame, no caption, the alt text  */
+/* carrying the description. They live in the margins the reading grid */
+/* already holds open, so the text column never has to move for them.  */
+/* GSAP tilts and lifts the image on fine pointers; data-lit warms the */
+/* hairline through the border transition plateImg already owns.       */
 /* ------------------------------------------------------------------ */
 
 .photoFigure {
@@ -737,13 +738,8 @@
   max-width: 100%;
 }
 
-.photoCaptionFig {
-  flex-shrink: 0;
-}
-
-.photoCaptionText {
-  text-align: right;
-  text-wrap: pretty;
+.photoFigure[data-lit] .plateImg {
+  border-color: color-mix(in srgb, var(--hf-ember) 45%, var(--hf-rule));
 }
 
 /* The About margin figure: rail column, nudged onto the lede's cap line. */
@@ -751,21 +747,9 @@
   margin-top: 0.4rem;
 }
 
-/* A rail figure under a role's meta: the founder era, at margin scale. */
+/* A rail figure under a role's meta: one per work chapter, margin scale. */
 .railFigure {
   margin-top: 1.5rem;
-}
-
-/* In the prose flow, closing a role's story at full column measure. */
-.proseFigure {
-  margin-top: 2rem;
-}
-
-/* The companion plate under the Launch Control words: snapshot size,
-   clearly subordinate to the project's own screenshot across the row. */
-.companionFigure {
-  margin-top: 1.75rem;
-  max-width: 15.5rem;
 }
 
 /* The close: him and the humanoid, under the last paragraph. */
@@ -866,7 +850,6 @@
      the full column anyway. */
   .marginFigure,
   .railFigure,
-  .companionFigure,
   .closeFigure {
     max-width: 24rem;
   }

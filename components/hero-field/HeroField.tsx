@@ -1,11 +1,15 @@
 "use client"
 
+import { useGSAP } from "@gsap/react"
+import gsap from "gsap"
 import dynamic from "next/dynamic"
 import type { CSSProperties } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { profile, projects, work } from "@/lib/content"
 import styles from "./hero-field.module.css"
+
+gsap.registerPlugin(useGSAP)
 
 /**
  * /1 — THE CONTEXT FIELD
@@ -52,16 +56,16 @@ const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 const byCompany = (name: string) => work.find((w) => w.company === name)
 
 /**
- * The personal plates. Five photographs set in the same figure language as
- * the project screenshots: hairline frame, small mono caption. Each one sits
- * beside the prose it belongs to, never in a gallery. The portraits are
- * EXIF-rotated (stored landscape, displayed upright), so width/height here
- * are the DISPLAYED dimensions the browser resolves them to.
+ * The personal plates. Five photographs in hairline frames, uncaptioned:
+ * the picture is the point, the alt text carries the description. Each one
+ * sits beside the prose it belongs to, never in a gallery. The portraits
+ * are EXIF-rotated (stored landscape, displayed upright), so width/height
+ * here are the DISPLAYED dimensions the browser resolves them to.
+ * Fig numbers belong to the project plates alone (01 to 05).
  */
 type Photo = {
   src: string
   alt: string
-  caption: string
   width: number
   height: number
 }
@@ -70,60 +74,127 @@ const PHOTOS = {
   beach: {
     src: "/photos/beach.jpg",
     alt: "Manuel walking barefoot on a beach at sunset, hands in his pockets, smiling",
-    caption: "Off the clock.",
     width: 1050,
     height: 1400,
   },
   antler: {
     src: "/photos/antler.jpg",
     alt: "Manuel standing in front of the Antler wall in San Francisco",
-    caption: "Antler, San Francisco.",
     width: 1050,
     height: 1400,
   },
   openai: {
     src: "/photos/openai.jpg",
     alt: "Manuel in front of a giant screen reading OpenAI Voice Hack Night",
-    caption: "Voice Hack Night at OpenAI.",
     width: 1400,
     height: 1050,
   },
   buildDay: {
     src: "/photos/claude-build-day.jpg",
     alt: "Manuel on stage in front of the Claude Build Day screen, June 13, San Francisco",
-    caption: "Build Day, where Launch Control was born.",
     width: 1050,
     height: 1400,
   },
   optimus: {
     src: "/photos/optimus.jpg",
     alt: "Manuel grinning next to Tesla’s Optimus humanoid robot in a showroom",
-    caption: "Meeting Optimus.",
     width: 1050,
     height: 1400,
   },
 } satisfies Record<string, Photo>
 
-/**
- * One plate series for the whole page, numbered in document order: the
- * beach (01), Antler (02), Voice Hack Night (03), the five project shots
- * (04 to 08), Build Day beside the Launch Control plate (09), and Optimus
- * at the close (10). PLATE_FIG_BASE keeps the project plates in sequence.
- */
-const FIG = { beach: 1, antler: 2, openai: 3, buildDay: 9, optimus: 10 }
-const PLATE_FIG_BASE = 4
+const PLATE_FIG_BASE = 1
 
-function PhotoFigure({
-  photo,
-  fig,
-  className,
-}: {
-  photo: Photo
-  fig: number
-  className?: string
-}) {
+/**
+ * A personal photograph that answers the hand. Fine pointers get a quiet
+ * 3D tilt toward the cursor with a small lift and a warmed hairline;
+ * touch gets a springy press. Reduced motion gets a still photograph.
+ * Transforms and border-color only, all inside gsap.matchMedia so every
+ * mode cleans up after itself.
+ */
+function PhotoFigure({ photo, className }: { photo: Photo; className?: string }) {
+  const frameRef = useRef<HTMLElement | null>(null)
+
+  useGSAP(
+    () => {
+      const frame = frameRef.current
+      const img = frame?.querySelector("img")
+      if (!frame || !img) return
+
+      const mm = gsap.matchMedia()
+
+      // Fine pointers: the plate leans toward the cursor and lifts a
+      // touch off the page. quickTo keeps the tracking cheap; leaving
+      // eases everything home a beat slower than it arrived.
+      mm.add(
+        "(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
+        () => {
+          gsap.set(img, { transformPerspective: 700, transformOrigin: "50% 50%" })
+          const rotX = gsap.quickTo(img, "rotationX", {
+            duration: 0.4,
+            ease: "power3.out",
+          })
+          const rotY = gsap.quickTo(img, "rotationY", {
+            duration: 0.4,
+            ease: "power3.out",
+          })
+
+          const onEnter = () => {
+            frame.dataset.lit = "true"
+            gsap.to(img, {
+              scale: 1.02,
+              duration: 0.35,
+              ease: "power2.out",
+              overwrite: "auto",
+            })
+          }
+          const onMove = (e: PointerEvent) => {
+            const r = frame.getBoundingClientRect()
+            rotY(((e.clientX - r.left) / r.width - 0.5) * 7)
+            rotX(((e.clientY - r.top) / r.height - 0.5) * -6)
+          }
+          const onLeave = () => {
+            delete frame.dataset.lit
+            rotX(0)
+            rotY(0)
+            gsap.to(img, {
+              scale: 1,
+              duration: 0.55,
+              ease: "power3.out",
+              overwrite: "auto",
+            })
+          }
+
+          frame.addEventListener("pointerenter", onEnter)
+          frame.addEventListener("pointermove", onMove)
+          frame.addEventListener("pointerleave", onLeave)
+          return () => {
+            frame.removeEventListener("pointerenter", onEnter)
+            frame.removeEventListener("pointermove", onMove)
+            frame.removeEventListener("pointerleave", onLeave)
+          }
+        },
+      )
+
+      // Touch: a tap presses the photograph in and springs it back, so
+      // touching it does something even though there is no cursor to lean
+      // toward. Listening only; scrolling is never intercepted.
+      mm.add("(hover: none) and (prefers-reduced-motion: no-preference)", () => {
+        const onDown = () => {
+          gsap
+            .timeline({ defaults: { overwrite: "auto" } })
+            .to(img, { scale: 0.96, duration: 0.1, ease: "power2.out" })
+            .to(img, { scale: 1, duration: 0.55, ease: "back.out(2.4)" })
+        }
+        frame.addEventListener("pointerdown", onDown)
+        return () => frame.removeEventListener("pointerdown", onDown)
+      })
+    },
+    { scope: frameRef },
+  )
+
   return (
-    <figure className={`${styles.photoFigure} ${className ?? ""}`}>
+    <figure ref={frameRef} className={`${styles.photoFigure} ${className ?? ""}`}>
       <img
         className={styles.plateImg}
         src={photo.src}
@@ -133,12 +204,6 @@ function PhotoFigure({
         loading="lazy"
         decoding="async"
       />
-      <figcaption className={styles.plateCaption}>
-        <span className={styles.photoCaptionFig}>
-          fig. {String(fig).padStart(2, "0")}
-        </span>
-        <span className={styles.photoCaptionText}>{photo.caption}</span>
-      </figcaption>
     </figure>
   )
 }
@@ -150,26 +215,20 @@ function PhotoFigure({
  * hover cards instead, and paragraph 2 retells the leap and the context wall
  * that About and Configure already carry. Nothing on the page twice.
  *
- * Paradigm carries the founder-era photographs: Antler in the rail under
- * the meta, and the OpenAI voice night closing its prose, since the voice
- * demos are that company's whole thesis.
+ * Each work chapter carries exactly one photograph in its rail, under the
+ * meta: Build Day for Configure (he builds with Claude daily, and that is
+ * the stage it started on), Antler for the Paradigm founder era, and the
+ * OpenAI voice night for Nouvo, the era of demoing AI to real clients.
  */
 const ROLES: {
   company: string
   lead: boolean
   paragraphs: number[] | "all"
   railPhoto?: keyof typeof PHOTOS
-  prosePhoto?: keyof typeof PHOTOS
 }[] = [
-  { company: "Configure", lead: true, paragraphs: [0, 1] },
-  {
-    company: "Paradigm",
-    lead: false,
-    paragraphs: [1],
-    railPhoto: "antler",
-    prosePhoto: "openai",
-  },
-  { company: "Nouvo", lead: false, paragraphs: "all" },
+  { company: "Configure", lead: true, paragraphs: [0, 1], railPhoto: "buildDay" },
+  { company: "Paradigm", lead: false, paragraphs: [1], railPhoto: "antler" },
+  { company: "Nouvo", lead: false, paragraphs: "all", railPhoto: "openai" },
 ]
 
 /**
@@ -293,11 +352,7 @@ export function HeroField({ className }: { className?: string }) {
             <div className={styles.chapterBody}>
               {/* The margin figure: the warm photograph beside the personal
                   prose, in the rail column the grid already holds open. */}
-              <PhotoFigure
-                photo={PHOTOS.beach}
-                fig={FIG.beach}
-                className={styles.marginFigure}
-              />
+              <PhotoFigure photo={PHOTOS.beach} className={styles.marginFigure} />
               <div className={styles.prose}>
                 <p className={styles.lede}>{typo(profile.about[0])}</p>
                 <p>{typo(profile.about[1])}</p>
@@ -350,7 +405,6 @@ export function HeroField({ className }: { className?: string }) {
                     {role.railPhoto ? (
                       <PhotoFigure
                         photo={PHOTOS[role.railPhoto]}
-                        fig={FIG[role.railPhoto]}
                         className={styles.railFigure}
                       />
                     ) : null}
@@ -361,13 +415,6 @@ export function HeroField({ className }: { className?: string }) {
                     {paragraphs.map((para, n) => (
                       <p key={n}>{typo(para)}</p>
                     ))}
-                    {role.prosePhoto ? (
-                      <PhotoFigure
-                        photo={PHOTOS[role.prosePhoto]}
-                        fig={FIG[role.prosePhoto]}
-                        className={styles.proseFigure}
-                      />
-                    ) : null}
                   </div>
                 </article>
               )
@@ -419,15 +466,6 @@ export function HeroField({ className }: { className?: string }) {
                           </span>
                         ) : null}
                       </p>
-                      {p.slug === "launch-control" ? (
-                        /* The companion plate: the night the project comes
-                           from, set under its words at snapshot size. */
-                        <PhotoFigure
-                          photo={PHOTOS.buildDay}
-                          fig={FIG.buildDay}
-                          className={styles.companionFigure}
-                        />
-                      ) : null}
                     </div>
 
                     {p.shot ? (
@@ -489,11 +527,7 @@ export function HeroField({ className }: { className?: string }) {
               <div className={styles.prose}>
                 <p className={styles.lede}>{typo(profile.about[4])}</p>
                 {/* Him and a humanoid robot IS this section. */}
-                <PhotoFigure
-                  photo={PHOTOS.optimus}
-                  fig={FIG.optimus}
-                  className={styles.closeFigure}
-                />
+                <PhotoFigure photo={PHOTOS.optimus} className={styles.closeFigure} />
               </div>
 
               <aside className={styles.closeAside}>
