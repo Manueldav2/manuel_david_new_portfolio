@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og"
 
-// The share card wears the same identity as the page: ink ground, a drifting
-// field of context words with hairline relations, one ember accent, and the
-// serif voice. Newsreader is fetched at the edge so the card's type matches
+// The share card wears the same identity as the page: heavy cardstock, a
+// field of context words inked into it with hairline relations, one oxide
+// accent, and the serif voice. Newsreader is fetched at the edge so the type matches
 // the site; if the font fetch ever fails the card still renders in the
 // default face rather than erroring.
 export const runtime = "edge"
@@ -10,11 +10,11 @@ export const alt = "Manuel David. Welcome to my context page."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-const INK = "#06080a"
-const BONE = "#ece9e2"
-const MUTE = "#939c98"
-const FIELD = "#c9dcd6"
-const EMBER = "#e2552c"
+const INK = "#e6ddc9"
+const BONE = "#262119"
+const MUTE = "#6f675a"
+const FIELD = "#5d564a"
+const EMBER = "#942f12"
 
 async function loadGoogleFont(family: string, ital: 0 | 1, text: string) {
   const css = await fetch(
@@ -41,18 +41,18 @@ const WORDS: {
 }[] = [
   { t: "faith", x: 700, y: 78, s: 30, o: 0.62, serif: true },
   { t: "all in", x: 852, y: 152, s: 26, o: 0.5, serif: true },
-  { t: "san francisco", x: 1000, y: 96, s: 22, o: 0.44 },
+  { t: "San Francisco", x: 1000, y: 96, s: 22, o: 0.44 },
   { t: "future focused", x: 662, y: 220, s: 18, o: 0.34 },
-  { t: "paradigm", x: 930, y: 258, s: 34, o: 0.7, serif: true },
+  { t: "Paradigm", x: 930, y: 258, s: 34, o: 0.7, serif: true },
   { t: "customer first", x: 700, y: 330, s: 17, o: 0.3 },
   { t: "context", x: 1042, y: 372, s: 30, o: 0.85, serif: true, ember: true },
-  { t: "configure", x: 796, y: 442, s: 36, o: 0.78, serif: true },
-  { t: "nouvo", x: 652, y: 520, s: 24, o: 0.44, serif: true },
+  { t: "Configure", x: 796, y: 442, s: 36, o: 0.78, serif: true },
+  { t: "Nouvo", x: 652, y: 520, s: 24, o: 0.44, serif: true },
   { t: "agents", x: 992, y: 520, s: 20, o: 0.4 },
-  { t: "break fast, fix fast", x: 806, y: 578, s: 15, o: 0.28 },
+  { t: "velocity", x: 836, y: 578, s: 16, o: 0.3 },
   { t: "late nights", x: 1084, y: 458, s: 15, o: 0.26 },
-  { t: "ultron", x: 1104, y: 200, s: 16, o: 0.26 },
-  { t: "gideon", x: 596, y: 414, s: 15, o: 0.26 },
+  { t: "Ultron", x: 1104, y: 200, s: 16, o: 0.26 },
+  { t: "Gideon", x: 596, y: 414, s: 15, o: 0.26 },
 ]
 
 // Hairline relations, drawn as thin rotated bars between neighbourhoods.
@@ -89,7 +89,7 @@ export default async function OpengraphImage() {
           display: "flex",
           backgroundColor: INK,
           backgroundImage:
-            "radial-gradient(90% 80% at 72% 30%, rgba(26,34,36,0.6) 0%, rgba(6,8,10,0) 65%), radial-gradient(120% 90% at 40% 45%, #0c1113 0%, #080b0d 45%, #06080a 78%)",
+            "radial-gradient(105% 95% at 46% 38%, #efe8d8 0%, #e9e1cd 48%, #e0d5bd 82%, #d8ccb2 100%)",
           position: "relative",
           fontFamily: serif ? "Newsreader" : "serif",
         }}
@@ -104,7 +104,7 @@ export default async function OpengraphImage() {
               top: l.y,
               width: l.w,
               height: 1,
-              backgroundColor: BONE,
+              backgroundColor: "#262119",
               opacity: l.o,
               transform: `rotate(${l.r}deg)`,
               transformOrigin: "0 0",
