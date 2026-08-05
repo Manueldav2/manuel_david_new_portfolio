@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { HeroField } from "@/components/hero-field/HeroField"
-import { hfDisplay, hfSans, hfSerif } from "@/components/hero-field/fonts"
+import { hfMono, hfSans, hfSerif, hfSerifDisplay } from "@/components/hero-field/fonts"
 
 export const metadata: Metadata = {
   title: "Manuel David",
@@ -10,18 +10,16 @@ export const metadata: Metadata = {
 }
 
 /**
- * /2 — HEAVY STOCK. The same audited context map, re-materialized as a
- * printed object: warm uncoated cardstock, the web inked into the fiber,
- * type at real press weight. The field runs its calmest density tier,
- * because a sheet earns its gravity from what it leaves off. Every
- * interaction is weighted: ink darkens under the cursor like pressure,
- * nothing floats.
+ * /2 — LIT INK (data-editorial). The dark identity the root used to wear:
+ * Newsreader display over an IBM Plex Mono field, serif anchors, the
+ * scene graded so Configure reads as the light source. The root now wears
+ * HEAVY STOCK; this route keeps the night version up for comparison.
  */
 export default function Variant2Page() {
   return (
     <HeroField
-      variant="paper"
-      className={`${hfSerif.variable} ${hfSans.variable} ${hfDisplay.variable}`}
+      variant="mono"
+      className={`${hfSerif.variable} ${hfSans.variable} ${hfSerifDisplay.variable} ${hfMono.variable}`}
     />
   )
 }

@@ -8,8 +8,10 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  DoubleSide,
   DynamicDrawUsage,
   LineSegments,
+  Mesh,
   NormalBlending,
   OrthographicCamera,
   Scene,
@@ -107,6 +109,19 @@ const MIN_SUB_PX = 18
 const REST_DEG_MAX = 3
 /** Minimum angle (radians) between two resting hairlines leaving one node. */
 const MIN_EDGE_ANGLE = 0.3
+/** Paper runs far fewer words, so two strokes leaving one node need more
+ * daylight between them before the sheet reads as deliberate pen work:
+ * three near-parallel strokes converging on one label read as a sliver
+ * triangle drawn by mistake. */
+const MIN_EDGE_ANGLE_PAPER = 0.55
+/**
+ * CSS-pixel width of the life spine's stroke. LineSegments cannot draw
+ * wider than a hairline (gl lineWidth is a no-op on desktop GL), and the
+ * old workaround (a second hairline offset 0.8px) rendered at DPR2 as two
+ * parallel lines with daylight between them. The spine now draws as one
+ * honest quad of this width through the same shader.
+ */
+const SPINE_WIDTH = 2.4
 
 const smoothstep = (edge0: number, edge1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
@@ -147,7 +162,7 @@ const PAPER_WARM: [number, number, number] = [0x24, 0x20, 0x1c]
  * they sink toward the resting-dim floor.
  */
 const LIGHT_NEAR = 0.12
-const LIGHT_FAR = 0.92
+const LIGHT_FAR = 0.78
 
 /* ------------------------------------------------------------------ */
 /* ENTRANCE                                                            */
@@ -167,8 +182,12 @@ const SPINE_ORDER = [
   "paradigm",
   "configure",
 ] as const
-const SPINE_STEP = 0.15
-const SPINE_START = 0.38
+/* Front-loaded: ignition begins ~150ms after the layout settles and the
+ * cadence is tight enough that most of the spine is already burning by
+ * 700ms. The take used to idle for 700ms before anything lit, which read
+ * as dead air followed by a curtain-lift. */
+const SPINE_STEP = 0.09
+const SPINE_START = 0.15
 /** When the non-spine tiers breathe in. */
 const INTRO_KEY = SPINE_START + SPINE_ORDER.length * SPINE_STEP
 const INTRO_MID = INTRO_KEY + 0.14
@@ -176,7 +195,7 @@ const INTRO_LOW = INTRO_MID + 0.2
 /** Per-word fade duration once its cue hits. */
 const INTRO_FADE = 0.5
 /** The clock value at which the entrance is simply over. */
-const INTRO_DONE = 2.55
+const INTRO_DONE = 2.1
 
 /**
  * Deterministic PRNG (mulberry32). The composition is curated, not rolled:
@@ -302,8 +321,9 @@ export default function ContextField({
   const activeRef = useRef<string | null>(null)
   const redrawRef = useRef<(() => void) | null>(null)
   // Card placement, decided once per open (hysteresis: the anchor drifts,
-  // and the card should not flip sides frame to frame).
-  const placeRef = useRef<{ mode: 0 | 1 | 2; decided: boolean }>({ mode: 0, decided: false })
+  // and the card should not flip sides frame to frame). Modes: 0 below,
+  // 1 above, 2 right of the word, 3 left of the word.
+  const placeRef = useRef<{ mode: number; decided: boolean }>({ mode: 0, decided: false })
 
   const hideTimer = useRef<number | null>(null)
   const clearHide = () => {
@@ -475,14 +495,21 @@ export default function ContextField({
      * a new line must clear every drawn one by MIN_EDGE_ANGLE. */
     const restAng = new Float32Array(COUNT * REST_DEG_MAX)
 
-    // Scratch for clipping hairlines around label boxes.
+    // Scratch for clipping hairlines around label boxes, and for the lit
+    // gaps between the blocked intervals (both allocated once).
     const blockT0 = new Float32Array(64)
     const blockT1 = new Float32Array(64)
+    const gapT0 = new Float32Array(66)
+    const gapT1 = new Float32Array(66)
 
     // The lighting grade: per-word brightness factor and warm-ramp colour,
     // recomputed whenever the layout moves (placement, eviction). Read by
     // the frame loop as plain multipliers; never computed per frame.
     const lightK = new Float32Array(COUNT).fill(1)
+    /** Warmth of each word's place in the light (0 far, 1 at the source).
+     * The line pass reads it as a tint, so the web itself carries the
+     * grade: strokes near Configure warm toward the source's tone. */
+    const warmK = new Float32Array(COUNT)
     // The entrance cue sheet: when each word breathes in, in intro-clock
     // seconds. The life spine ignites in order; the tiers follow.
     const introAt = new Float32Array(COUNT)
@@ -583,11 +610,50 @@ export default function ContextField({
       depthWrite: false,
       depthTest: false,
       blending: paper ? NormalBlending : AdditiveBlending,
+      // The spine quads share this material, and the y-down orthographic
+      // projection flips their winding with the stroke's direction.
+      side: DoubleSide,
     })
 
     const lines = new LineSegments(lineGeo, lineMat)
     lines.frustumCulled = false
     scene.add(lines)
+
+    // The spine's material stroke. A GL line is a hairline no matter what,
+    // so the one edge that carries real weight (Configure–Paradigm) draws
+    // as camera-facing quads through the same shader: one honest stroke
+    // with real width, endpoints on the same trim as every other edge, no
+    // offset-hairline tricks, no glow.
+    const QUAD_MAX = 24
+    const quadPositions = new Float32Array(QUAD_MAX * 4 * 3)
+    const quadAlpha = new Float32Array(QUAD_MAX * 4)
+    const quadTint = new Float32Array(QUAD_MAX * 4)
+    const quadGeo = new BufferGeometry()
+    const quadPosAttr = new BufferAttribute(quadPositions, 3)
+    quadPosAttr.setUsage(DynamicDrawUsage)
+    const quadAlphaAttr = new BufferAttribute(quadAlpha, 1)
+    quadAlphaAttr.setUsage(DynamicDrawUsage)
+    const quadTintAttr = new BufferAttribute(quadTint, 1)
+    quadTintAttr.setUsage(DynamicDrawUsage)
+    const quadIndex = new Uint16Array(QUAD_MAX * 6)
+    for (let q = 0; q < QUAD_MAX; q++) {
+      const v = q * 4
+      const t = q * 6
+      quadIndex[t] = v
+      quadIndex[t + 1] = v + 1
+      quadIndex[t + 2] = v + 2
+      quadIndex[t + 3] = v + 2
+      quadIndex[t + 4] = v + 1
+      quadIndex[t + 5] = v + 3
+    }
+    quadGeo.setIndex(new BufferAttribute(quadIndex, 1))
+    quadGeo.setAttribute("position", quadPosAttr)
+    quadGeo.setAttribute("aAlpha", quadAlphaAttr)
+    quadGeo.setAttribute("aTint", quadTintAttr)
+    quadGeo.setDrawRange(0, 0)
+    const quadMesh = new Mesh(quadGeo, lineMat)
+    quadMesh.frustumCulled = false
+    scene.add(quadMesh)
 
     if (renderer) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -663,6 +729,67 @@ export default function ContextField({
       return keepouts
     }
 
+    /** True when a viewport-space rect misses every hero-type keep-out. */
+    const rectClearOfType = (
+      x0: number,
+      y0: number,
+      x1: number,
+      y1: number,
+      sy: number,
+    ) => {
+      for (let k = 0; k < typeBoxes.length; k++) {
+        const tb = typeBoxes[k]
+        if (x0 < tb[2] && x1 > tb[0] && y0 < tb[3] - sy && y1 > tb[1] - sy) {
+          return false
+        }
+      }
+      return true
+    }
+
+    /**
+     * Where a card of cw x ch can sit beside word i without covering the
+     * hero type: below, above, right of the word, left of it, in that
+     * order. Returns the first clear mode, or -1 when every side would
+     * land on the identity block. Candidates are clamped to the viewport
+     * before testing, exactly as the frame loop will clamp the real card,
+     * so "clear" means clear on screen, not clear in theory; a candidate
+     * that only fits by being clamped back over its own word is skipped.
+     * The identity and headline are the one thing on the page a card must
+     * never sit on, so this is a hard exclusion, not a preference.
+     */
+    const cardSpot = (i: number, cw: number, ch: number, sy: number): number => {
+      const M = 12
+      const ax = px[i]
+      const ay = py[i]
+      const gap = halfH[i] * sc[i] + 12
+      const side = halfW[i] * sc[i] + 18
+      for (let m = 0; m < 4; m++) {
+        let left: number
+        let top: number
+        if (m === 0) {
+          left = ax - cw * 0.32
+          top = ay + gap
+          if (top + ch > vh - M) continue
+        } else if (m === 1) {
+          left = ax - cw * 0.32
+          top = ay - gap - ch
+          if (top < M) continue
+        } else if (m === 2) {
+          left = ax + side
+          top = ay - ch / 2
+          if (left + cw > vw - M) continue
+        } else {
+          left = ax - side - cw
+          top = ay - ch / 2
+          if (left < M) continue
+        }
+        left = Math.min(Math.max(M, left), vw - M - cw)
+        top = Math.min(Math.max(M, top), vh - M - ch)
+        if (rectClearOfType(left, top, left + cw, top + ch, sy)) return m
+      }
+      return -1
+    }
+
     const limXFor = (hw: number) => {
       const spanX = vw * 0.5 - 26
       return spanX > 0 ? Math.min(1, (vw * 0.5 - 28 - hw) / spanX) : 0
@@ -735,11 +862,14 @@ export default function ContextField({
         // Nouvo are the names of the story, and a name gone cold reads as
         // an accident rather than atmosphere.
         if (fragments[i].tier === "key" && w < 0.34) w = 0.34
+        warmK[i] = w
         // Floored at a mild dim so the far field sinks into atmosphere
         // without ever going missing; near the source it genuinely burns.
+        // The dark grade is steep on purpose: the pool around Configure
+        // must read as THE light source in a still frame, not a hunch.
         // On stock the floor sits higher: even the lightest impression is
         // real ink, and hierarchy rides on size, weight and warmth.
-        lightK[i] = paper ? 1.14 + 0.36 * w : 0.86 + 0.44 * w
+        lightK[i] = paper ? 1.14 + 0.36 * w : 0.8 + 0.72 * w
         lightE[i] = 0.8 + 0.55 * w
         const r = Math.round(mix(cool[0], warmc[0], w))
         const g = Math.round(mix(cool[1], warmc[1], w))
@@ -755,11 +885,17 @@ export default function ContextField({
       if (spanX <= 0 || spanY <= 0) return
 
       // 1) The authored composition, straight from the data (graph y is
-      //    up-positive; the screen's is not).
+      //    up-positive; the screen's is not). Paper compresses the vertical
+      //    band a step and settles it lower on the sheet: the authored map
+      //    was graded for the dark grounds, where a word 50px off the top
+      //    edge reads as atmosphere; on cardstock it reads as sliding off
+      //    the page, and the bottom third sat bare. Same map, re-weighted.
       for (let i = 0; i < COUNT; i++) {
         parked[i] = 0
         tbx[i] = fragments[i].node.x
-        tby[i] = -fragments[i].node.y
+        tby[i] = paper
+          ? -fragments[i].node.y * 0.9 + 0.08
+          : -fragments[i].node.y
         clampWord(i)
       }
 
@@ -1041,11 +1177,16 @@ export default function ContextField({
       // far limit is deliberately tight: long room-crossing hairlines are
       // what made certain frames read as a tangle.
       restNear = Math.min(vw, vh) * 0.22
-      restFar = Math.min(vw, vh) * 1.05
+      // On paper the far limit is much tighter: a hairline is forgivable
+      // across a dark room, but a ~600px pen stroke slicing the open
+      // middle of a printed sheet reads as a ruler line through the
+      // composition's air. Long relations distance-fade out on stock.
+      restFar = Math.min(vw, vh) * (paper ? 0.66 : 1.05)
       // The channel the reading column carves through the field once you
-      // scroll past the hero.
-      bandInner = Math.min(360, vw * 0.34)
-      bandOuter = bandInner + 250
+      // scroll past the hero. Paper carves a narrower channel: retreating
+      // ink is what keeps the mid-descent handoff from going fully blank.
+      bandInner = paper ? Math.min(300, vw * 0.3) : Math.min(360, vw * 0.34)
+      bandOuter = bandInner + (paper ? 210 : 250)
       placeRef.current.decided = false
       measure()
       if (!laidOut) {
@@ -1135,9 +1276,11 @@ export default function ContextField({
       // hands the page over to the reading channel.
       const web = 1 + Math.sin(travel * Math.PI) * 2.1
       // How far past the hero we are. Drives the retreat of the field to the
-      // margins so body copy is never read through drifting words.
+      // margins so body copy is never read through drifting words. Paper
+      // dims less: retreating ink lingering through the handoff is what
+      // keeps the descent from going featureless beige before "Who I am".
       const past = smoothstep(vh * 0.3, vh * 1.05, scrollY)
-      const dim = 1 - 0.5 * past
+      const dim = 1 - (paper ? 0.32 : 0.5) * past
       const driftY = 26 * Math.sin(scrollY / (vh * 1.7))
       // Ambient camera drift: a slow orbit, a few pixels wide over ~26s,
       // applied with the same depth weighting as the cursor parallax so the
@@ -1270,10 +1413,15 @@ export default function ContextField({
         const depthZ = 0.12 + depth[i] * 0.88
         const rel = depthZ - camZ
         let s = (PERSP + depthZ) / (PERSP + Math.max(rel, -PERSP * 0.62))
-        if (s > 3.2) s = 3.2
+        const sCap = paper ? 2.4 : 3.2
+        if (s > sCap) s = sCap
         // Words stay lit while they swell past the camera and only die once
-        // they are genuinely behind you; the fly-past is the point.
-        const passFade = smoothstep(-0.36, -0.04, rel)
+        // they are genuinely behind you; the fly-past is the point. Paper
+        // lets passed words linger much longer (and swell less), so the
+        // mid-descent sheet keeps some ink on it through the handoff.
+        const passFade = paper
+          ? smoothstep(-0.8, -0.08, rel)
+          : smoothstep(-0.36, -0.04, rel)
         // Positions spread slower than glyphs swell, so the frame stays
         // populated through the middle of the descent instead of emptying
         // the moment perspective kicks in.
@@ -1330,6 +1478,23 @@ export default function ContextField({
         chan[i] = c
         vis[i] = c * passFade * inA
 
+        // Leaving the frame is a fade, not a guillotine. Once the descent
+        // releases the viewport clamp, a word the spread pushes past the
+        // frame edge dims out in proportion to how much of it is gone, so
+        // the edge can never clip a label down to a stray pair of glyphs
+        // hanging over the reading column ("c u", "Zan").
+        if (travel > 0.02) {
+          const hwS = halfW[i] * s
+          const hhS = halfH[i] * s
+          const outX = Math.max(0, x + hwS - vw, -(x - hwS))
+          const outY = Math.max(0, y + hhS - vh, -(y - hhS))
+          if (outX > 0 || outY > 0) {
+            const ex = 1 - Math.min(1, outX / (hwS + 1))
+            const ey = 1 - Math.min(1, outY / (hhS + 1))
+            vis[i] *= mix(1, ex * ey, smoothstep(0.02, 0.12, travel))
+          }
+        }
+
         const ww = wake[i]
         const lit = ww * ww * (3 - 2 * ww)
         // The lit ground: resting brightness carries the light grade, so
@@ -1381,6 +1546,13 @@ export default function ContextField({
       // arriving, not part of the take.
       if (introT < INTRO_DONE - 0.4) bestLit = -1
 
+      // The idle ember cycle is retired: recognition colour belongs to a
+      // real reader. The ghost cursor still wakes and webs words, but only
+      // a live pointer (or an open card, below) may set a word burning, so
+      // a resting frame tells the light story with exactly one source and
+      // a printed sheet never wears a stray red error mark.
+      if (userBlend < 0.5 && actIdx < 0) bestLit = -1
+
       // An open card owns the ember, wherever the eased cursor has settled.
       if (actIdx >= 0) bestLit = actIdx
 
@@ -1405,8 +1577,16 @@ export default function ContextField({
             ? Math.sqrt((px[actIdx] - cx) ** 2 + (py[actIdx] - cy) ** 2)
             : Infinity
         const openR = radius * 0.5
+        // A word only qualifies for auto-open if its card has somewhere
+        // honest to sit: a placement fully clear of the identity block and
+        // the headline. The dimensions are an estimate (the card does not
+        // exist yet); the real placement re-runs the same exclusion with
+        // measured dimensions once it opens.
         const wantId =
-          nearest >= 0 && nearestD < openR && vis[nearest] > 0.3
+          nearest >= 0 &&
+          nearestD < openR &&
+          vis[nearest] > 0.3 &&
+          cardSpot(nearest, Math.min(336, vw - 24), 216, scrollY) >= 0
             ? fragments[nearest].node.id
             : null
         if (wantId !== suppressRef.current) suppressRef.current = null
@@ -1440,7 +1620,12 @@ export default function ContextField({
 
       /* Card ---------------------------------------------------------- */
       // Anchored beside its word, decided once per open, clamped every
-      // frame so the drifting anchor can never carry it off screen.
+      // frame so the drifting anchor can never carry it off screen. The
+      // hero type's keep-outs are a hard exclusion: the side chosen is the
+      // first of below/above/right/left whose card rect misses them all,
+      // so a card can never park over "Manuel David" or the headline. If
+      // no side is fully clear (a tapped word buried mid-type on a phone),
+      // the placement falls back to whichever side covers the least.
       const cardEl = cardRef.current
       if (actIdx >= 0 && cardEl) {
         const cw2 = cardEl.offsetWidth
@@ -1449,31 +1634,103 @@ export default function ContextField({
         const ayp = py[actIdx]
         const M = 12
         const GAP = halfH[actIdx] * sc[actIdx] + 12
+        const SIDE = halfW[actIdx] * sc[actIdx] + 18
         const place2 = placeRef.current
         if (!place2.decided) {
-          if (ayp + GAP + ch2 <= vh - M) place2.mode = 0
-          else if (ayp - GAP - ch2 >= M) place2.mode = 1
-          else place2.mode = 2
+          const clear = cardSpot(actIdx, cw2, ch2, scrollY)
+          if (clear >= 0) {
+            place2.mode = clear
+          } else {
+            let best = 0
+            let bestCost = Infinity
+            for (let m = 0; m < 4; m++) {
+              let left =
+                m === 2 ? axp + SIDE : m === 3 ? axp - SIDE - cw2 : axp - cw2 * 0.32
+              let top2 = m === 0 ? ayp + GAP : m === 1 ? ayp - GAP - ch2 : ayp - ch2 / 2
+              left = Math.min(Math.max(M, left), vw - M - cw2)
+              top2 = Math.min(Math.max(M, top2), vh - M - ch2)
+              let cost = 0
+              for (let k = 0; k < typeBoxes.length; k++) {
+                const tb2 = typeBoxes[k]
+                const ox = Math.min(left + cw2, tb2[2]) - Math.max(left, tb2[0])
+                const oy =
+                  Math.min(top2 + ch2, tb2[3] - scrollY) -
+                  Math.max(top2, tb2[1] - scrollY)
+                if (ox > 0 && oy > 0) cost += ox * oy
+              }
+              if (cost < bestCost) {
+                bestCost = cost
+                best = m
+              }
+            }
+            place2.mode = best
+          }
           place2.decided = true
         }
         let top: number
         let leftPx: number
         if (place2.mode === 2) {
-          // Viewport shorter than card + clearance: sit beside the word.
-          top = Math.min(Math.max(M, ayp - ch2 / 2), vh - M - ch2)
-          leftPx =
-            axp < vw / 2 ? axp + halfW[actIdx] + 18 : axp - halfW[actIdx] - 18 - cw2
+          leftPx = axp + SIDE
+          top = ayp - ch2 / 2
+        } else if (place2.mode === 3) {
+          leftPx = axp - SIDE - cw2
+          top = ayp - ch2 / 2
         } else {
           top = place2.mode === 0 ? ayp + GAP : ayp - GAP - ch2
-          top = Math.min(Math.max(M, top), vh - M - ch2)
           leftPx = axp - cw2 * 0.32
         }
+        top = Math.min(Math.max(M, top), vh - M - ch2)
         leftPx = Math.min(Math.max(M, leftPx), vw - M - cw2)
         cardEl.style.transform = `translate3d(${leftPx.toFixed(1)}px, ${top.toFixed(1)}px, 0)`
         cardEl.style.visibility = "visible"
       }
 
       let seg = 0
+      let qseg = 0
+
+      /** Raw quad write, for strokes with real width (the spine). Same
+       * shader, same attributes; the quad is aligned to the stroke. */
+      const writeQuad = (
+        x0: number,
+        y0: number,
+        x1: number,
+        y1: number,
+        alpha0: number,
+        alpha1: number,
+        tint0: number,
+        tint1: number,
+        w: number,
+      ) => {
+        if (qseg >= QUAD_MAX) return
+        const dx = x1 - x0
+        const dy = y1 - y0
+        const l = Math.sqrt(dx * dx + dy * dy) || 1
+        const nx2 = (-dy / l) * w * 0.5
+        const ny2 = (dx / l) * w * 0.5
+        const v = qseg * 12
+        quadPositions[v] = x0 + nx2
+        quadPositions[v + 1] = y0 + ny2
+        quadPositions[v + 2] = 0
+        quadPositions[v + 3] = x0 - nx2
+        quadPositions[v + 4] = y0 - ny2
+        quadPositions[v + 5] = 0
+        quadPositions[v + 6] = x1 + nx2
+        quadPositions[v + 7] = y1 + ny2
+        quadPositions[v + 8] = 0
+        quadPositions[v + 9] = x1 - nx2
+        quadPositions[v + 10] = y1 - ny2
+        quadPositions[v + 11] = 0
+        const t = qseg * 4
+        quadAlpha[t] = alpha0
+        quadAlpha[t + 1] = alpha0
+        quadAlpha[t + 2] = alpha1
+        quadAlpha[t + 3] = alpha1
+        quadTint[t] = tint0
+        quadTint[t + 1] = tint0
+        quadTint[t + 2] = tint1
+        quadTint[t + 3] = tint1
+        qseg++
+      }
 
       /** Raw segment write. Everything above it decides WHAT to draw. */
       const writeSeg = (
@@ -1507,6 +1764,31 @@ export default function ContextField({
        * Pure alpha gradient; no glow, no bloom, no width change. */
       const lum = (t: number) => 1 - 0.42 * Math.sin(Math.PI * t)
 
+      /** One drawn span, routed to the hairline or the wide-quad pass. */
+      const emitSpan = (
+        sx: number,
+        sy: number,
+        rx: number,
+        ry: number,
+        alpha: number,
+        tintA: number,
+        tintB: number,
+        t0: number,
+        t1: number,
+        width: number,
+      ) => {
+        const x0 = sx + rx * t0
+        const y0 = sy + ry * t0
+        const x1 = sx + rx * t1
+        const y1 = sy + ry * t1
+        const a0 = alpha * lum(t0)
+        const a1 = alpha * lum(t1)
+        const c0 = mix(tintA, tintB, t0)
+        const c1 = mix(tintA, tintB, t1)
+        if (width > 0) writeQuad(x0, y0, x1, y1, a0, a1, c0, c1, width)
+        else writeSeg(x0, y0, x1, y1, a0, a1, c0, c1)
+      }
+
       /** One lit sub-span of a stroke, in segment parameter space. Splits
        * at the midpoint so the linear per-vertex alpha can actually dip. */
       const emitSub = (
@@ -1519,25 +1801,14 @@ export default function ContextField({
         tintB: number,
         t0: number,
         t1: number,
+        width: number,
       ) => {
         if (t0 < 0.5 && t1 > 0.5) {
-          writeSeg(
-            sx + rx * t0, sy + ry * t0, sx + rx * 0.5, sy + ry * 0.5,
-            alpha * lum(t0), alpha * lum(0.5),
-            mix(tintA, tintB, t0), mix(tintA, tintB, 0.5),
-          )
-          writeSeg(
-            sx + rx * 0.5, sy + ry * 0.5, sx + rx * t1, sy + ry * t1,
-            alpha * lum(0.5), alpha * lum(t1),
-            mix(tintA, tintB, 0.5), mix(tintA, tintB, t1),
-          )
+          emitSpan(sx, sy, rx, ry, alpha, tintA, tintB, t0, 0.5, width)
+          emitSpan(sx, sy, rx, ry, alpha, tintA, tintB, 0.5, t1, width)
           return
         }
-        writeSeg(
-          sx + rx * t0, sy + ry * t0, sx + rx * t1, sy + ry * t1,
-          alpha * lum(t0), alpha * lum(t1),
-          mix(tintA, tintB, t0), mix(tintA, tintB, t1),
-        )
+        emitSpan(sx, sy, rx, ry, alpha, tintA, tintB, t0, t1, width)
       }
 
       /**
@@ -1548,7 +1819,10 @@ export default function ContextField({
        * same clearance the endpoints get, so no hairline ever strikes
        * through a label anywhere along its length. skipA/skipB are the
        * endpoint indices (-1 for the cursor), which must not occlude their
-       * own line.
+       * own line. width > 0 routes the stroke to the wide-quad pass (the
+       * spine); freeB marks endpoint B as a moving tip (the entrance
+       * draw-in), which is honestly mid-air and exempt from the arrival
+       * rule below.
        */
       const push = (
         ax: number,
@@ -1564,6 +1838,8 @@ export default function ContextField({
         tintB: number,
         skipA: number,
         skipB: number,
+        width = 0,
+        freeB = false,
       ) => {
         const dx = bxp - ax
         const dy = byp - ay
@@ -1675,12 +1951,12 @@ export default function ContextField({
         }
 
         if (nb === 0) {
-          emitSub(sx, sy, rx, ry, alpha, tintA, tintB, 0, 1)
+          emitSub(sx, sy, rx, ry, alpha, tintA, tintB, 0, 1, width)
           return
         }
 
-        // Sort the blocked intervals (insertion; nb is tiny), then draw the
-        // gaps between them. Slivers shorter than MIN_SUB_PX are dropped.
+        // Sort the blocked intervals (insertion; nb is tiny), then collect
+        // the gaps between them. Slivers shorter than MIN_SUB_PX drop.
         for (let a2 = 1; a2 < nb; a2++) {
           const k0 = blockT0[a2]
           const k1 = blockT1[a2]
@@ -1694,14 +1970,31 @@ export default function ContextField({
           blockT1[b2 + 1] = k1
         }
         const minT = segLen > 0 ? MIN_SUB_PX / segLen : 1
+        let ng = 0
         let cur = 0
         for (let q = 0; q <= nb; q++) {
           const gapEnd = q === nb ? 1 : blockT0[q]
           if (gapEnd - cur >= minT) {
-            emitSub(sx, sy, rx, ry, alpha, tintA, tintB, cur, gapEnd)
+            gapT0[ng] = cur
+            gapT1[ng] = gapEnd
+            ng++
           }
           if (q < nb && blockT1[q] > cur) cur = blockT1[q]
           if (cur >= 1) break
+        }
+        if (ng === 0) return
+
+        // A stroke must ARRIVE. If the clipping (another label, the hero
+        // type's keep-out) has eaten the piece of the line that touches a
+        // word endpoint, the whole stroke is dropped rather than drawn
+        // dying mid-air: a line that cannot visibly reach its own word
+        // reads as an error, not a relation. Cursor ends (skip < 0) and
+        // the entrance draw-in tip (freeB) are mid-air by design.
+        if (skipA >= 0 && gapT0[0] > 0.001) return
+        if (skipB >= 0 && !freeB && gapT1[ng - 1] < 0.999) return
+
+        for (let q = 0; q < ng; q++) {
+          emitSub(sx, sy, rx, ry, alpha, tintA, tintB, gapT0[q], gapT1[q], width)
         }
       }
 
@@ -1758,18 +2051,20 @@ export default function ContextField({
 
         // Angular separation: a hairline that would leave either endpoint
         // nearly parallel to one already drawn is dropped (unless it is the
-        // spine or belongs to the open card): fewer, better lines.
+        // spine or belongs to the open card): fewer, better lines. Paper's
+        // sparse density demands a wider fan (see MIN_EDGE_ANGLE_PAPER).
+        const minAng = paper ? MIN_EDGE_ANGLE_PAPER : MIN_EDGE_ANGLE
         const ang = Math.atan2(py[j] - py[i], px[j] - px[i])
         if (!isActive && !strong) {
           let bunched = false
           for (let q = 0; q < restDeg[i] && !bunched; q++) {
             const da = Math.abs(ang - restAng[i * REST_DEG_MAX + q]) % (Math.PI * 2)
-            if (Math.min(da, Math.PI * 2 - da) < MIN_EDGE_ANGLE) bunched = true
+            if (Math.min(da, Math.PI * 2 - da) < minAng) bunched = true
           }
           const angJ = ang > 0 ? ang - Math.PI : ang + Math.PI
           for (let q = 0; q < restDeg[j] && !bunched; q++) {
             const da = Math.abs(angJ - restAng[j * REST_DEG_MAX + q]) % (Math.PI * 2)
-            if (Math.min(da, Math.PI * 2 - da) < MIN_EDGE_ANGLE) bunched = true
+            if (Math.min(da, Math.PI * 2 - da) < minAng) bunched = true
           }
           if (bunched) continue
         }
@@ -1799,6 +2094,11 @@ export default function ContextField({
         if (introT < INTRO_DONE) {
           alpha *= smoothstep(cueEdge, cueEdge + 0.34, introT)
         }
+        // A stroke may never outshine its endpoints: a line into a word
+        // the eye cannot find reads as a stroke into nothing, so edge
+        // alpha is capped by the dimmer endpoint's on-screen opacity.
+        const capA = Math.min(opac[i], opac[j])
+        if (alpha > capA) alpha = capA
         if (alpha < 0.008) continue
         if (restDeg[i] < REST_DEG_MAX) restAng[i * REST_DEG_MAX + restDeg[i]] = ang
         if (restDeg[j] < REST_DEG_MAX) {
@@ -1807,6 +2107,18 @@ export default function ContextField({
         }
         restDeg[i]++
         restDeg[j]++
+        // The web carries the grade too: strokes near the light source
+        // warm toward its tone (the shader mixes uBase toward uEmber by
+        // tint, which at these values reads as warmth, never as accent).
+        // Ink on stock stays ink: paper keeps a whisper of warmth at most.
+        const tintI = paper ? warmK[i] * 0.16 : warmK[i] * 0.5
+        const tintJ = paper ? warmK[j] * 0.16 : warmK[j] * 0.5
+        // The spine's stroke: one honest wide quad, warm, endpoints on the
+        // same trim as every other edge (see SPINE_WIDTH).
+        const w2 = strong ? SPINE_WIDTH : 0
+        const tintA2 = strong ? (paper ? 0.2 : 0.55) : tintI
+        const tintB2 = strong ? (paper ? 0.2 : 0.55) : tintJ
+        const alpha2 = strong ? alpha * 0.9 : alpha
         // The life spine draws ITSELF in during the entrance: each spine
         // stroke grows from the earlier-ignited word toward the later one.
         if (restSpineArr[e] === 1 && introT < INTRO_DONE) {
@@ -1821,7 +2133,7 @@ export default function ContextField({
               px[from] + (px[to] - px[from]) * g,
               py[from] + (py[to] - py[from]) * g,
               0, 0,
-              alpha * (0.3 + 0.7 * g), 0, 0, from, to,
+              alpha2 * (0.3 + 0.7 * g), tintA2, tintB2, from, to, w2, true,
             )
             continue
           }
@@ -1829,23 +2141,8 @@ export default function ContextField({
         push(
           px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i],
           px[j], py[j], halfW[j] * sc[j], halfH[j] * sc[j],
-          alpha, 0, 0, i, j,
+          alpha2, tintA2, tintB2, i, j, w2,
         )
-        // The spine carries more material: a second stroke a half-hair off
-        // the first reads as a heavier filament at any DPR, with no width
-        // API and no glow.
-        if (strong) {
-          const sdx = px[j] - px[i]
-          const sdy = py[j] - py[i]
-          const sl = Math.sqrt(sdx * sdx + sdy * sdy) || 1
-          const oxp = (-sdy / sl) * 0.8
-          const oyp = (sdx / sl) * 0.8
-          push(
-            px[i] + oxp, py[i] + oyp, halfW[i] * sc[i], halfH[i] * sc[i],
-            px[j] + oxp, py[j] + oyp, halfW[j] * sc[j], halfH[j] * sc[j],
-            alpha * 0.6, 0, 0, i, j,
-          )
-        }
       }
 
       // There is deliberately NO nearest-neighbour "recognition" pass any
@@ -1863,7 +2160,7 @@ export default function ContextField({
       for (let n = 0; n < CURSOR_LINKS && seg < MAX_SEGMENTS; n++) {
         const i = nearIdx[n]
         if (i < 0) continue
-        const alpha =
+        let alpha =
           (0.07 +
             0.12 * smoothstep(radius * 1.9, radius * 0.25, nearDist[n]) +
             wake[i] * 0.5 * smoothstep(radius, radius * 0.1, nearDist[n])) *
@@ -1873,6 +2170,9 @@ export default function ContextField({
           // The tethers are the last thing to arrive: the field finishes
           // assembling itself before it reaches for the reader.
           (introT >= INTRO_DONE ? 1 : smoothstep(INTRO_DONE - 0.7, INTRO_DONE, introT))
+        // Same arrival honesty as the web: a tether may not outshine the
+        // word it reaches for.
+        if (alpha > opac[i]) alpha = opac[i]
         if (alpha < 0.008) continue
         push(cx, cy, 0, 0, px[i], py[i], halfW[i] * sc[i], halfH[i] * sc[i], alpha, 0.9, 0.1, -1, i)
       }
@@ -1883,6 +2183,12 @@ export default function ContextField({
           linePosAttr.needsUpdate = true
           lineAlphaAttr.needsUpdate = true
           lineTintAttr.needsUpdate = true
+        }
+        quadGeo.setDrawRange(0, qseg * 6)
+        if (qseg > 0) {
+          quadPosAttr.needsUpdate = true
+          quadAlphaAttr.needsUpdate = true
+          quadTintAttr.needsUpdate = true
         }
         renderer.render(scene, camera)
       }
@@ -1999,6 +2305,7 @@ export default function ContextField({
       window.removeEventListener("resize", onResize)
       window.removeEventListener("pointermove", onPointerMove)
       lineGeo.dispose()
+      quadGeo.dispose()
       lineMat.dispose()
       if (renderer) {
         renderer.dispose()

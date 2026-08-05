@@ -83,17 +83,21 @@
   content: "";
   position: absolute;
   inset: 0;
+  /* Strong enough to read in a STILL frame: the pool is the proof that
+     Configure is the light source, so it cannot be a hunch. Colour and
+     alpha only; no bloom, no filters. */
   background: radial-gradient(
-    38% 34% at 67% 42%,
-    rgba(112, 84, 50, 0.32) 0%,
-    rgba(72, 58, 40, 0.13) 48%,
+    44% 40% at 67% 42%,
+    rgba(122, 90, 50, 0.44) 0%,
+    rgba(78, 62, 42, 0.18) 48%,
     rgba(6, 8, 10, 0) 74%
   );
-  /* The light turns ON with Configure's ignition in the entrance take,
-     then settles into the minutes-slow breathing. */
+  /* The light turns ON with Configure's ignition in the entrance take
+     (which now lands around 600ms), then settles into the minutes-slow
+     breathing. */
   animation:
-    hfLightOn 1400ms cubic-bezier(0.22, 0.61, 0.36, 1) 1100ms both,
-    hfBreath 96s ease-in-out 2500ms infinite alternate;
+    hfLightOn 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) 500ms both,
+    hfBreath 96s ease-in-out 2100ms infinite alternate;
 }
 
 @keyframes hfLightOn {
@@ -101,13 +105,13 @@
     opacity: 0;
   }
   to {
-    opacity: 0.62;
+    opacity: 0.78;
   }
 }
 
 @keyframes hfBreath {
   from {
-    opacity: 0.62;
+    opacity: 0.78;
   }
   to {
     opacity: 1;
@@ -118,7 +122,9 @@
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 600ms cubic-bezier(0.33, 0, 0.2, 1);
+  /* Fast: the spine starts igniting ~150ms after settle, and the reveal
+     must never read as a curtain slowly lifting in front of it. */
+  transition: opacity 380ms cubic-bezier(0.33, 0, 0.2, 1);
 }
 
 .canvasLayer[data-ready="true"] {
@@ -384,6 +390,11 @@
   line-height: 1.45;
   letter-spacing: 0.008em;
   color: var(--hf-mute);
+}
+
+/* A city never breaks in half: "San Francisco" wraps as one word. */
+.kickerCity {
+  white-space: nowrap;
 }
 
 /* The display moment. Fraunces at full optical size, big enough to be the
@@ -944,8 +955,11 @@
   }
 
   .heroLinks {
+    /* One quiet column: three links wrapping into a two-then-one rag read
+       as an accident at phone width; a list reads as set on purpose. */
+    flex-direction: column;
     margin-top: 1.5rem;
-    gap: 0.5rem 1.25rem;
+    gap: 0.6rem;
   }
 
   .colophon {
@@ -1279,6 +1293,23 @@
 .root[data-variant="paper"] .cardIn {
   background: #efe9da;
   border-color: rgba(38, 33, 25, 0.34);
+}
+
+/* On stock the accent is an ANNOTATION, not a UI state: the recognised
+   word takes the oxide ink and a hand-ruled underline, the way a reader
+   marks a printed sheet. The stroke is a stretched SVG with a slight
+   wander, so it reads as pen, not as text-decoration. No idle word ever
+   wears it; the loop only sets data-lit under a live pointer or an open
+   card, so the sheet at rest carries no red marks at all. */
+.root[data-variant="paper"] .frag[data-lit="true"],
+.root[data-variant="paper"] .fragBtn:hover,
+.root[data-variant="paper"] .fragBtn:focus-visible,
+.root[data-variant="paper"] .fragBtn[data-active="true"] {
+  color: var(--hf-ember);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 6' preserveAspectRatio='none'%3E%3Cpath d='M2 4.2 C 18 2.6, 40 4.8, 62 3.4 S 102 2.8, 118 4' fill='none' stroke='%23942f12' stroke-width='1.7' stroke-linecap='round' opacity='0.8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 6px calc(100% - 2px);
+  background-size: calc(100% - 12px) 0.34em;
 }
 
 /* The entrance lands like a sheet set down on a desk: a longer travel on

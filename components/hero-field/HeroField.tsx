@@ -333,7 +333,7 @@ export function HeroField({
                   >
                     Configure
                   </a>
-                  , San Francisco
+                  , <span className={styles.kickerCity}>San Francisco</span>
                 </p>
               </header>
 
