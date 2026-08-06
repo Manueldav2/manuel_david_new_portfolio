@@ -1331,6 +1331,378 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* ROOT — CONFIGURE                                                     */
+/*                                                                      */
+/* His employer's brand system, worn as discipline: Inter carries       */
+/* everything (Display 500, Body 400), IBM Plex Mono carries the data,  */
+/* and the palette is Configure's own — ink #141414 on flat canvas,     */
+/* Border Gray hairlines, Configure Slate #586675 as the single         */
+/* accent. Their stated principle is the law of this block: "Avoid      */
+/* gradients, outlines, shadows, and dimensional styling." So the       */
+/* ground is FLAT (no grain, no vignette, no breath), the card is a     */
+/* white sheet with a hairline, and hierarchy is size, weight and       */
+/* spacing — never decoration.                                          */
+/* ------------------------------------------------------------------ */
+
+.root[data-variant="configure"] {
+  /* Inter answers every type slot; the mono carries code and data. */
+  --hf-display: var(--hf-sans);
+  --hf-serif: var(--hf-sans);
+
+  --hf-ink: #ededed;
+  --hf-ink-lift: #ffffff;
+  --hf-bone: #141414;
+  --hf-read: #2f2f2f;
+  --hf-mute: #6c6c6c;
+  --hf-field: #586675;
+  --hf-ember: #586675;
+  --hf-ember-soft: #586675;
+  --hf-rule: #d1d1d1;
+  --hf-rule-soft: rgba(20, 20, 20, 0.09);
+  /* Systematic hand: standard-decelerate, no theatrics. */
+  --hf-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.root[data-variant="configure"] ::selection {
+  background: rgba(88, 102, 117, 0.22);
+  color: var(--hf-bone);
+}
+
+/* The ground is one flat plane of canvas gray. No grade, no pool of
+   light, no breathing: geometric clarity means the surface is simply a
+   surface. */
+.root[data-variant="configure"] .vignette {
+  background: var(--hf-ink);
+}
+
+.root[data-variant="configure"] .vignette::after {
+  display: none;
+}
+
+/* No grain. Texture is dimensional styling; the brand forbids it. */
+.root[data-variant="configure"] .grain {
+  display: none;
+}
+
+/* ---- Hero composition -------------------------------------------- */
+/* The copy moves to the top-left as a compact identity block, so the
+   middle of the frame belongs to one word: Configure, slate, dead
+   center, the point the whole map (and the scroll) converges on. */
+
+/* The zoom needs a runway. The descent's camera travels over ~1.1
+   viewport heights of scroll; on a 100svh hero the reading column
+   crested the fold mid-zoom and the climax played out underneath the
+   prose. The extra 40svh holds the reading back just long enough that
+   the camera reaches Configure in clear canvas and the prose arrives
+   from below exactly as the view passes through the word — a handoff,
+   never a dead zone of empty gray. */
+.root[data-variant="configure"] .hero {
+  min-height: 140svh;
+}
+
+.root[data-variant="configure"] .frame {
+  align-items: flex-start;
+  padding-top: clamp(4.5rem, 11vh, 7.5rem);
+}
+
+.root[data-variant="configure"] .block {
+  max-width: 34rem;
+  margin-left: clamp(0rem, 2.5vw, 3rem);
+}
+
+.root[data-variant="configure"] .kickerName {
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-size: 1rem;
+  letter-spacing: -0.011em;
+}
+
+.root[data-variant="configure"] .kickerRole {
+  font-size: 0.8125rem;
+  letter-spacing: 0.002em;
+}
+
+/* Display 500. Inter with its optical axis live, tight tracking at
+   size, restrained scale: the headline identifies him, it does not
+   compete with the word the composition is about. */
+.root[data-variant="configure"] .headline {
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-size: clamp(1.9rem, 3.2vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.032em;
+  max-width: 15ch;
+  margin-top: 1.35rem;
+}
+
+.root[data-variant="configure"] .headline em {
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: -0.032em;
+  color: var(--hf-mute);
+}
+
+.root[data-variant="configure"] .deck {
+  font-weight: 400;
+  font-size: 0.9375rem;
+  letter-spacing: 0em;
+  max-width: 34ch;
+  margin-top: 1.1rem;
+}
+
+/* The one interaction hint, set as data: mono, small, quiet. */
+.root[data-variant="configure"] .invite {
+  font-family: var(--hf-mono), ui-monospace, SFMono-Regular, monospace;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  color: var(--hf-mute);
+  margin-top: 1.2rem;
+}
+
+.root[data-variant="configure"] .heroLinks {
+  font-family: var(--hf-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.005em;
+  margin-top: 1.7rem;
+}
+
+.root[data-variant="configure"] .inlineLink {
+  color: var(--hf-read);
+}
+
+/* ---- The field ---------------------------------------------------- */
+/* Inter in the field too: the anchors run Display 500 upright (never
+   italic — the brand is systematic, not expressive), tight at size;
+   the tail runs Body 400. One family, deliberate weight steps. */
+
+.root[data-variant="configure"] .frag {
+  font-weight: 400;
+  letter-spacing: 0.008em;
+  transition: color 460ms var(--hf-ease);
+}
+
+/* Re-enable the per-word grade on this identity. The storied buttons
+   inherit the page ink by default (.fragBtn's color: inherit lands
+   later in the cascade than .frag's), which flattens the field to one
+   color; here the grade is the composition — ink near the center,
+   slate-tinted gray in the far field, and Configure itself wearing the
+   brand slate at rest. The recognition states are re-asserted right
+   after, so hover, focus and the open card still take the accent. */
+.root[data-variant="configure"] .fragBtn {
+  color: var(--hfw, var(--hf-field));
+}
+
+.root[data-variant="configure"] .frag[data-lit="true"],
+.root[data-variant="configure"] .fragBtn:hover,
+.root[data-variant="configure"] .fragBtn:focus-visible,
+.root[data-variant="configure"] .fragBtn[data-active="true"] {
+  color: var(--hf-ember);
+}
+
+.root[data-variant="configure"] .frag[data-tier="key"] {
+  font-style: normal;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  letter-spacing: -0.024em;
+}
+
+.root[data-variant="configure"] .frag[data-tier="mid"] {
+  font-weight: 400;
+  letter-spacing: 0.004em;
+}
+
+/* ---- The story card ----------------------------------------------- */
+/* A white sheet with a hairline. No shadow, no blur, no radius drama:
+   the flat brand card. The kind-line is mono slate — the data voice
+   naming the record type. */
+
+.root[data-variant="configure"] .cardIn {
+  background: var(--hf-ink-lift);
+  border-color: var(--hf-rule);
+  padding: 1rem 1.1rem 0.95rem;
+}
+
+.root[data-variant="configure"] .cardKind {
+  font-family: var(--hf-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.07em;
+  color: var(--hf-ember);
+}
+
+.root[data-variant="configure"] .cardTitle {
+  font-optical-sizing: auto;
+  font-size: 1.18rem;
+  font-weight: 500;
+  letter-spacing: -0.018em;
+}
+
+.root[data-variant="configure"] .cardStory {
+  font-size: 0.85rem;
+  line-height: 1.58;
+  color: var(--hf-read);
+}
+
+.root[data-variant="configure"] .cardLink {
+  font-family: var(--hf-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.72rem;
+  color: var(--hf-mute);
+}
+
+.root[data-variant="configure"] .cardLink:hover {
+  color: var(--hf-ember);
+  text-decoration-color: var(--hf-ember);
+}
+
+/* ---- Reading ------------------------------------------------------ */
+/* The channel is the same flat canvas as the ground, so its side edges
+   are invisible by construction; only the top keeps its mask so field
+   words are never cut by a hard horizontal line mid-descent. */
+
+.root[data-variant="configure"] .reading::before {
+  background: linear-gradient(
+    90deg,
+    rgba(237, 237, 237, 0) 0%,
+    #ededed 6rem,
+    #ededed calc(100% - 6rem),
+    rgba(237, 237, 237, 0) 100%
+  );
+}
+
+.root[data-variant="configure"] .chapterLead {
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+  letter-spacing: -0.024em;
+  line-height: 1.28;
+}
+
+.root[data-variant="configure"] .entryName {
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: -0.014em;
+}
+
+.root[data-variant="configure"] .plateName {
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: -0.014em;
+}
+
+.root[data-variant="configure"] .lede {
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 1.1rem !important;
+  letter-spacing: -0.006em;
+}
+
+.root[data-variant="configure"] .prose p {
+  font-size: 0.98rem;
+  line-height: 1.68;
+}
+
+/* The data layer speaks mono everywhere: dates, years, captions. */
+.root[data-variant="configure"] .railMeta,
+.root[data-variant="configure"] .railLink,
+.root[data-variant="configure"] .plateYear,
+.root[data-variant="configure"] .plateCaption,
+.root[data-variant="configure"] .colophon {
+  font-family: var(--hf-mono), ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: 0.005em;
+}
+
+.root[data-variant="configure"] .railMeta {
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.root[data-variant="configure"] .railLink {
+  font-size: 0.72rem;
+}
+
+.root[data-variant="configure"] .plateYear {
+  font-size: 0.72rem;
+}
+
+.root[data-variant="configure"] .plateCaption {
+  font-size: 0.68rem;
+}
+
+.root[data-variant="configure"] .colophon {
+  font-size: 0.68rem;
+}
+
+.root[data-variant="configure"] .closeNote {
+  font-family: var(--hf-sans), ui-sans-serif, system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+/* Slate is the interactive accent on every link, per the brand. */
+.root[data-variant="configure"] .link:hover,
+.root[data-variant="configure"] .link:focus-visible,
+.root[data-variant="configure"] .inlineLink:hover,
+.root[data-variant="configure"] .inlineLink:focus-visible,
+.root[data-variant="configure"] .railLink:hover,
+.root[data-variant="configure"] .plateNoteLink:hover {
+  color: var(--hf-ember);
+  text-decoration-color: var(--hf-ember);
+}
+
+.root[data-variant="configure"] .plateName a:hover {
+  color: var(--hf-ember);
+  text-decoration-color: var(--hf-ember);
+}
+
+/* ---- Entrance ----------------------------------------------------- */
+/* Systematic, not atmospheric: shorter travel, a standard-decelerate
+   curve, the same stagger budget. Precision reads in the curve. */
+
+.root[data-variant="configure"] .reveal {
+  animation-duration: 560ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes hfRiseCfg {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.root[data-variant="configure"] .reveal {
+  animation-name: hfRiseCfg;
+}
+
+/* 390px: the copy block stays compact at the top; the field (and
+   Configure at its center) owns the rest of the viewport. */
+@media (max-width: 40rem) {
+  .root[data-variant="configure"] .frame {
+    padding-top: clamp(3.5rem, 9vh, 5rem);
+  }
+
+  .root[data-variant="configure"] .headline {
+    font-size: clamp(1.7rem, 8vw, 2.1rem);
+    max-width: 14ch;
+  }
+
+  .root[data-variant="configure"] .deck {
+    max-width: 30ch;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Reduced motion: the composition still arrives whole, it just         */
 /* arrives instead of animating. The field renders one static frame     */
 /* with a legible, connected constellation already formed, and cards    */
@@ -1342,6 +1714,12 @@
     animation: none;
     opacity: 1;
     transform: none;
+  }
+
+  /* No descent means no runway: without the zoom, the tall hero is just
+     dead scroll between the copy and the reading. */
+  .root[data-variant="configure"] .hero {
+    min-height: 100svh;
   }
 
   .vignette::after {

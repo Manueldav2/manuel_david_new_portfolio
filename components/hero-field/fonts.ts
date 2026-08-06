@@ -4,6 +4,7 @@ import {
   IBM_Plex_Mono,
   IBM_Plex_Sans,
   Instrument_Sans,
+  Inter,
   Newsreader,
 } from "next/font/google";
 
@@ -108,6 +109,24 @@ export const hfSerifDisplay = Newsreader({
   variable: "--hf-display",
 });
 
+
+/**
+ * ROOT "configure": Configure's own brand system. Inter carries the brand
+ * and the interface, exactly as it does on configure.dev/brand: Display 500,
+ * Body 400, one family answering every slot. Loaded as the variable font
+ * with the optical-size axis live, so the headline runs the true display
+ * grade of Inter and the small labels run the text grade; weight steps are
+ * deliberate (400 body, 500 display) rather than a smear of in-betweens.
+ * IBM Plex Mono (below) answers for code and data, per the brand's
+ * monospace slot. The CSS aliases --hf-display and --hf-serif onto this
+ * variable, so the whole page speaks Inter without touching the markup.
+ */
+export const hfInter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz"],
+  variable: "--hf-sans",
+});
 
 export const hfMono = IBM_Plex_Mono({
   subsets: ["latin"],

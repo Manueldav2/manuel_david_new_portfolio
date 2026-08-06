@@ -155,6 +155,12 @@ const LIGHT_WARM: [number, number, number] = [0xf4, 0xe6, 0xc0]
  * cooling to a softer graphite grey in the far field. */
 const PAPER_COOL: [number, number, number] = [0x6b, 0x67, 0x62]
 const PAPER_WARM: [number, number, number] = [0x24, 0x20, 0x1c]
+/** Configure's ramp is systematic, not atmospheric: ink #141414 near the
+ * source, cooling to a slate-tinted gray in the far field. The slate
+ * undertone keys the far field to the brand without spending the accent;
+ * the accent itself is worn by exactly one word (see applyLight). */
+const CFG_COOL: [number, number, number] = [0x93, 0x9a, 0xa2]
+const CFG_WARM: [number, number, number] = [0x14, 0x14, 0x14]
 
 /**
  * Brightness envelope of the light, by distance from the source in units
@@ -274,7 +280,7 @@ const hits = (a: Box, b: Box) =>
  * size contrast between tiers, because a grotesk can run denser than a serif
  * and a mono field wants more air around fewer words.
  */
-export type FieldVariant = "base" | "serif" | "grotesk" | "mono" | "paper"
+export type FieldVariant = "base" | "serif" | "grotesk" | "mono" | "paper" | "configure"
 
 const FIELD_TUNE: Record<
   FieldVariant,
@@ -287,6 +293,10 @@ const FIELD_TUNE: Record<
   /* Heavy cardstock runs CALM: the spine, the majors, and nothing else.
    * A printed sheet earns its gravity from what it leaves off. */
   paper: { counts: [12, 16, 21], size: { key: 1.16, mid: 1.0, low: 0.98 } },
+  /* Configure runs the same calm register as paper: flat canvas, ink
+   * lines, a systematic scatter with real air. Configure itself is pinned
+   * to the middle of the frame and the descent converges on it. */
+  configure: { counts: [13, 18, 24], size: { key: 1.12, mid: 1.0, low: 0.98 } },
 }
 
 export default function ContextField({
@@ -595,21 +605,27 @@ export default function ContextField({
     lineGeo.setAttribute("aTint", lineTintAttr)
     lineGeo.setDrawRange(0, 0)
 
-    // Paper draws INK on a light sheet: normal blending, warm near-black
-    // strokes, a deep oxide accent. The dark grounds keep the additive
-    // pale-filament pass.
+    // Light grounds draw INK on a sheet: normal blending, near-black
+    // strokes. Paper's accent is oxide; Configure's is the brand slate.
+    // The dark grounds keep the additive pale-filament pass.
     const paper = variant === "paper"
+    const cfg = variant === "configure"
+    /** Shared physics of ink on a light ground (paper AND configure):
+     * normal blending, higher stroke body, tighter distance fades, calmer
+     * descent. Paper alone keeps its craft flourishes (grain, annotation
+     * underline, lingerers); configure stays flat and systematic. */
+    const lightGround = paper || cfg
     const lineMat = new ShaderMaterial({
       vertexShader: LINE_VERT,
       fragmentShader: LINE_FRAG,
       uniforms: {
-        uBase: { value: new Color(paper ? "#403a33" : "#c9dcd6") },
-        uEmber: { value: new Color(paper ? "#8f3116" : "#e2552c") },
+        uBase: { value: new Color(cfg ? "#141414" : paper ? "#403a33" : "#c9dcd6") },
+        uEmber: { value: new Color(cfg ? "#586675" : paper ? "#8f3116" : "#e2552c") },
       },
       transparent: true,
       depthWrite: false,
       depthTest: false,
-      blending: paper ? NormalBlending : AdditiveBlending,
+      blending: lightGround ? NormalBlending : AdditiveBlending,
       // The spine quads share this material, and the y-down orthographic
       // projection flips their winding with the stroke's direction.
       side: DoubleSide,
@@ -862,8 +878,8 @@ export default function ContextField({
       if (span <= 0) return
       const lx = lightIdx >= 0 ? toX(tbx[lightIdx]) : vw * 0.62
       const ly = lightIdx >= 0 ? toY(tby[lightIdx]) : vh * 0.44
-      const cool = paper ? PAPER_COOL : LIGHT_COOL
-      const warmc = paper ? PAPER_WARM : LIGHT_WARM
+      const cool = paper ? PAPER_COOL : cfg ? CFG_COOL : LIGHT_COOL
+      const warmc = paper ? PAPER_WARM : cfg ? CFG_WARM : LIGHT_WARM
       for (let i = 0; i < COUNT; i++) {
         const ddx = toX(tbx[i]) - lx
         const ddy = toY(tby[i]) - ly
@@ -880,12 +896,19 @@ export default function ContextField({
         // must read as THE light source in a still frame, not a hunch.
         // On stock the floor sits higher: even the lightest impression is
         // real ink, and hierarchy rides on size, weight and warmth.
-        lightK[i] = paper ? 1.14 + 0.36 * w : 0.8 + 0.72 * w
+        lightK[i] = lightGround ? 1.14 + 0.36 * w : 0.8 + 0.72 * w
         lightE[i] = 0.8 + 0.55 * w
         const r = Math.round(mix(cool[0], warmc[0], w))
         const g = Math.round(mix(cool[1], warmc[1], w))
         const b = Math.round(mix(cool[2], warmc[2], w))
         els[i].style.setProperty("--hfw", `rgb(${r} ${g} ${b})`)
+      }
+
+      // The brand marks its own center: on the configure identity the one
+      // word that wears Configure Slate at rest is Configure. Everything
+      // else is ink or gray; the accent is a statement, not a colour way.
+      if (cfg && lightIdx >= 0) {
+        els[lightIdx].style.setProperty("--hfw", "#586675")
       }
 
       // The paper phone descent's lingerers: the two lowest words in the
@@ -1006,9 +1029,17 @@ export default function ContextField({
       for (let i = 0; i < COUNT; i++) {
         parked[i] = 0
         tbx[i] = fragments[i].node.x
-        tby[i] = paper
+        tby[i] = lightGround
           ? -fragments[i].node.y * 0.9 + 0.08
           : -fragments[i].node.y
+        // The configure identity puts Configure in the middle, literally:
+        // the owner's brand sits at the center of the map, the composition
+        // orbits it, and the scroll descent converges on it. The hero copy
+        // moves to the top-left (CSS) so the center of the frame is open.
+        if (cfg && i === lightIdx) {
+          tbx[i] = 0.03
+          tby[i] = 0.06
+        }
         clampWord(i)
       }
 
@@ -1026,16 +1057,30 @@ export default function ContextField({
             const oy = halfH[i] + halfH[j] + WORD_PAD_Y * 2 - Math.abs(ay - by2)
             if (ox <= 0 || oy <= 0) continue
             moved = true
+            // On the configure identity the center is Configure's and not
+            // negotiable: a neighbour that overlaps it takes the whole
+            // separation itself, so the relaxation can never drift the
+            // anchor off the middle of the frame.
+            const pinI = cfg && i === lightIdx
+            const pinJ = cfg && j === lightIdx
             if (ox < oy) {
               const dir = ax < bx2 ? -1 : ax > bx2 ? 1 : i < j ? -1 : 1
               const d = ((ox * 0.5 + 0.5) * dir) / spanX
-              tbx[i] += d
-              tbx[j] -= d
+              if (pinI) tbx[j] -= d * 2
+              else if (pinJ) tbx[i] += d * 2
+              else {
+                tbx[i] += d
+                tbx[j] -= d
+              }
             } else {
               const dir = ay < by2 ? -1 : ay > by2 ? 1 : i < j ? -1 : 1
               const d = ((oy * 0.5 + 0.5) * dir) / spanY
-              tby[i] += d
-              tby[j] -= d
+              if (pinI) tby[j] -= d * 2
+              else if (pinJ) tby[i] += d * 2
+              else {
+                tby[i] += d
+                tby[j] -= d
+              }
             }
             clampWord(i)
             clampWord(j)
@@ -1158,6 +1203,26 @@ export default function ContextField({
 
       // Configure always survives the cut; see ensureAnchor.
       ensureAnchor(keepouts)
+
+      // On the configure identity's phone cut the copy stack owns the top
+      // of the frame, and the keep-out pushes were shoving Configure off
+      // to whichever side had room. The middle is the brief: re-seat it
+      // through the anchor guarantee with a centered starting column, so
+      // it lands centered in the first open band under the copy. If the
+      // guarantee finds nothing it falls back to wherever the relaxation
+      // had honestly put it, never to sitting out.
+      if (cfg && narrow && lightIdx >= 0 && !parked[lightIdx] && keepouts.length) {
+        const sx0 = tbx[lightIdx]
+        const sy0 = tby[lightIdx]
+        tbx[lightIdx] = 0
+        parked[lightIdx] = 1
+        ensureAnchor(keepouts)
+        if (parked[lightIdx]) {
+          tbx[lightIdx] = sx0
+          tby[lightIdx] = sy0
+          parked[lightIdx] = 0
+        }
+      }
 
       for (let i = 0; i < COUNT; i++) {
         bx[i] = tbx[i]
@@ -1297,12 +1362,12 @@ export default function ContextField({
       // across a dark room, but a ~600px pen stroke slicing the open
       // middle of a printed sheet reads as a ruler line through the
       // composition's air. Long relations distance-fade out on stock.
-      restFar = Math.min(vw, vh) * (paper ? 0.66 : 1.05)
+      restFar = Math.min(vw, vh) * (lightGround ? 0.66 : 1.05)
       // The channel the reading column carves through the field once you
-      // scroll past the hero. Paper carves a narrower channel: retreating
-      // ink is what keeps the mid-descent handoff from going fully blank.
-      bandInner = paper ? Math.min(300, vw * 0.3) : Math.min(360, vw * 0.34)
-      bandOuter = bandInner + (paper ? 210 : 250)
+      // scroll past the hero. Light grounds carve a narrower channel:
+      // retreating ink keeps the mid-descent handoff from going fully blank.
+      bandInner = lightGround ? Math.min(300, vw * 0.3) : Math.min(360, vw * 0.34)
+      bandOuter = bandInner + (lightGround ? 210 : 250)
       placeRef.current.decided = false
       measure()
       if (!laidOut) {
@@ -1329,6 +1394,13 @@ export default function ContextField({
     let userBlend = 0
     let hasPointer = false
     let litIndex = -1
+    // Configure's UNSPREAD screen position (drift and parallax, no descent
+    // spread), carried frame to frame. The descent's vanishing point must
+    // be this, never the word's final position: converging the spread on
+    // the word's own OUTPUT feeds the spread its own displacement and the
+    // transform runs away exponentially within a second of scrolling.
+    let cfgRawX = 0
+    let cfgRawY = 0
 
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return
@@ -1403,7 +1475,7 @@ export default function ContextField({
       // dims less: retreating ink lingering through the handoff is what
       // keeps the descent from going featureless beige before "Who I am".
       const past = smoothstep(vh * 0.3, vh * 1.05, scrollY)
-      const dim = 1 - (paper ? 0.32 : 0.5) * past
+      const dim = 1 - (lightGround ? 0.32 : 0.5) * past
       const driftY = 26 * Math.sin(scrollY / (vh * 1.7))
       // Ambient camera drift: a slow orbit, a few pixels wide over ~26s,
       // applied with the same depth weighting as the cursor parallax so the
@@ -1414,9 +1486,24 @@ export default function ContextField({
       const ambY = Math.cos(clock * 0.173) * 3.4 + Math.sin(clock * 0.077) * 1.6
       // Vanishing point for the descent: near centre, a breath toward the
       // field's mass, so the frame empties evenly instead of hollowing out
-      // one side while words pile into the other.
-      const vpx = vw * 0.53
-      const vpy = vh * 0.45
+      // one side while words pile into the other. On the configure identity
+      // the vanishing point IS the word Configure: the camera's convergence
+      // point is its position, so the whole field flies outward past you
+      // while Configure alone grows toward you and holds the middle. The
+      // word's own screen position (last frame) is used, so the point rides
+      // its drift exactly and the word never slides against its own zoom.
+      const cfgIdx = cfg ? lightIdx : -1
+      let vpx = vw * 0.53
+      let vpy = vh * 0.45
+      if (cfgIdx >= 0 && !parked[cfgIdx]) {
+        if (cfgRawX !== 0 || cfgRawY !== 0) {
+          vpx = cfgRawX
+          vpy = cfgRawY
+        } else {
+          vpx = toX(bx[cfgIdx])
+          vpy = toY(by[cfgIdx])
+        }
+      }
       // Words hold their viewport clamp at rest, then let go on the way in
       // so passing words can genuinely leave the frame.
       const hold = 1 - smoothstep(0.01, 0.1, travel)
@@ -1533,7 +1620,13 @@ export default function ContextField({
         // measured layout untouched); as the camera advances, words ahead
         // swell and spread from the vanishing point, and words the camera
         // has passed blow up and fade out behind you.
-        const depthZ = 0.12 + depth[i] * 0.88
+        // On the configure identity, Configure is the deepest thing in the
+        // scene: the camera reaches it LAST, near the end of the descent,
+        // so the signature read is the whole life flying past while the
+        // word the map converges on grows to meet you, then the view
+        // passes THROUGH it into the reading.
+        const isCfgWord = i === cfgIdx
+        const depthZ = isCfgWord ? 0.9 : 0.12 + depth[i] * 0.88
         const rel = depthZ - camZ
         // The lingerers (paper phone only): the lowest words on the sheet
         // swell less, spread less, keep their frame clamp, and hold their
@@ -1541,29 +1634,42 @@ export default function ContextField({
         // a line or two of composed ink instead of ~600px of bare stock.
         const linger = lingerFlag[i] !== 0
         let s = (PERSP + depthZ) / (PERSP + Math.max(rel, -PERSP * 0.62))
-        const sCap = linger ? 1.5 : paper ? 2.4 : 3.2
+        const sCap = isCfgWord ? 7 : linger ? 1.5 : lightGround ? 2.4 : 3.2
         if (s > sCap) s = sCap
         // Words stay lit while they swell past the camera and only die once
-        // they are genuinely behind you; the fly-past is the point. Paper
-        // lets passed words linger much longer (and swell less), so the
-        // mid-descent sheet keeps some ink on it through the handoff.
+        // they are genuinely behind you; the fly-past is the point. Light
+        // grounds let passed words linger much longer (and swell less), so
+        // the mid-descent sheet keeps some ink on it through the handoff.
         // Each lingerer retires before the reading column climbs into its
         // band: the lower slot first, the upper one at the handoff's end,
-        // so lingering ink is never read through the prose.
-        const passFade = linger
-          ? smoothstep(-1.7, -0.35, rel) *
-            (lingerFlag[i] === 1
-              ? 1 - smoothstep(0.66, 0.84, travel)
-              : 1 - smoothstep(0.5, 0.68, travel))
-          : paper
-            ? smoothstep(-0.8, -0.08, rel)
-            : smoothstep(-0.36, -0.04, rel)
+        // so lingering ink is never read through the prose. Configure's own
+        // fade is the through-the-word moment: it holds full presence while
+        // it swells, and only lets go once the camera is genuinely inside
+        // it, handing the page to the reading right as the sheet arrives.
+        const passFade = isCfgWord
+          ? smoothstep(-0.5, -0.18, rel)
+          : linger
+            ? smoothstep(-1.7, -0.35, rel) *
+              (lingerFlag[i] === 1
+                ? 1 - smoothstep(0.66, 0.84, travel)
+                : 1 - smoothstep(0.5, 0.68, travel))
+            : lightGround
+              ? smoothstep(-0.8, -0.08, rel)
+              : smoothstep(-0.36, -0.04, rel)
         // Positions spread slower than glyphs swell, so the frame stays
         // populated through the middle of the descent instead of emptying
-        // the moment perspective kicks in.
-        const spreadS = 1 + (s - 1) * (linger ? 0.3 : 0.72)
-        x = vpx + (x - vpx) * spreadS
-        y = vpy + (y - vpy) * spreadS
+        // the moment perspective kicks in. Configure never spreads on its
+        // own identity: it IS the vanishing point, so it holds its raw
+        // position (recorded here for next frame's convergence) while the
+        // rest of the field streams outward past it.
+        if (isCfgWord) {
+          cfgRawX = x
+          cfgRawY = y
+        } else {
+          const spreadS = 1 + (s - 1) * (linger ? 0.3 : 0.72)
+          x = vpx + (x - vpx) * spreadS
+          y = vpy + (y - vpy) * spreadS
+        }
         // The entrance: each word breathes in on its cue with a small,
         // weighted settle of scale. Position is never touched, so the
         // choreography can never disturb the authored layout.
@@ -1624,8 +1730,14 @@ export default function ContextField({
         const w = wake[i]
         wake[i] = w + (target - w) * (target > w ? riseK : fallK)
 
-        // Reading channel: below the hero the field steps aside for the text.
-        const c = mix(1, smoothstep(bandInner, bandOuter, Math.abs(x - vw * 0.5)), past)
+        // Reading channel: below the hero the field steps aside for the
+        // text. Configure is exempt on its own identity: it sits dead
+        // center, exactly where the channel carves, and dimming it there
+        // would gut the zoom's climax. Its pass-fade retires it instead,
+        // timed to finish as the reading sheet covers the field.
+        const c = isCfgWord
+          ? 1
+          : mix(1, smoothstep(bandInner, bandOuter, Math.abs(x - vw * 0.5)), past)
         chan[i] = c
         vis[i] = c * passFade * inA
 
@@ -2255,7 +2367,7 @@ export default function ContextField({
         // nearly parallel to one already drawn is dropped (unless it is the
         // spine or belongs to the open card): fewer, better lines. Paper's
         // sparse density demands a wider fan (see MIN_EDGE_ANGLE_PAPER).
-        const minAng = paper ? MIN_EDGE_ANGLE_PAPER : MIN_EDGE_ANGLE
+        const minAng = lightGround ? MIN_EDGE_ANGLE_PAPER : MIN_EDGE_ANGLE
         const ang = Math.atan2(py[j] - py[i], px[j] - px[i])
         if (!isActive && !strong) {
           let bunched = false
@@ -2285,7 +2397,7 @@ export default function ContextField({
         // The grade reaches the web: strokes near the light source hold
         // more presence than strokes out in the atmospheric far field.
         // Ink on stock needs more body than light on ink to read at all.
-        alpha *= (lightE[i] + lightE[j]) * (paper ? 0.8 : 0.5)
+        alpha *= (lightE[i] + lightE[j]) * (lightGround ? 0.8 : 0.5)
         if (isActive) {
           const floor = 0.32 * Math.min(vis[i], vis[j]) * dim
           if (alpha < floor) alpha = floor
@@ -2312,14 +2424,18 @@ export default function ContextField({
         // The web carries the grade too: strokes near the light source
         // warm toward its tone (the shader mixes uBase toward uEmber by
         // tint, which at these values reads as warmth, never as accent).
-        // Ink on stock stays ink: paper keeps a whisper of warmth at most.
-        const tintI = paper ? warmK[i] * 0.16 : warmK[i] * 0.5
-        const tintJ = paper ? warmK[j] * 0.16 : warmK[j] * 0.5
+        // Ink on stock stays ink: light grounds keep a whisper at most.
+        // On configure the mix target is the brand slate, and the one
+        // stroke allowed to really carry it is the spine: slate spine
+        // emphasis, ink everything else, per the brand's single accent.
+        const tintI = cfg ? warmK[i] * 0.12 : paper ? warmK[i] * 0.16 : warmK[i] * 0.5
+        const tintJ = cfg ? warmK[j] * 0.12 : paper ? warmK[j] * 0.16 : warmK[j] * 0.5
         // The spine's stroke: one honest wide quad, warm, endpoints on the
         // same trim as every other edge (see SPINE_WIDTH).
         const w2 = strong ? SPINE_WIDTH : 0
-        const tintA2 = strong ? (paper ? 0.2 : 0.55) : tintI
-        const tintB2 = strong ? (paper ? 0.2 : 0.55) : tintJ
+        const strongTint = cfg ? 0.85 : paper ? 0.2 : 0.55
+        const tintA2 = strong ? strongTint : tintI
+        const tintB2 = strong ? strongTint : tintJ
         const alpha2 = strong ? alpha * 0.9 : alpha
         // The life spine draws ITSELF in during the entrance: each spine
         // stroke grows from the earlier-ignited word toward the later one.
@@ -2374,7 +2490,7 @@ export default function ContextField({
           (0.07 +
             0.12 * smoothstep(radius * 1.9, radius * 0.25, nearDist[n]) +
             wake[i] * 0.5 * smoothstep(radius, radius * 0.1, nearDist[n])) *
-          (paper ? 1.5 : 1) *
+          (lightGround ? 1.5 : 1) *
           tetherGate *
           vis[i] *
           dim *

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { HeroField } from "@/components/hero-field/HeroField"
-import { hfDisplay, hfSans, hfSerif } from "@/components/hero-field/fonts"
+import { hfInter, hfMono } from "@/components/hero-field/fonts"
 
 export const metadata: Metadata = {
   title: "Manuel David",
@@ -12,12 +12,14 @@ export const metadata: Metadata = {
 /**
  * THE CONTEXT FIELD — the site.
  *
- * Wears the HEAVY STOCK identity: the audited context map printed on warm
- * uncoated cardstock, the web inked into the fiber, Fraunces at press
- * weight, one oxide accent that only ever appears under the hand. The
- * field runs its calmest density tier, because a sheet earns its gravity
- * from what it leaves off. The dark lit-ink mono identity this route used
- * to wear lives on at /2; /1 /2 /3 stay up for comparison.
+ * Wears the CONFIGURE identity: his employer's brand system, applied as
+ * discipline rather than costume. Inter carries everything (Display 500,
+ * Body 400), IBM Plex Mono carries the data, the ground is flat canvas
+ * gray, the web is ink, and Configure Slate is the single accent — worn at
+ * rest by exactly one word, Configure, sitting at the center of the map.
+ * The scroll descent converges on that word: the whole field flies past,
+ * Configure grows to meet you, and the page passes through it into the
+ * reading. The earlier identities live on at /1 /2 /3 for comparison.
  *
  * Renders bare (SiteChrome skips nav, footer and chat on the root). Server
  * component on purpose: the whole page, hero and reading both, ships in the
@@ -27,8 +29,8 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <HeroField
-      variant="paper"
-      className={`${hfSerif.variable} ${hfSans.variable} ${hfDisplay.variable}`}
+      variant="configure"
+      className={`${hfInter.variable} ${hfMono.variable}`}
     />
   )
 }

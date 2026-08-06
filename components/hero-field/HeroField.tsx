@@ -43,6 +43,7 @@ const COLOPHON: Record<FieldVariant, string> = {
   grotesk: "Set in Bricolage Grotesque and Instrument Sans",
   mono: "Set in Newsreader and IBM Plex Mono",
   paper: "Set in Fraunces, Newsreader and IBM Plex Sans, on heavy stock",
+  configure: "Set in Inter and IBM Plex Mono",
 }
 
 const links = [
@@ -342,7 +343,7 @@ export function HeroField({
                 style={at(90)}
                 data-hf-keepout
               >
-                Welcome to my <em>context page.</em>
+                I moved to San Francisco <em>and went all in.</em>
               </p>
 
               <p
@@ -350,7 +351,8 @@ export function HeroField({
                 style={at(210)}
                 data-hf-keepout
               >
-                Behind this is the context of my life.
+                Founder of Paradigm and Nouvo before this. Every word out
+                here is a real piece of that run.
               </p>
 
               <p
@@ -358,9 +360,7 @@ export function HeroField({
                 style={at(290)}
                 data-hf-keepout
               >
-                {verb === "tap"
-                  ? "Tap any word and it will tell you its story."
-                  : "Hover any word and it will tell you its story."}
+                {verb === "tap" ? "Tap a word." : "Hover a word."}
               </p>
 
               <nav
