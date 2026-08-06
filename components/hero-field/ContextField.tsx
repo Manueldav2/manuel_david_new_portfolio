@@ -293,10 +293,10 @@ const FIELD_TUNE: Record<
   /* Heavy cardstock runs CALM: the spine, the majors, and nothing else.
    * A printed sheet earns its gravity from what it leaves off. */
   paper: { counts: [12, 16, 21], size: { key: 1.16, mid: 1.0, low: 0.98 } },
-  /* Configure runs the same calm register as paper: flat canvas, ink
-   * lines, a systematic scatter with real air. Configure itself is pinned
-   * to the middle of the frame and the descent converges on it. */
-  configure: { counts: [13, 18, 24], size: { key: 1.12, mid: 1.0, low: 0.98 } },
+  /* Configure runs the full audited field: every word that earned its
+   * story, flat canvas, ink lines, systematic scatter. Configure itself is
+   * pinned to the middle of the frame and the descent converges on it. */
+  configure: { counts: [18, 32, 44], size: { key: 1.12, mid: 1.0, low: 0.98 } },
 }
 
 export default function ContextField({
@@ -947,9 +947,9 @@ export default function ContextField({
      * whatever lesser words still overlap it sit out instead. Fully
      * deterministic: fixed candidate order, ties keep the first.
      */
-    const ensureAnchor = (keepouts: Box[]) => {
-      const i = lightIdx
+    const ensureAnchor = (keepouts: Box[], i: number = lightIdx) => {
       if (i < 0 || i >= COUNT || !parked[i]) return
+      const myImportance = importanceOf(fragments[i].node.id)
       const spanX = vw * 0.5 - 26
       const spanY = vh * 0.5 - 24
       if (spanX <= 0 || spanY <= 0 || keepouts.length === 0) return
@@ -966,7 +966,11 @@ export default function ContextField({
       let bestX = 0
       let bestY = 0
       let bestCost = Infinity
-      for (let row = 0; row < 6 && bestCost > 0; row++) {
+      // Narrow viewports have one usable band under the copy stack; six
+      // rows can run out before clearing the anchors already seated there,
+      // so tight cuts scan deeper.
+      const rowScan = vw < 720 ? 12 : 6
+      for (let row = 0; row < rowScan && bestCost > 0; row++) {
         const below = bandBelowFirst ? row % 2 === 0 : row % 2 === 1
         const off = halfH[i] + WORD_PAD_Y + 6 + Math.floor(row / 2) * rowH
         const cy2 = below ? stackBot + off : stackTop - off
@@ -981,12 +985,17 @@ export default function ContextField({
           }
           if (!clear) continue
           let cost = 0
-          for (let j = 0; j < COUNT; j++) {
+          for (let j = 0; j < COUNT && cost < Infinity; j++) {
             if (j === i || parked[j]) continue
             wordBox(j, boxB)
             const ox = Math.min(boxA[2], boxB[2]) - Math.max(boxA[0], boxB[0])
             const oy = Math.min(boxA[3], boxB[3]) - Math.max(boxA[1], boxB[1])
-            if (ox > 0 && oy > 0) cost += ox * oy
+            if (ox > 0 && oy > 0) {
+              // A rescue may only displace LESSER words: overlapping an
+              // equal-or-higher anchor makes this candidate unusable.
+              if (importanceOf(fragments[j].node.id) >= myImportance) cost = Infinity
+              else cost += ox * oy
+            }
           }
           if (cost < bestCost) {
             bestCost = cost
@@ -1004,14 +1013,33 @@ export default function ContextField({
       tbx[i] = bestX
       tby[i] = bestY
       parked[i] = 0
-      // The light source claims its spot: any lesser word still under it
-      // sits out. Everything is lesser; Configure is the top of the scale.
+      // The rescued anchor claims its spot: any LESSER word still under it
+      // sits out (candidates overlapping equal-or-higher anchors were
+      // rejected above, so this only ever displaces downward).
       wordBox(i, boxA)
       for (let j = 0; j < COUNT; j++) {
         if (j === i || parked[j]) continue
+        if (importanceOf(fragments[j].node.id) >= myImportance) continue
         wordBox(j, boxB)
         if (hits(boxA, boxB)) parked[j] = 1
       }
+    }
+
+    /**
+     * The anchor guarantee, generalized: every key anchor (importance >= 3)
+     * that a layout pass parked gets a rescue attempt, most important
+     * first, each only ever displacing lesser words. Configure (5) leads,
+     * then faith, Paradigm, Nouvo, San Francisco.
+     */
+    const ensureAnchors = (keepouts: Box[]) => {
+      const order: number[] = []
+      for (let i = 0; i < COUNT; i++) {
+        if (parked[i] && importanceOf(fragments[i].node.id) >= 3) order.push(i)
+      }
+      order.sort(
+        (a, b) => importanceOf(fragments[b].node.id) - importanceOf(fragments[a].node.id),
+      )
+      for (const i of order) ensureAnchor(keepouts, i)
     }
 
     const place = () => {
@@ -1201,8 +1229,8 @@ export default function ContextField({
         }
       }
 
-      // Configure always survives the cut; see ensureAnchor.
-      ensureAnchor(keepouts)
+      // Key anchors always survive the cut; see ensureAnchors.
+      ensureAnchors(keepouts)
 
       // On the configure identity's phone cut the copy stack owns the top
       // of the frame, and the keep-out pushes were shoving Configure off
@@ -1216,7 +1244,7 @@ export default function ContextField({
         const sy0 = tby[lightIdx]
         tbx[lightIdx] = 0
         parked[lightIdx] = 1
-        ensureAnchor(keepouts)
+        ensureAnchors(keepouts)
         if (parked[lightIdx]) {
           tbx[lightIdx] = sx0
           tby[lightIdx] = sy0
@@ -1322,7 +1350,7 @@ export default function ContextField({
 
       // A resize can shove Configure into a corner it cannot honestly
       // hold; the guarantee applies to every re-fit, not just placement.
-      ensureAnchor(keepouts)
+      ensureAnchors(keepouts)
 
       applyLight()
     }
