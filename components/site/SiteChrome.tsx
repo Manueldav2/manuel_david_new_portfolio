@@ -16,7 +16,7 @@ import { ChatDrawer } from "@/components/chat/ChatDrawer"
  * The legacy espresso pages (/work, /projects, /about, /chat) keep the
  * normal chrome until the rollout replaces them.
  */
-const BARE_ROUTE = /^\/([123](\/|$))?$/
+const BARE_ROUTE = /^\/$/
 
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
