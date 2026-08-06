@@ -10,11 +10,11 @@ export const alt = "Manuel David. Welcome to my context page."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-const INK = "#e6ddc9"
-const BONE = "#262119"
-const MUTE = "#6f675a"
-const FIELD = "#5d564a"
-const EMBER = "#942f12"
+const INK = "#EDEDED"
+const BONE = "#141414"
+const MUTE = "#6b7075"
+const FIELD = "#3d4348"
+const EMBER = "#586675"
 
 async function loadGoogleFont(family: string, ital: 0 | 1, text: string) {
   const css = await fetch(
@@ -45,8 +45,8 @@ const WORDS: {
   { t: "future focused", x: 662, y: 220, s: 18, o: 0.34 },
   { t: "Paradigm", x: 930, y: 258, s: 34, o: 0.7, serif: true },
   { t: "customer first", x: 700, y: 330, s: 17, o: 0.3 },
-  { t: "context", x: 1042, y: 372, s: 30, o: 0.85, serif: true, ember: true },
-  { t: "Configure", x: 796, y: 442, s: 36, o: 0.78, serif: true },
+  { t: "context", x: 1042, y: 372, s: 26, o: 0.6, serif: true },
+  { t: "Configure", x: 796, y: 442, s: 40, o: 1, serif: true, ember: true },
   { t: "Nouvo", x: 652, y: 520, s: 24, o: 0.44, serif: true },
   { t: "agents", x: 992, y: 520, s: 20, o: 0.4 },
   { t: "velocity", x: 836, y: 578, s: 16, o: 0.3 },
@@ -67,17 +67,17 @@ const LINES: { x: number; y: number; w: number; r: number; o: number }[] = [
 ]
 
 export default async function OpengraphImage() {
-  const heading = "Welcome to my context page. Manuel David"
+  const heading = "I moved to San Francisco and went all in. Manuel David Founding engineer at Configure"
   const fieldText = WORDS.map((w) => w.t).join("")
   const [serif, serifItalic, sans] = await Promise.all([
-    loadGoogleFont("Newsreader", 0, heading + fieldText),
-    loadGoogleFont("Newsreader", 1, "context page." + fieldText),
+    loadGoogleFont("Inter", 0, heading + fieldText),
+    loadGoogleFont("Inter", 0, heading + fieldText),
     loadGoogleFont("IBM Plex Sans", 0, heading + fieldText + "Founding engineer at Configure · San Francisco manueldavid.dev"),
   ])
 
   const fonts: NonNullable<ConstructorParameters<typeof ImageResponse>[1]>["fonts"] = []
-  if (serif) fonts.push({ name: "Newsreader", data: serif, style: "normal" as const })
-  if (serifItalic) fonts.push({ name: "Newsreader", data: serifItalic, style: "italic" as const })
+  if (serif) fonts.push({ name: "Inter", data: serif, style: "normal" as const })
+  
   if (sans) fonts.push({ name: "Plex", data: sans, style: "normal" as const })
 
   return new ImageResponse(
@@ -89,9 +89,9 @@ export default async function OpengraphImage() {
           display: "flex",
           backgroundColor: INK,
           backgroundImage:
-            "radial-gradient(105% 95% at 46% 38%, #efe8d8 0%, #e9e1cd 48%, #e0d5bd 82%, #d8ccb2 100%)",
+            "radial-gradient(120% 110% at 50% 40%, #F2F2F2 0%, #EDEDED 60%, #E7E7E7 100%)",
           position: "relative",
-          fontFamily: serif ? "Newsreader" : "serif",
+          fontFamily: serif ? "Inter" : "sans-serif",
         }}
       >
         {/* The field: hairlines first, words above them. */}
@@ -104,7 +104,7 @@ export default async function OpengraphImage() {
               top: l.y,
               width: l.w,
               height: 1,
-              backgroundColor: "#262119",
+              backgroundColor: "#141414",
               opacity: l.o,
               transform: `rotate(${l.r}deg)`,
               transformOrigin: "0 0",
@@ -121,8 +121,8 @@ export default async function OpengraphImage() {
               fontSize: w.s,
               color: w.ember ? EMBER : FIELD,
               opacity: w.ember ? 1 : w.o,
-              fontFamily: w.serif && serif ? "Newsreader" : sans ? "Plex" : "sans-serif",
-              fontStyle: w.serif ? "italic" : "normal",
+              fontFamily: serif ? "Inter" : "sans-serif",
+              fontStyle: "normal",
               letterSpacing: w.serif ? "-0.5px" : "0.5px",
             }}
           >
@@ -158,16 +158,17 @@ export default async function OpengraphImage() {
           </div>
           <div
             style={{
-              fontSize: 76,
+              fontSize: 62,
               lineHeight: 1.06,
               color: BONE,
-              letterSpacing: "-1.5px",
+              letterSpacing: "-2px", fontWeight: 500,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <span>Welcome to my</span>
-            <span style={{ fontStyle: "italic" }}>context page.</span>
+            <span>I moved to</span>
+            <span>San Francisco</span>
+            <span style={{ color: "#6b7075" }}>and went all in.</span>
           </div>
           <div
             style={{
