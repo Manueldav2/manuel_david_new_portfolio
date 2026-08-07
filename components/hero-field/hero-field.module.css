@@ -24,6 +24,16 @@
   --hf-pad: clamp(1.375rem, 3.4vw, 3.25rem);
   --hf-ease: cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* The hardware's own margins. The document declares viewport-fit=cover
+     (see app/layout.tsx) so the canvas runs edge to edge; these are what
+     every piece of content adds back so the notch, the rounded corners and
+     the home indicator never sit on top of type or a tap target. Zero on
+     every desktop browser, so nothing below this line moves at 1440. */
+  --hf-safe-t: env(safe-area-inset-top, 0px);
+  --hf-safe-r: env(safe-area-inset-right, 0px);
+  --hf-safe-b: env(safe-area-inset-bottom, 0px);
+  --hf-safe-l: env(safe-area-inset-left, 0px);
+
   position: relative;
   min-height: 100%;
   background-color: var(--hf-ink);
@@ -217,6 +227,51 @@
   color: var(--hf-ember);
 }
 
+/* ------------------------------------------------------------------ */
+/* Touch                                                               */
+/*                                                                     */
+/* A finger is not a cursor, and everything in this block says so.     */
+/* Gated to pointers that cannot hover, so the approved desktop        */
+/* composition is bit-for-bit untouched.                               */
+/* ------------------------------------------------------------------ */
+
+@media (hover: none), (pointer: coarse) {
+  /* WCAG 2.5.5. The word you SEE is exactly the word that was designed:
+     same size, same weight, same place. What grows is an invisible
+     surface centred on it, sized by the layout pass (ContextField's
+     applyHitAreas) to 44x44 wherever the real geometry allows and to
+     whatever fits where it does not — two targets are never allowed to
+     collide, so a tight pair gives back hit area instead of stealing
+     each other's taps. --hf-hit-w/h are written per word after every
+     layout, never per frame; the 100% fallback is the glyph box, which
+     is what the field had before this existed. */
+  .fragBtn::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--hf-hit-w, 100%);
+    height: var(--hf-hit-h, 100%);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The no-hover doctrine, said out loud. "Tap a word." is a lie on a
+     phone unless the words look tappable AT REST — there is no cursor to
+     discover them with. Every storied word (which is every word) carries
+     a hairline underneath it in the identity's accent. Static CSS: no
+     frame cost, no new paint work. */
+  .fragBtn {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.24em;
+    text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+  }
+
+  .fragBtn[data-active="true"] {
+    text-decoration-color: var(--hf-ember);
+  }
+}
+
 /* Fine grain. Kills gradient banding on the ground and gives the ink a
    surface. Inline SVG, so nothing is fetched. */
 .grain {
@@ -260,7 +315,10 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: min(21rem, calc(100vw - 24px));
+  /* The notch and the rounded corners eat into 100vw once the document
+     covers the display; the card gives that width back rather than
+     tucking its own edge under the hardware. */
+  width: min(21rem, calc(100vw - 24px - var(--hf-safe-l) - var(--hf-safe-r)));
   pointer-events: auto;
   will-change: transform;
   /* Unrevealed until the loop has placed it (one frame at most). */
@@ -268,10 +326,52 @@
 }
 
 .cardIn {
+  position: relative;
   background: #090d0f;
   border: 1px solid var(--hf-rule);
   padding: 0.95rem 1.1rem 0.9rem;
   animation: hfCard 160ms var(--hf-ease) both;
+}
+
+/* The dismiss. On a fine pointer the card closes by walking away, which
+   is why this does not exist there; on touch there is nothing to walk
+   away with, so the card carries an explicit way out. A 44x44 target in
+   the corner, the glyph inside it kept small and quiet. */
+.cardClose {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cardClose {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    appearance: none;
+    background: none;
+    border: none;
+    font: inherit;
+    font-size: 1.05rem;
+    line-height: 1;
+    color: var(--hf-mute);
+    cursor: pointer;
+  }
+
+  .cardClose:focus-visible {
+    outline: 1px solid var(--hf-rule);
+    outline-offset: -3px;
+  }
+
+  /* Room for the dismiss target, so the kind line and the title never
+     run underneath it. */
+  .cardIn {
+    padding-right: 2.9rem;
+  }
 }
 
 @keyframes hfCard {
@@ -332,6 +432,19 @@
   outline-offset: 3px;
 }
 
+/* The one link a card carries is the point of opening it, so on touch it
+   is a real target and not a 15px line of text. Negative margin keeps the
+   card the same height it always was; nothing else lives inside .cardMeta,
+   so the grown box has nothing to collide with. */
+@media (hover: none), (pointer: coarse) {
+  .cardLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -0.7rem 0;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Hero composition                                                    */
 /*                                                                     */
@@ -352,7 +465,10 @@
   display: flex;
   align-items: center;
   flex: 1;
-  padding: var(--hf-pad);
+  padding: calc(var(--hf-pad) + var(--hf-safe-t))
+    calc(var(--hf-pad) + var(--hf-safe-r))
+    calc(var(--hf-pad) + var(--hf-safe-b))
+    calc(var(--hf-pad) + var(--hf-safe-l));
   pointer-events: none;
 }
 
@@ -506,6 +622,59 @@
   border-radius: 1px;
 }
 
+/* ------------------------------------------------------------------ */
+/* Touch targets in the type                                           */
+/*                                                                     */
+/* Two different problems, two different answers.                      */
+/*                                                                     */
+/* STANDALONE links (the hero's ways out, the contact block, a rail's  */
+/* URL, a project's name) are their own line: they take a real 44px    */
+/* box and the rhythm around them opens up to pay for it.              */
+/*                                                                     */
+/* INLINE links inside a sentence cannot: their height is set by the   */
+/* line they live in, and boxing them would either break the prose or  */
+/* stack two targets on top of each other. WCAG 2.5.8 exempts exactly  */
+/* this case. They still get vertical padding, which on an inline box  */
+/* grows the tappable surface without touching the line height, so the */
+/* finger gets its 44px and the paragraph never moves.                 */
+/* ------------------------------------------------------------------ */
+@media (hover: none), (pointer: coarse) {
+  /* Only the gap BETWEEN rows goes: the 44px boxes already supply the
+     rhythm a stacked list needs, and zeroing the column gap as well would
+     run three links into one word on any touch screen wide enough to set
+     them side by side. */
+  .heroLinks,
+  .closeLinks {
+    row-gap: 0;
+  }
+
+  .heroLinks .link,
+  .closeLinks .link,
+  .railLink {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .railLink {
+    margin-top: 0.15rem;
+  }
+
+  /* A project's name is a heading AND the way into the project. The
+     negative margin hands the extra height back to the layout, so the
+     plate keeps its printed rhythm while the target reaches 44. */
+  .plateName a {
+    display: inline-block;
+    padding: 0.63rem 0;
+    margin: -0.63rem 0;
+  }
+
+  .inlineLink,
+  .plateNoteLink {
+    padding: 0.95rem 0;
+  }
+}
+
 /* Hero entrance: one composed stagger, 420ms of delay, nothing else. */
 @keyframes hfRise {
   from {
@@ -533,7 +702,12 @@
   position: relative;
   max-width: 72rem;
   margin: 0 auto;
-  padding: 0 var(--hf-pad) clamp(4rem, 9vw, 8rem);
+  /* The page foot is the one edge a home indicator can actually cover, so
+     the closing block buys its clearance explicitly. Side insets keep the
+     column off the rounded corners in landscape. */
+  padding: 0 calc(var(--hf-pad) + var(--hf-safe-r))
+    calc(clamp(4rem, 9vw, 8rem) + var(--hf-safe-b))
+    calc(var(--hf-pad) + var(--hf-safe-l));
 }
 
 /* The reading channel: a near-opaque band under the prose, fading at its
@@ -925,7 +1099,7 @@
 
 @media (max-width: 40rem) {
   .frame {
-    padding-bottom: calc(var(--hf-pad) + 2.5rem);
+    padding-bottom: calc(var(--hf-pad) + 2.5rem + var(--hf-safe-b));
   }
 
   .block {
@@ -1402,7 +1576,7 @@
 
 .root[data-variant="configure"] .frame {
   align-items: flex-start;
-  padding-top: clamp(4.5rem, 11vh, 7.5rem);
+  padding-top: calc(clamp(4.5rem, 11vh, 7.5rem) + var(--hf-safe-t));
 }
 
 .root[data-variant="configure"] .block {
@@ -1689,7 +1863,7 @@
    Configure at its center) owns the rest of the viewport. */
 @media (max-width: 40rem) {
   .root[data-variant="configure"] .frame {
-    padding-top: clamp(3.5rem, 9vh, 5rem);
+    padding-top: calc(clamp(3.5rem, 9vh, 5rem) + var(--hf-safe-t));
   }
 
   .root[data-variant="configure"] .headline {
@@ -1699,6 +1873,37 @@
 
   .root[data-variant="configure"] .deck {
     max-width: 30ch;
+  }
+}
+
+/* The phone copy stack pays for its own touch targets.
+ *
+ * Three hero links at 44px are 66px taller than three lines of 13px type,
+ * and on a 390 frame the copy stack is already a keep-out that swallows
+ * the top half — every pixel it grows is a pixel the field loses. So the
+ * rhythm around the links tightens by about the same amount it grew: the
+ * block starts a little higher and the space above the invite and the
+ * links closes up. The stack ends within ~20px of where it always did,
+ * and the words keep their band. Touch phones only. */
+@media (hover: none) and (max-width: 40rem) {
+  .root[data-variant="configure"] .frame {
+    padding-top: calc(clamp(2rem, 5vh, 3rem) + var(--hf-safe-t));
+  }
+
+  .root[data-variant="configure"] .headline {
+    margin-top: 0.8rem;
+  }
+
+  .root[data-variant="configure"] .deck {
+    margin-top: 0.85rem;
+  }
+
+  .root[data-variant="configure"] .invite {
+    margin-top: 0.85rem;
+  }
+
+  .root[data-variant="configure"] .heroLinks {
+    margin-top: 0.85rem;
   }
 }
 

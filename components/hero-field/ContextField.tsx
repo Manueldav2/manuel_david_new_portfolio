@@ -264,8 +264,49 @@ const TRAVEL_DEPTH = 1.45
 /** Padding kept around each word, and around the page's own type. The
  * vertical pad is deliberately larger than DRIFT_Y + the worst-case
  * parallax differential, so the placement guarantee survives motion. */
-const WORD_PAD_X = 22
-const WORD_PAD_Y = 12
+const WORD_PAD_X_BASE = 22
+const WORD_PAD_Y_BASE = 12
+/**
+ * A 390 viewport is not a small 1440. Forty-four pixels of daylight
+ * between two words costs a fifth of the usable width there, and the field
+ * was reading as a dozen lonely labels because of it, so a NARROW frame
+ * trades horizontal air for words.
+ *
+ * The vertical pad moves for a different reason and on a different gate.
+ * On a COARSE pointer that axis has a second job: a tap target is 44px
+ * tall (WCAG 2.5.5) while a 13px word's box is ~24, so each hit surface
+ * reaches ~10px past its own glyphs top and bottom. The pad has to cover
+ * that overhang plus the drift orbit, or two targets would collide even
+ * though the two WORDS never do. Seventeen is what that arithmetic costs,
+ * and it is owed on any touch screen — a phone held sideways and a tablet
+ * have the same fingers as a phone held upright.
+ */
+const WORD_PAD_X_NARROW = 15
+const WORD_PAD_Y_TOUCH = 17
+/** Half of the WCAG 2.5.5 target: the hit surface a coarse pointer wants. */
+const HIT_HALF = 22
+/**
+ * Worst-case RELATIVE wander between two words, in pixels: independent
+ * drift orbits (DRIFT x2), the ambient parallax differential (the two
+ * words can sit at opposite ends of the depth range), and the ghost
+ * cursor's lean. Subtracted from every real separation before hit
+ * surfaces are sized, so a target can never grow into its neighbour at
+ * some later second of the clock.
+ */
+const WANDER_X = 20
+const WANDER_Y = 14
+/** The smallest a field word is allowed to be set on a phone or any other
+ * touch screen. Below this the long tail stops being readable at arm's
+ * length and starts being texture, which is the one thing this field is
+ * not — and a word too small to read is also a word too small to aim at. */
+const TOUCH_MIN_PX = 13
+/**
+ * How many words the phone cut aims to show. The candidate list is
+ * deliberately longer (see FIELD_TUNE) so the fill pass has surplus to
+ * choose from; this is where it stops. Sixteen to twenty is the band
+ * where a 390 frame reads as a map rather than a list or a mess.
+ */
+const NARROW_SEATS = 19
 const TYPE_PAD_X = 18
 const TYPE_PAD_Y = 12
 
@@ -295,8 +336,12 @@ const FIELD_TUNE: Record<
   paper: { counts: [12, 16, 21], size: { key: 1.16, mid: 1.0, low: 0.98 } },
   /* Configure runs the full audited field: every word that earned its
    * story, flat canvas, ink lines, systematic scatter. Configure itself is
-   * pinned to the middle of the frame and the descent converges on it. */
-  configure: { counts: [18, 32, 44], size: { key: 1.12, mid: 1.0, low: 0.98 } },
+   * pinned to the middle of the frame and the descent converges on it.
+   * The phone count is deliberately higher than the placement can seat:
+   * the copy stack swallows the middle of a 390px frame and parks the
+   * words that started under it, so the cut needs surplus candidates for
+   * the band below the copy to land the target of 16-20 visible words. */
+  configure: { counts: [26, 32, 44], size: { key: 1.12, mid: 1.0, low: 0.98 } },
 }
 
 export default function ContextField({
@@ -464,8 +509,16 @@ export default function ContextField({
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const coarse =
       typeof window.matchMedia === "function" &&
-      window.matchMedia("(pointer: coarse)").matches
+      (window.matchMedia("(pointer: coarse)").matches ||
+        window.matchMedia("(hover: none)").matches)
     const narrow = window.innerWidth < 720
+
+    // Two different gates for two different reasons (see the constants):
+    // horizontal thrift is about the width of the frame, vertical room is
+    // about the size of a finger. A fine pointer on a wide screen matches
+    // neither, so the approved desktop composition keeps its own numbers.
+    const WORD_PAD_X = narrow ? WORD_PAD_X_NARROW : WORD_PAD_X_BASE
+    const WORD_PAD_Y = coarse ? WORD_PAD_Y_TOUCH : WORD_PAD_Y_BASE
 
     const bx = new Float32Array(COUNT)
     const by = new Float32Array(COUNT)
@@ -561,11 +614,17 @@ export default function ContextField({
       const w = importanceOf(fragments[i].node.id)
       baseA[i] = Math.min(0.95, (0.3 + 0.026 * w * w) * (0.94 + t * 0.12))
       const narrowK = fragments[i].tier === "key" ? 0.7 : 0.86
-      const size =
+      let size =
         (10.5 + 1.05 * w * w) *
         (0.96 + t * 0.08) *
         (narrow ? narrowK : 1) *
         tune[fragments[i].tier]
+      // On a phone the long tail was landing at 9.6-10.1px, which is not
+      // small type, it is unreadable type wearing the costume of
+      // atmosphere. The floor is legibility; the hierarchy above it is
+      // untouched, and a fine pointer on a wide screen never reaches
+      // this line.
+      if ((narrow || coarse) && size < TOUCH_MIN_PX) size = TOUCH_MIN_PX
       els[i].style.fontSize = `${size.toFixed(2)}px`
     }
 
@@ -697,6 +756,37 @@ export default function ContextField({
     let restNear = 260
     let restFar = 860
 
+    /**
+     * The hardware's margins, in numbers the layout can use. The document
+     * declares viewport-fit=cover, so vw/vh now include the strip under
+     * the notch and the strip the home indicator lives on; the CSS gives
+     * that back to the type with env(safe-area-inset-*), and this gives it
+     * back to the two things CSS cannot reach: where a word is allowed to
+     * sit, and where a card is allowed to be clamped. env() is not
+     * readable from script, so a zero-size probe carries the values into
+     * JS. Read on resize, never per frame; every desktop browser reports
+     * four zeros and nothing below changes.
+     */
+    const safeProbe = document.createElement("div")
+    safeProbe.setAttribute("aria-hidden", "true")
+    safeProbe.style.cssText =
+      "position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;" +
+      "padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) " +
+      "env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)"
+    document.body.appendChild(safeProbe)
+    let safeT = 0
+    let safeR = 0
+    let safeB = 0
+    let safeL = 0
+    const readSafe = () => {
+      const cs = getComputedStyle(safeProbe)
+      safeT = parseFloat(cs.paddingTop) || 0
+      safeR = parseFloat(cs.paddingRight) || 0
+      safeB = parseFloat(cs.paddingBottom) || 0
+      safeL = parseFloat(cs.paddingLeft) || 0
+    }
+    readSafe()
+
     const measure = () => {
       for (let i = 0; i < COUNT; i++) {
         halfW[i] = els[i].offsetWidth / 2
@@ -732,13 +822,43 @@ export default function ContextField({
       const sx = window.scrollX || 0
       const sy = window.scrollY || 0
       document.querySelectorAll("[data-hf-keepout]").forEach((node) => {
-        const r = (node as HTMLElement).getBoundingClientRect()
+        const el = node as HTMLElement
+        const r = el.getBoundingClientRect()
         if (r.width < 2 || r.height < 2) return
+        // The hero's entrance lifts each line in from a few pixels below,
+        // and getBoundingClientRect reports where a thing IS, not where it
+        // is going to be. A layout computed while that is still running
+        // reads every keep-out low by however far it has left to travel —
+        // and the layout runs on fonts.ready, which lands at a different
+        // moment on every load. On a wide frame that is worth a fraction
+        // of a pixel; on a 390 frame, where a row of words is the whole
+        // difference between a map and a handful, it was the story behind
+        // a phone cut that seated fourteen words one load and seventeen
+        // the next. Subtracting the live transform makes a keep-out the
+        // SETTLED box every time, so the phone composition is a
+        // composition and not a coin toss.
+        //
+        // Narrow only, deliberately: the wide layout is approved as it
+        // stands and does not get so much as a sub-pixel from this.
+        let dx = 0
+        let dy = 0
+        if (narrow) {
+          try {
+            const t = getComputedStyle(el).transform
+            if (t && t !== "none") {
+              const m = new DOMMatrixReadOnly(t)
+              dx = m.e
+              dy = m.f
+            }
+          } catch {
+            /* No DOMMatrix: fall back to the live box. */
+          }
+        }
         keepouts.push([
-          r.left + sx - TYPE_PAD_X,
-          r.top + sy - TYPE_PAD_Y,
-          r.right + sx + TYPE_PAD_X,
-          r.bottom + sy + TYPE_PAD_Y,
+          r.left - dx + sx - TYPE_PAD_X,
+          r.top - dy + sy - TYPE_PAD_Y,
+          r.right - dx + sx + TYPE_PAD_X,
+          r.bottom - dy + sy + TYPE_PAD_Y,
         ])
       })
       typeBoxes = keepouts
@@ -774,7 +894,13 @@ export default function ContextField({
      * never sit on, so this is a hard exclusion, not a preference.
      */
     const cardSpot = (i: number, cw: number, ch: number, sy: number): number => {
+      // Same margins the frame loop clamps with, safe areas included, so
+      // "clear" here means clear where the card will actually land.
       const M = 12
+      const mL = M + safeL
+      const mR = M + safeR
+      const mT = M + safeT
+      const mB = M + safeB
       const ax = px[i]
       const ay = py[i]
       const gap = halfH[i] * sc[i] + 12
@@ -785,22 +911,22 @@ export default function ContextField({
         if (m === 0) {
           left = ax - cw * 0.32
           top = ay + gap
-          if (top + ch > vh - M) continue
+          if (top + ch > vh - mB) continue
         } else if (m === 1) {
           left = ax - cw * 0.32
           top = ay - gap - ch
-          if (top < M) continue
+          if (top < mT) continue
         } else if (m === 2) {
           left = ax + side
           top = ay - ch / 2
-          if (left + cw > vw - M) continue
+          if (left + cw > vw - mR) continue
         } else {
           left = ax - side - cw
           top = ay - ch / 2
-          if (left < M) continue
+          if (left < mL) continue
         }
-        left = Math.min(Math.max(M, left), vw - M - cw)
-        top = Math.min(Math.max(M, top), vh - M - ch)
+        left = Math.min(Math.max(mL, left), vw - mR - cw)
+        top = Math.min(Math.max(mT, top), vh - mB - ch)
         if (rectClearOfType(left, top, left + cw, top + ch, sy)) return m
       }
       return -1
@@ -824,6 +950,24 @@ export default function ContextField({
       else if (tbx[i] > lx) tbx[i] = lx
       if (tby[i] < -ly) tby[i] = -ly
       else if (tby[i] > ly) tby[i] = ly
+      // The safe areas, in the same breath as the frame margins. A word
+      // under the home indicator is a word you tap twice and reach once,
+      // and one under the notch is not there at all. Zero on desktop, so
+      // this is a no-op everywhere the composition was approved.
+      if (safeT || safeR || safeB || safeL) {
+        const spanX = vw * 0.5 - 26
+        const spanY = vh * 0.5 - 24
+        if (spanX > 0 && spanY > 0) {
+          const yBot = vh - 24 - safeB - halfH[i]
+          const yTop = 24 + safeT + halfH[i]
+          const xR = vw - 28 - safeR - halfW[i]
+          const xL = 28 + safeL + halfW[i]
+          if (toY(tby[i]) > yBot) tby[i] = (yBot - vh * 0.5) / spanY
+          if (toY(tby[i]) < yTop) tby[i] = (yTop - vh * 0.5) / spanY
+          if (toX(tbx[i]) > xR) tbx[i] = (xR - vw * 0.5) / spanX
+          if (toX(tbx[i]) < xL) tbx[i] = (xL - vw * 0.5) / spanX
+        }
+      }
       // A corner is where a label goes to die.
       if (Math.abs(tbx[i]) > 0.88 && Math.abs(tby[i]) > 0.88) {
         tbx[i] *= 0.86
@@ -947,9 +1091,23 @@ export default function ContextField({
      * whatever lesser words still overlap it sit out instead. Fully
      * deterministic: fixed candidate order, ties keep the first.
      */
-    const ensureAnchor = (keepouts: Box[], i: number = lightIdx) => {
+    const ensureAnchor = (
+      keepouts: Box[],
+      i: number = lightIdx,
+      /**
+       * Normally a rescue may only displace words BELOW it in importance,
+       * so two equal anchors can never chase each other around the frame.
+       * The centre re-seat (configure identity, phone) passes true: there
+       * the word being rescued is the single most important thing on the
+       * page and its slot is the brief, so a tie loses to it and gets its
+       * own rescue on the next pass. Configure is the only importance-5
+       * word that ever asks, so this cannot cycle.
+       */
+      displaceTies = false,
+    ) => {
       if (i < 0 || i >= COUNT || !parked[i]) return
-      const myImportance = importanceOf(fragments[i].node.id)
+      const myImportance =
+        importanceOf(fragments[i].node.id) + (displaceTies ? 0.5 : 0)
       const spanX = vw * 0.5 - 26
       const spanY = vh * 0.5 - 24
       if (spanX <= 0 || spanY <= 0 || keepouts.length === 0) return
@@ -984,7 +1142,13 @@ export default function ContextField({
             clear = !hits(boxA, keepouts[b])
           }
           if (!clear) continue
-          let cost = 0
+          // The centre re-seat is about WHERE, not just whether: a clear
+          // slot pinned to the far edge of the frame is a worse answer for
+          // Configure than the middle of the band with one small word
+          // moved out of it (and that word gets its own slot back on the
+          // fill pass). 220px^2 per pixel off centre puts one column of
+          // drift at roughly the price of one overlapped label.
+          let cost = displaceTies ? Math.abs(toX(tbx[i]) - vw * 0.5) * 220 : 0
           for (let j = 0; j < COUNT && cost < Infinity; j++) {
             if (j === i || parked[j]) continue
             wordBox(j, boxB)
@@ -1042,11 +1206,254 @@ export default function ContextField({
       for (const i of order) ensureAnchor(keepouts, i)
     }
 
+    /**
+     * The phone fill.
+     *
+     * On a 390 frame the copy stack is a keep-out that owns the top half,
+     * and step 3 parks every word the relaxation could not honestly seat
+     * around it — the cut was showing eleven words out of twenty-six, which
+     * reads as a page that ran out of things to say rather than a map of a
+     * life. This gives every parked word one attempt at the open ground.
+     *
+     * It is not a packer and it does not re-sample: each word scans a fixed
+     * grid over the frame and takes the FULLY CLEAR slot nearest its own
+     * authored position, so the composition's shape survives the re-seating
+     * instead of collapsing into a queue at the top of the band. Most
+     * important first, and it displaces nothing — a word that finds no
+     * honest slot stays out, exactly as before.
+     *
+     * On a narrow frame it stops at NARROW_SEATS: the candidate list is
+     * deliberately longer than the frame can hold so this pass has surplus
+     * to choose from, and the words it never reaches are the least
+     * important in the field. Wider touch frames (a phone turned sideways,
+     * a tablet) have no such cap — there the pass is only making back the
+     * words the 44px vertical pad cost them.
+     *
+     * Never on a fine pointer: those layouts seat 43 of 44 unaided, and
+     * the approved desktop composition must not be touched by any of this.
+     */
+    const fillParked = (keepouts: Box[]) => {
+      if (!narrow && !coarse) return
+      const seatCap = narrow ? NARROW_SEATS : COUNT
+      const spanX = vw * 0.5 - 26
+      const spanY = vh * 0.5 - 24
+      if (spanX <= 0 || spanY <= 0) return
+
+      let seated = 0
+      const order: number[] = []
+      for (let i = 0; i < COUNT; i++) {
+        if (parked[i]) order.push(i)
+        else seated++
+      }
+      if (seated >= seatCap) return
+      order.sort(
+        (a, b) => importanceOf(fragments[b].node.id) - importanceOf(fragments[a].node.id),
+      )
+
+      /* Candidates. Two kinds, and the second is what makes this work:
+       * a coarse sweep of the whole frame, plus every position that sits
+       * FLUSH against something already there — the far side of a seated
+       * word, the far side of a keep-out, the frame's own margin. A grid
+       * alone leaves a sliver of dead air around every obstacle, and on a
+       * 390 frame those slivers are the difference between twelve words
+       * and twenty. */
+      const STEP_X = 10
+      const STEP_Y = 8
+      const xs: number[] = []
+      const ys: number[] = []
+
+      /* Y is three times as expensive to travel as X. A word that cannot
+       * stay where it was authored should slide along its own line into
+       * the open ground beside it, not drop to a new row — which is also
+       * how words end up sharing rows instead of staggering, and why the
+       * band packs at all. */
+      const YCOST = 3
+
+      for (const i of order) {
+        if (seated >= seatCap) break
+        const homeX = tbx[i]
+        const homeY = tby[i]
+        const homeXp = toX(homeX)
+        const homeYp = toY(homeY)
+        const hw = halfW[i] + WORD_PAD_X
+        const hh = halfH[i] + WORD_PAD_Y
+        const xMin = 26 + halfW[i]
+        const xMax = vw - 26 - halfW[i]
+        const yMin = 24 + halfH[i]
+        const yMax = vh - 24 - halfH[i]
+        if (xMax < xMin || yMax < yMin) continue
+
+        xs.length = 0
+        ys.length = 0
+        for (let x = xMin; x <= xMax; x += STEP_X) xs.push(x)
+        xs.push(xMax)
+        for (let y = yMin; y <= yMax; y += STEP_Y) ys.push(y)
+        ys.push(yMax)
+        const flush = (b: Box) => {
+          if (b[0] - hw >= xMin && b[0] - hw <= xMax) xs.push(b[0] - hw)
+          if (b[2] + hw >= xMin && b[2] + hw <= xMax) xs.push(b[2] + hw)
+          if (b[1] - hh >= yMin && b[1] - hh <= yMax) ys.push(b[1] - hh)
+          if (b[3] + hh >= yMin && b[3] + hh <= yMax) ys.push(b[3] + hh)
+        }
+        for (let b = 0; b < keepouts.length; b++) flush(keepouts[b])
+        for (let j = 0; j < COUNT; j++) {
+          if (j === i || parked[j]) continue
+          wordBox(j, boxB)
+          flush(boxB)
+        }
+        // Nearest to home first, so the first honest slot is already close
+        // to the best one and the cost prune below skips almost everything
+        // after it. Value breaks ties, so the order never depends on the
+        // sort's stability.
+        xs.sort((a, b) => Math.abs(a - homeXp) - Math.abs(b - homeXp) || a - b)
+        ys.sort((a, b) => Math.abs(a - homeYp) - Math.abs(b - homeYp) || a - b)
+
+        let bestX = 0
+        let bestY = 0
+        let bestCost = Infinity
+
+        for (let yi = 0; yi < ys.length; yi++) {
+          const dy = ys[yi] - homeYp
+          const rowCost = YCOST * dy * dy
+          // Cheapest possible cost for this whole row: if even a perfect
+          // x cannot beat the incumbent, the row is not worth testing.
+          if (rowCost >= bestCost) continue
+          const ny = (ys[yi] - vh * 0.5) / spanY
+          for (let xi = 0; xi < xs.length; xi++) {
+            const dx = xs[xi] - homeXp
+            const cost = dx * dx + rowCost
+            if (cost >= bestCost) continue
+            tbx[i] = (xs[xi] - vw * 0.5) / spanX
+            tby[i] = ny
+            clampWord(i)
+            wordBox(i, boxA)
+            let clear = true
+            for (let b = 0; b < keepouts.length && clear; b++) {
+              clear = !hits(boxA, keepouts[b])
+            }
+            for (let j = 0; j < COUNT && clear; j++) {
+              if (j === i || parked[j]) continue
+              wordBox(j, boxB)
+              if (hits(boxA, boxB)) clear = false
+            }
+            if (!clear) continue
+            bestCost = cost
+            bestX = tbx[i]
+            bestY = tby[i]
+          }
+        }
+
+        if (bestCost < Infinity) {
+          tbx[i] = bestX
+          tby[i] = bestY
+          parked[i] = 0
+          seated++
+        } else {
+          tbx[i] = homeX
+          tby[i] = homeY
+        }
+      }
+    }
+
+    /** Per-word hit-surface half-extents, in CSS pixels. Written to the
+     * DOM as --hf-hit-w/h and read by .fragBtn::after; see applyHitAreas. */
+    const hitW = new Float32Array(COUNT)
+    const hitH = new Float32Array(COUNT)
+
+    /**
+     * Touch targets (WCAG 2.5.5), sized against the real layout.
+     *
+     * The visible word never changes: same face, same size, same place.
+     * What grows is a transparent surface centred on it, and it grows to
+     * 44x44 — unless the geometry says it cannot. For every pair this
+     * subtracts the worst-case relative wander (drift orbits, ambient
+     * parallax, the ghost cursor's lean) from their true separation and,
+     * where 44 would put two targets on top of each other, hands the
+     * overlap back: first the width, which nothing depends on, and only
+     * then the height. A word's own glyph box is the floor.
+     *
+     * The result is that a tap always resolves to the word you aimed at,
+     * at every second of the drift clock, rather than to whichever
+     * invisible rectangle happened to be painted last.
+     *
+     * Runs after every layout (placement, eviction, resize) and never per
+     * frame. Fine pointers skip it entirely and the pseudo-element that
+     * reads these variables does not exist there.
+     */
+    const applyHitAreas = () => {
+      if (!coarse) return
+      for (let i = 0; i < COUNT; i++) {
+        hitW[i] = Math.max(halfW[i], HIT_HALF)
+        hitH[i] = Math.max(halfH[i], HIT_HALF)
+      }
+      for (let pass = 0; pass < 4; pass++) {
+        let cut = false
+        for (let i = 0; i < COUNT; i++) {
+          if (parked[i]) continue
+          const xi = toX(tbx[i])
+          const yi = toY(tby[i])
+          for (let j = i + 1; j < COUNT; j++) {
+            if (parked[j]) continue
+            const dx = Math.abs(xi - toX(tbx[j])) - WANDER_X
+            const dy = Math.abs(yi - toY(tby[j])) - WANDER_Y
+            const exX = hitW[i] + hitW[j] - dx
+            const exY = hitH[i] + hitH[j] - dy
+            if (exX <= 0 || exY <= 0) continue
+            cut = true
+            const roomX = hitW[i] - halfW[i] + (hitW[j] - halfW[j])
+            const roomY = hitH[i] - halfH[i] + (hitH[j] - halfH[j])
+            // Width first: height is the rule this whole pass exists to
+            // keep, and two words side by side lose nothing real by
+            // stopping their surfaces short of each other.
+            if (exX <= roomX) {
+              const k = (roomX - exX) / roomX
+              hitW[i] = halfW[i] + (hitW[i] - halfW[i]) * k
+              hitW[j] = halfW[j] + (hitW[j] - halfW[j]) * k
+            } else if (exY <= roomY) {
+              const k = (roomY - exY) / roomY
+              hitH[i] = halfH[i] + (hitH[i] - halfH[i]) * k
+              hitH[j] = halfH[j] + (hitH[j] - halfH[j]) * k
+            } else {
+              // Neither axis can pay. Both surfaces fall back to the words
+              // themselves, which is where the field started.
+              hitW[i] = halfW[i]
+              hitW[j] = halfW[j]
+              hitH[i] = halfH[i]
+              hitH[j] = halfH[j]
+            }
+          }
+        }
+        if (!cut) break
+      }
+      for (let i = 0; i < COUNT; i++) {
+        const el = els[i]
+        el.style.setProperty("--hf-hit-w", `${(hitW[i] * 2).toFixed(1)}px`)
+        el.style.setProperty("--hf-hit-h", `${(hitH[i] * 2).toFixed(1)}px`)
+        // A parked word is invisible but, until now, still tappable: on a
+        // 390 frame that left a stack of a dozen zero-opacity buttons in
+        // the top-left corner, any of which could answer a tap meant for
+        // the ground. Nothing you cannot see may take a touch.
+        el.style.pointerEvents = parked[i] ? "none" : ""
+      }
+    }
+
     const place = () => {
       const keepouts = gatherKeepouts()
       const spanX = vw * 0.5 - 26
       const spanY = vh * 0.5 - 24
       if (spanX <= 0 || spanY <= 0) return
+
+      // The open ground, measured before anything is placed: everything
+      // above the first keep-out and everything below the last. On a phone
+      // the copy stack owns the middle of the frame, so "the centre of the
+      // composition" has to mean the centre of what is actually left.
+      let stack0 = Infinity
+      let stack1 = -Infinity
+      for (const k of keepouts) {
+        if (k[1] < stack0) stack0 = k[1]
+        if (k[3] > stack1) stack1 = k[3]
+      }
+      const hasStack = keepouts.length > 0 && stack1 > stack0
 
       // 1) The authored composition, straight from the data (graph y is
       //    up-positive; the screen's is not). Paper compresses the vertical
@@ -1067,6 +1474,17 @@ export default function ContextField({
         if (cfg && i === lightIdx) {
           tbx[i] = 0.03
           tby[i] = 0.06
+          // ...except on a phone, where the copy is not to the left of the
+          // centre, it IS the centre: a 390 frame gives the stack the top
+          // half and the field the band underneath. Configure starts dead
+          // centre of THAT band, horizontally centred, and the relaxation's
+          // pin then makes every neighbour move around it rather than the
+          // other way. Starting it here is what keeps it centred; the
+          // rescue below is only the net.
+          if (narrow && hasStack) {
+            tbx[i] = 0
+            tby[i] = ((stack1 + vh) * 0.5 - vh * 0.5) / spanY
+          }
         }
         clampWord(i)
       }
@@ -1229,28 +1647,35 @@ export default function ContextField({
         }
       }
 
-      // Key anchors always survive the cut; see ensureAnchors.
-      ensureAnchors(keepouts)
-
       // On the configure identity's phone cut the copy stack owns the top
       // of the frame, and the keep-out pushes were shoving Configure off
-      // to whichever side had room. The middle is the brief: re-seat it
-      // through the anchor guarantee with a centered starting column, so
-      // it lands centered in the first open band under the copy. If the
-      // guarantee finds nothing it falls back to wherever the relaxation
-      // had honestly put it, never to sitting out.
-      if (cfg && narrow && lightIdx >= 0 && !parked[lightIdx] && keepouts.length) {
+      // to whichever side had room. The middle is the brief, so the centre
+      // re-seat runs FIRST, before the other anchors are rescued into the
+      // open band: Configure picks its slot from empty ground and takes
+      // the centred column it was pinned to, and faith, Paradigm, Nouvo
+      // and San Francisco arrange themselves around it on the pass below.
+      // If the guarantee finds nothing it falls back to wherever the
+      // relaxation had honestly put it, never to sitting out.
+      if (cfg && narrow && lightIdx >= 0 && keepouts.length) {
         const sx0 = tbx[lightIdx]
         const sy0 = tby[lightIdx]
+        const sp0 = parked[lightIdx]
         tbx[lightIdx] = 0
         parked[lightIdx] = 1
-        ensureAnchors(keepouts)
+        ensureAnchor(keepouts, lightIdx, true)
         if (parked[lightIdx]) {
           tbx[lightIdx] = sx0
           tby[lightIdx] = sy0
-          parked[lightIdx] = 0
+          parked[lightIdx] = sp0
         }
       }
+
+      // Key anchors always survive the cut; see ensureAnchors.
+      ensureAnchors(keepouts)
+
+      // ...and on a phone, everything the cut parked gets one honest shot
+      // at the open ground before the frame is called finished.
+      fillParked(keepouts)
 
       for (let i = 0; i < COUNT; i++) {
         bx[i] = tbx[i]
@@ -1258,6 +1683,7 @@ export default function ContextField({
       }
 
       applyLight()
+      applyHitAreas()
     }
 
     /**
@@ -1351,13 +1777,16 @@ export default function ContextField({
       // A resize can shove Configure into a corner it cannot honestly
       // hold; the guarantee applies to every re-fit, not just placement.
       ensureAnchors(keepouts)
+      fillParked(keepouts)
 
       applyLight()
+      applyHitAreas()
     }
 
     let laidOut = false
 
     const resize = () => {
+      readSafe()
       const w = host.clientWidth || window.innerWidth
       const h = host.clientHeight || window.innerHeight
       // The canvas always matches the real viewport 1:1 in CSS pixels.
@@ -1975,6 +2404,14 @@ export default function ContextField({
         const axp = px[actIdx]
         const ayp = py[actIdx]
         const M = 12
+        // The frame runs under the hardware now (viewport-fit=cover), so
+        // the card's own margins carry the insets: a card clamped to the
+        // bottom of a phone would otherwise put its last line, and its
+        // link, under the home indicator.
+        const ML = M + safeL
+        const MR = M + safeR
+        const MT = M + safeT
+        const MB = M + safeB
         const GAP = halfH[actIdx] * sc[actIdx] + 12
         const SIDE = halfW[actIdx] * sc[actIdx] + 18
         const place2 = placeRef.current
@@ -1989,8 +2426,8 @@ export default function ContextField({
               let left =
                 m === 2 ? axp + SIDE : m === 3 ? axp - SIDE - cw2 : axp - cw2 * 0.32
               let top2 = m === 0 ? ayp + GAP : m === 1 ? ayp - GAP - ch2 : ayp - ch2 / 2
-              left = Math.min(Math.max(M, left), vw - M - cw2)
-              top2 = Math.min(Math.max(M, top2), vh - M - ch2)
+              left = Math.min(Math.max(ML, left), vw - MR - cw2)
+              top2 = Math.min(Math.max(MT, top2), vh - MB - ch2)
               let cost = 0
               for (let k = 0; k < typeBoxes.length; k++) {
                 const tb2 = typeBoxes[k]
@@ -2021,8 +2458,8 @@ export default function ContextField({
           top = place2.mode === 0 ? ayp + GAP : ayp - GAP - ch2
           leftPx = axp - cw2 * 0.32
         }
-        top = Math.min(Math.max(M, top), vh - M - ch2)
-        leftPx = Math.min(Math.max(M, leftPx), vw - M - cw2)
+        top = Math.min(Math.max(MT, top), vh - MB - ch2)
+        leftPx = Math.min(Math.max(ML, leftPx), vw - MR - cw2)
         cardEl.style.transform = `translate3d(${leftPx.toFixed(1)}px, ${top.toFixed(1)}px, 0)`
         cardEl.style.visibility = "visible"
       }
@@ -2667,6 +3104,7 @@ export default function ContextField({
         renderer.forceContextLoss()
       }
       if (canvas?.parentNode) canvas.parentNode.removeChild(canvas)
+      if (safeProbe.parentNode) safeProbe.parentNode.removeChild(safeProbe)
       redrawRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2742,6 +3180,22 @@ export default function ContextField({
                   onBlur={blurAway}
                 >
                   <div className={styles.cardIn}>
+                    {/* Touch has no "walk away", so the card carries an
+                        explicit way out. Rendered always, shown only where
+                        the pointer cannot hover (CSS); the approved
+                        desktop card is unchanged. */}
+                    <button
+                      type="button"
+                      className={styles.cardClose}
+                      aria-label={`Close ${activeNode.label}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        suppressRef.current = activeNode.id
+                        close()
+                      }}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
                     <p className={styles.cardKind}>{KIND_LABEL[activeNode.kind]}</p>
                     <p className={styles.cardTitle}>{activeNode.label}</p>
                     <p className={styles.cardStory}>{activeNode.story}</p>

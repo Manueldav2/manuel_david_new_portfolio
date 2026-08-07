@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SiteChrome } from "@/components/site/SiteChrome"
@@ -30,6 +30,20 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     creator: "@manny2techy",
   },
+}
+
+/**
+ * The frame runs edge to edge on a phone. `viewport-fit: cover` lets the
+ * flat canvas reach under the notch and the home indicator instead of
+ * ending in two letterboxed bars, which is the only way the field reads as
+ * one continuous ground; every piece of CONTENT then buys its clearance
+ * back with env(safe-area-inset-*) padding (see hero-field.module.css), so
+ * nothing readable or tappable ever sits under the hardware.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
